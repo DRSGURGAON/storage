@@ -6,17 +6,36 @@ way it is instead of re-litigating it. Each entry cites the blueprint section
 it serves and marks whether it is a firm decision or an assumption pending
 confirmation.
 
-## §0 — Technology stack: not yet decided
+## §0 — Technology stack: DECIDED
 
-The blueprint specifies product behavior, not a stack. Nothing in this
-repository commits to a language, framework, database engine, or hosting
-model. The reference schema (`schema/*.sql`) is written in plain PostgreSQL
-DDL because it is the most precise, portable way to pin down the data model —
-not because Postgres has been chosen over another RDBMS. **Action needed:**
-before Phase 1 of `dev-phases.md` starts, pick: backend language/framework,
-frontend framework, database engine, object storage for attachments, PDF
-rendering approach, and hosting/deployment target. This is the single biggest
-open item blocking actual code.
+Repository inspection before Phase 1 (per the scope-freeze phase's explicit
+instruction to inspect before assuming) confirmed no application code, no
+package manifest, and no framework config exist anywhere in this
+repository — only documentation and the reference schema. The "keep the
+existing stack if sound" default therefore does not apply; there is no
+existing stack to evaluate. Decided:
+
+| Layer | Choice |
+|---|---|
+| Language | TypeScript everywhere (backend, frontend, PWA) |
+| Backend framework | NestJS (Node.js) |
+| Database | PostgreSQL 16 — already the schema's native format (RLS, generated columns, `FOR UPDATE` row locks, `SET LOCAL` session context) |
+| Query layer | Drizzle ORM, SQL-first, raw-SQL escape hatches for tenant context and row locking |
+| Auth | Custom Passport-JWT + argon2 (multi-tenant membership and portal scoping don't map cleanly onto a managed IdP) |
+| Background jobs | BullMQ + Redis |
+| Documents/PDF | Server-rendered HTML/CSS through headless Chromium (Puppeteer), one shared template set |
+| File storage | S3-compatible object storage, signed URLs |
+| Frontend | React + Vite, Ant Design, TanStack Query, React Hook Form + Zod |
+| Mobile | Responsive installable PWA, not a native app, for V1 |
+| Hosting | AWS, `ap-south-1` (Mumbai) — data residency for an Indian customer base |
+
+Full reasoning, including the two closer calls (Ant Design vs. shadcn, and
+custom auth vs. a managed provider) and why each choice fits the
+already-committed schema design (RLS, ledger-first stock/usage,
+`FOR UPDATE` numbering, JSON document snapshots), was given in chat when
+this was first proposed and is not restated here — this entry exists so a
+later reader has the decision without needing that conversation. This
+closes the one item that was blocking Phase 1 from starting.
 
 ## §1 — Multi-tenancy: shared database, `tenant_id` column + RLS
 
@@ -151,3 +170,42 @@ Quotation, POD, …) as the blueprint's examples suggest — if any feature
 should have a different free allowance than others, that's still just a
 different seed row, not an architecture change, but the seed data itself
 needs that input.
+
+## §15 — V1 decisions locked; extensibility verified against actual schema, not assumed
+
+All ten decisions in the scope-freeze phase's approval message are locked
+for V1. Three of them came with an explicit extensibility requirement
+("don't foreclose this later") — each was checked against the real schema
+rather than taken on faith:
+
+- **Approval workflow (Draft→Approved only in V1):** implemented as a
+  single-step instance of the *same* generic `approval_chain_templates` /
+  `approval_instances` / `approval_steps` tables `schema/70_documents_governance.sql`
+  already defines, not a separate simpler mechanism. V1.1's multi-level
+  chains are a seed-data and UI addition on the identical tables, never a
+  parallel system to migrate off later.
+- **Packing List (folded into Dispatch's header totals for V1):**
+  `packing_lists`/`packing_list_lines` already exist as fully independent
+  tables in `schema/50_outbound.sql`, not derived from `dispatch_lines`.
+  V1.1 exposing a standalone Packing List is a new data-loader function
+  (the same pattern every `document-engine.md` document type already
+  follows) reading Pick List/Dispatch quantities at generation time — it
+  needs no change to `dispatches` or `dispatch_lines` at all.
+- **Returns (deferred to V1.1):** `stock_ledger.txn_type` already includes
+  `'RETURN'` in its check constraint, and `source_type` already includes
+  `'return_inward'`, in `schema/40_stock.sql`. The stock engine has
+  supported a future Returns module since it was first written; V1
+  building no UI for it changes nothing about that.
+- **Entitlement engine (action-metering only in V1, no seat/record
+  counts):** a future "max 3 warehouses on Starter" limit reuses the exact
+  same `plans`/`plan_feature_limits` rows a document-generation limit
+  uses — only the resolver differs (compare a live `count(*)` against
+  `limit_value` instead of reading `usage_counters`). No second
+  entitlement model is needed; confirmed, not assumed.
+- **Payment gateway (manual activation only in V1):** the manual flow
+  (upgrade request → admin action → active subscription) is not a stopgap
+  bolted on before the "real" design — it's the same `tenant_subscriptions`
+  update and `subscription_events` row (`source = 'admin'`) that a gateway
+  webhook will write later (`source = 'gateway_webhook'`), per
+  `entitlement-engine.md` §8. Building the manual path now *is* building
+  the real path; V1.1 adds a gateway adapter, it doesn't replace anything.
