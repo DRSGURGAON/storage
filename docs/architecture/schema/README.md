@@ -14,6 +14,10 @@ file stays reviewable; load order matters because of foreign keys.
 | 7 | [60_billing.sql](60_billing.sql) | Billing Run, Invoice, Debit/Credit Note, Payment Receipt | 38–43 |
 | 8 | [70_documents_governance.sql](70_documents_governance.sql) | Document registry/versioning, QR verification, Approval instances, Audit log, Notifications | 44–51, 56 |
 | 9 | [80_subscription.sql](80_subscription.sql) | Feature catalog, Plans, Plan/Feature limits, Tenant Subscriptions, Subscription events, Entitlement overrides, Usage ledger & counters | saas-layer 6–17, 41–45 |
+| 10 | [85_integrity_fixes.sql](85_integrity_fixes.sql) | Partial unique indexes closing a real gap: `unique (tenant_id, code)` doesn't dedupe system-seeded rows when `tenant_id` is null (`DECISIONS.md` §16) | — |
+| 11 | [90_row_level_security.sql](90_row_level_security.sql) | `ENABLE`/`FORCE ROW LEVEL SECURITY` + a `tenant_isolation` policy on every tenant-scoped table, generated from `information_schema` (`DECISIONS.md` §17) | — |
+| 12 | [91_tenant_users_self_lookup.sql](91_tenant_users_self_lookup.sql) | A second, SELECT-only policy on `tenant_users` so login can discover a user's own memberships before a tenant is chosen | — |
+| 13 | [92_rls_empty_string_guard.sql](92_rls_empty_string_guard.sql) | Guards every RLS policy against a real Postgres quirk: a custom GUC resets to `''`, not `NULL`, after its first use on a reused connection (`DECISIONS.md` §18) | — |
 
 ## Conventions
 

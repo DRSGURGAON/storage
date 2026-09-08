@@ -209,3 +209,112 @@ rather than taken on faith:
   webhook will write later (`source = 'gateway_webhook'`), per
   `entitlement-engine.md` §8. Building the manual path now *is* building
   the real path; V1.1 adds a gateway adapter, it doesn't replace anything.
+
+## §16 — `unique (tenant_id, code)` doesn't dedupe system-seeded rows; fixed
+
+Found while writing the seed script for `roles` in Phase 1A's next
+increment. Five tables (`roles`, `charge_types`, `tax_rates`,
+`notification_rules`, and `products` via its nullable `customer_id`) use a
+nullable tenant/customer column commented "null = system-seeded/shared"
+paired with a composite `unique (tenant_id, code)` constraint intended to
+also keep those shared rows unique among themselves. SQL's standard
+uniqueness semantics treat every `NULL` as distinct from every other
+`NULL`, so that constraint silently permitted unlimited duplicate
+`(NULL, 'owner')`-shaped rows — a real data-integrity gap, not a
+hypothetical one, since a naively-idempotent seed script (`INSERT ...
+ON CONFLICT (tenant_id, code) DO NOTHING`) would have created a fresh
+duplicate `owner` role on every deploy.
+
+Fixed additively in `schema/85_integrity_fixes.sql`: one partial unique
+index per table (`... where tenant_id is null`, or
+`where customer_id is null` for `products`), applied after
+`schema/80_subscription.sql`. No existing column, table shape, or
+composite constraint changed — the fix only closes the gap the comments
+already claimed was closed. Verified: the full ten-file sequence applies
+cleanly to a fresh database, and applying just the new file against the
+already-migrated `warehouse_dev` database (via `apps/api`'s migration
+runner) correctly ran only `85_integrity_fixes.sql` and skipped the rest.
+
+## §17 — Row-level security was specified, never actually written; now is
+
+`tenancy-and-security.md` §1 has said since the architecture phase that
+every tenant-scoped table gets `ENABLE ROW LEVEL SECURITY` with a
+`USING (tenant_id = current_setting('app.tenant_id')::uuid)` policy, and
+`dev-phases.md`'s Phase 1 exit criteria assumes it. Found while wiring
+per-request tenant context for auth in Phase 1A's next increment: no
+`schema/*.sql` file actually contained a `create policy` statement. The
+design was real; the SQL implementing it was not.
+
+Fixed in `schema/90_row_level_security.sql`, generated from
+`information_schema` rather than hand-enumerated, covering all ~90
+tenant-scoped tables in one migration:
+
+- `FORCE ROW LEVEL SECURITY` on every table, not just `ENABLE` — the
+  application connects as the same role that owns these tables (it ran
+  the migrations), and RLS does not apply to a table's owner without
+  `FORCE`. Missing this would have made the whole migration a silent
+  no-op for every real query while looking correct in `pg_policies`.
+- The five nullable-`tenant_id` "system-shared" tables from §16 get
+  `tenant_id = current_setting(...) OR tenant_id IS NULL` instead of
+  plain equality, so system-seeded rows stay visible to every tenant
+  instead of becoming invisible to all of them.
+- `role_permissions` has no `tenant_id` column of its own (unlike every
+  other child table in this schema, which redundantly carries one
+  specifically to keep RLS a single-column check); its policy instead
+  joins to `roles` to inherit that table's tenant/shared visibility.
+  Defense-in-depth for a capability V1 doesn't use yet (tenant-owned
+  custom roles), written now rather than left as a gap to rediscover
+  later.
+
+Verified against a real database, not just applied: as the application's
+own connection role (`warehouse_app`, owning the tables), tenant A cannot
+read tenant B's rows, a request with no `app.tenant_id` set sees zero
+rows anywhere (fail-closed, not an error and not everything), tenant A
+cannot INSERT a row claiming tenant B's `tenant_id` (rejected by
+`WITH CHECK`), and a system-seeded row (e.g. the `owner` role) is visible
+identically to both tenants.
+
+Those checks used one fresh `psql` connection per test, which turned out
+to hide a real bug from them — see §18.
+
+## §18 — Postgres custom GUCs reset to `''`, not `NULL`, after the first use on a pooled connection
+
+Found building `GET /auth/me` against a real request, not a fresh `psql`
+session: the second transaction to ever run `current_setting('app.tenant_id',
+true)` on a given physical connection returned `''` (empty string), not
+`NULL`, once an earlier transaction on that same connection had `SET
+LOCAL`'d it at least once. Reproduced directly and minimally:
+
+```sql
+begin; select set_config('app.test_probe', 'hello', true); commit;
+begin; select current_setting('app.test_probe', true); commit;
+-- returns '' , not NULL
+```
+
+This is standard Postgres behavior for custom ("placeholder") GUCs, not a
+bug in this schema, but every RLS policy in `schema/90_row_level_security.sql`
+and `schema/91_tenant_users_self_lookup.sql` cast the raw result straight to
+`::uuid`, and `''::uuid` raises a hard error rather than evaluating to
+false — turning "no tenant context set on this request" from a silent,
+safe zero-rows result into a 500. It went unnoticed in §17's verification
+because every one of those tests used a brand-new `psql` connection, where
+the setting had truly never been touched and `current_setting` genuinely
+returns `NULL` the first time. `apps/api`'s postgres.js pool reuses
+physical connections across unrelated requests by design, so in the real
+application this isn't an edge case — it's what happens on the very next
+authenticated request to land on a connection that previously served one.
+
+Fixed in `schema/92_rls_empty_string_guard.sql`: every policy's
+`current_setting(...)::uuid` becomes `nullif(current_setting(...), '')::uuid`,
+converting the empty-string reset value to a true `NULL` before the cast,
+so the comparison evaluates to false (no rows) instead of erroring — the
+originally-intended fail-*safe* behavior, not fail-*loud*. Re-verified with
+the exact reused-connection scenario that exposed it (two transactions on
+one session, the second never re-setting `app.tenant_id`) and, end to end,
+by calling `GET /auth/me` three times in a row and switching between two
+tenants' tokens on the same running server without a single error.
+
+This is also a reminder for future schema/RLS work: **verify against the
+real connection-pooled application, not only fresh manual sessions** — a
+fresh session's `current_setting` semantics are not the same as a reused
+one's for custom GUCs.

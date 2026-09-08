@@ -1,9 +1,11 @@
 # API — Warehouse Documentation & Operations SaaS
 
-Backend for the product specified in `../../docs/`. This is Phase 1A's
-first increment: project scaffolding, a database connection, and the
-reference schema applied as real migrations. No tenancy, auth, or business
-logic yet — that's the next increment, built on top of this.
+Backend for the product specified in `../../docs/`. So far: project
+scaffolding, tenant/user auth with JWT, row-level tenant isolation, and the
+seeded RBAC role/permission catalog. No masters, operations, or billing
+modules yet, and no RBAC *enforcement* guard — that's deferred to Phase 2,
+built alongside the first real permission-gated endpoint rather than
+against no caller (see `docs/architecture/dev-phases.md` Phase 1).
 
 ## Stack
 
@@ -15,11 +17,13 @@ TypeScript, NestJS, PostgreSQL 16, Drizzle (`postgres-js` driver). See
 ```bash
 npm install                    # from the repo root (npm workspaces)
 cp apps/api/.env.example apps/api/.env
-# edit apps/api/.env if your local Postgres differs from the default
+# edit apps/api/.env if your local Postgres differs from the default,
+# and set a real JWT_SECRET (the example generates one for local dev only)
 
 cd apps/api
 npm run migrate                # applies ../../docs/architecture/schema/*.sql, in order
-npm run start:dev              # http://localhost:3000/health
+npm run seed                   # seeds system roles/permissions/role_permissions
+npm run start:dev              # http://localhost:3000
 ```
 
 ## Where the schema comes from
@@ -28,7 +32,23 @@ npm run start:dev              # http://localhost:3000/health
 `../../docs/architecture/schema/*.sql` directly — that directory is the
 single source of truth for the data model (see its own `README.md` for
 conventions). This app does not keep a second, duplicated copy of the
-schema; adding a new domain means adding a file there, not here.
+schema; adding a new domain means adding a file there, not here. Four of
+those files (`85`–`92`) are fixes for real bugs found only by building and
+load-testing this app against the schema, not by review — see
+`docs/architecture/DECISIONS.md` §16–§18 if you're wondering why they
+exist.
+
+## Endpoints so far
+
+- `GET /health` — DB connectivity check.
+- `POST /auth/signup` — creates a tenant, its first user, and an Owner
+  membership; returns a JWT.
+- `POST /auth/login` — `{ email, password, tenantSlug? }`; `tenantSlug` is
+  required only when the account belongs to more than one tenant.
+- `GET /auth/me` — requires `Authorization: Bearer <token>`; returns the
+  authenticated user's tenant/role, read through `withTenant()`
+  (`src/db/tenant-context.ts`) so every response is proven, not assumed,
+  to be RLS-scoped to the caller's own tenant.
 
 ## Tests
 
@@ -36,6 +56,12 @@ schema; adding a new domain means adding a file there, not here.
 npm test
 ```
 
-`health.controller.spec.ts` is an integration test against a real database
-(`DATABASE_URL`), not a mock — proving connectivity is the point of this
-increment.
+All against the real local database (`DATABASE_URL`), not mocks:
+
+- `health.controller.spec.ts` — connectivity.
+- `auth/auth.spec.ts` — signup, login, `/me`, and the invalid/duplicate/
+  unauthenticated cases, including repeated `/me` calls across a reused
+  connection to catch the class of bug in `DECISIONS.md` §18.
+- `db/tenant-isolation.spec.ts` — the mechanism every future module will
+  rely on (`withTenant()` + RLS), proven directly against a real table
+  since no masters module exists yet to prove it through HTTP.

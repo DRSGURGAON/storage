@@ -8,13 +8,22 @@ not to bolt monetization onto individual modules after the fact.
 
 ## Phase 1 — Authentication, Multi-tenancy, Company, Users, Roles, Permissions, Entitlement Engine
 
-**Status: scaffolding increment landed.** `apps/api` is a NestJS +
+**Status: tenancy + auth increment landed.** `apps/api` is a NestJS +
 TypeScript + Drizzle project (`../../DECISIONS.md` §0) whose migration
-runner (`apps/api/src/db/migrate.ts`) applies this directory's nine schema
-files as real, tracked migrations, and whose `/health` endpoint proves a
-live database connection end to end — see `apps/api/README.md` for setup.
-No tenancy, auth, RBAC, or entitlement logic exists yet; that's the next
-increment, built on top of this foundation rather than replacing it.
+runner applies this directory's schema files as real, tracked migrations
+— now including `85_integrity_fixes.sql`, `90_row_level_security.sql`,
+`91_tenant_users_self_lookup.sql`, and `92_rls_empty_string_guard.sql`,
+four fixes found only by building and load-testing real code against the
+schema, not by review (see `DECISIONS.md` §16–§18 for what each closed).
+Signup, login (including multi-tenant membership selection), JWT issuance,
+and a protected `/me` endpoint are live and covered by integration tests
+against a real database, including the exact connection-reuse scenario
+that exposed §18's bug. `entitlement-engine.md`'s `checkEntitlement`/
+`consumeEntitlement` and the RBAC *enforcement* guard are not built yet —
+the latter is deliberately deferred to Phase 2, alongside the first real
+permission-gated endpoint, rather than built against no caller (the seed
+data it will enforce — `roles`/`permissions`/`role_permissions` — is
+already live). See `apps/api/README.md` for setup.
 
 - Schema: `schema/00_core.sql` in full, plus `schema/80_subscription.sql`
   (the entitlement/subscription domain belongs here, not in Phase 8, because
@@ -31,10 +40,13 @@ increment, built on top of this foundation rather than replacing it.
 - Exit check: two tenants' users cannot see each other's `tenants` row or
   any tenant-scoped table via the API, verified by an automated test (see
   `test-plan.md` "Customer A cannot access Customer B", generalised to staff
-  users too). Separately, a scripted feature check against a `FREE`-plan
-  tenant returns `allowed: true` twice and `allowed: false,
-  reason: 'LIMIT_REACHED'` on the third call for a `counted` test feature,
-  proving the engine before any real feature depends on it.
+  users too). **Done** for the tenancy/RLS mechanism itself —
+  `apps/api/src/db/tenant-isolation.spec.ts` proves it directly against a
+  real database (no masters module exists yet to prove it through HTTP;
+  that's Phase 2's job once there's a real endpoint to call). Still open:
+  the scripted entitlement-engine check (`allowed: true` twice,
+  `LIMIT_REACHED` on the third call) — `checkEntitlement`/
+  `consumeEntitlement` are not implemented yet.
 
 ## Phase 2 — Customer, Warehouse, Location, Product/SKU, Transporter, Vehicle, Driver, Rate Card
 

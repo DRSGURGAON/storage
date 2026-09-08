@@ -7,10 +7,11 @@ automatically, update stock automatically, bill from actual operations.**
 
 This repository holds the **product blueprint, engineering architecture,
 and the implementation now underway**. Phase 1 (`docs/architecture/dev-phases.md`)
-has its first increment: `apps/api`, a NestJS + PostgreSQL backend whose
-migration runner applies the full reference schema and whose `/health`
-endpoint proves it end to end. Tenancy, auth, and business logic are not
-built yet — see `apps/api/README.md` to run what exists so far.
+has landed tenancy and auth: `apps/api`, a NestJS + PostgreSQL backend with
+row-level-secured multi-tenancy, JWT signup/login, and the seeded RBAC
+catalog, all covered by integration tests against a real database. Masters,
+operations, and billing modules are not built yet — see `apps/api/README.md`
+to run what exists so far.
 
 ## Where to start
 

@@ -33,7 +33,13 @@ async function main() {
     throw new Error(`No .sql files found in ${SCHEMA_DIR}`);
   }
 
-  const sql = postgres(databaseUrl, { max: 1 });
+  const sql = postgres(databaseUrl, {
+    max: 1,
+    // The RLS migration's DO block emits a NOTICE for every "drop policy if
+    // exists" that has nothing to drop yet (expected on a first run) --
+    // silence those so real output stays readable.
+    onnotice: () => {},
+  });
 
   try {
     await sql`
