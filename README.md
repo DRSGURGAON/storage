@@ -5,14 +5,17 @@ businesses (3PL, godowns, distribution warehousing, industrial storage). The
 core principle: **enter data once, reuse everywhere, generate documents
 automatically, update stock automatically, bill from actual operations.**
 
-This repository currently holds the **product blueprint and engineering
-architecture** — the data model, workflow rules, and delivery plan that
-implementation will be built against. No application code exists yet; see
-[`docs/architecture/DECISIONS.md`](docs/architecture/DECISIONS.md) §0 for the
-still-open technology stack choice.
+This repository holds the **product blueprint, engineering architecture,
+and the implementation now underway**. Phase 1 (`docs/architecture/dev-phases.md`)
+has its first increment: `apps/api`, a NestJS + PostgreSQL backend whose
+migration runner applies the full reference schema and whose `/health`
+endpoint proves it end to end. Tenancy, auth, and business logic are not
+built yet — see `apps/api/README.md` to run what exists so far.
 
 ## Where to start
 
+- [`apps/api/`](apps/api/README.md) — the backend implementation, as far as
+  it's built.
 - [`docs/blueprint/`](docs/blueprint/README.md) — the functional product
   requirements, organized by numbered section (§1–§82).
 - [`docs/blueprint-saas-layer/`](docs/blueprint-saas-layer/README.md) — a
@@ -23,7 +26,7 @@ still-open technology stack choice.
   interpretation of both: a full reference database schema, multi-tenancy
   and security model, numbering engine, stock engine, billing engine,
   document engine, entitlement engine, UX system, permissions matrix,
-  phased delivery plan, and test plan.
+  V1 scope specification, phased delivery plan, and test plan.
 
 ## Scope
 

@@ -8,6 +8,14 @@ not to bolt monetization onto individual modules after the fact.
 
 ## Phase 1 — Authentication, Multi-tenancy, Company, Users, Roles, Permissions, Entitlement Engine
 
+**Status: scaffolding increment landed.** `apps/api` is a NestJS +
+TypeScript + Drizzle project (`../../DECISIONS.md` §0) whose migration
+runner (`apps/api/src/db/migrate.ts`) applies this directory's nine schema
+files as real, tracked migrations, and whose `/health` endpoint proves a
+live database connection end to end — see `apps/api/README.md` for setup.
+No tenancy, auth, RBAC, or entitlement logic exists yet; that's the next
+increment, built on top of this foundation rather than replacing it.
+
 - Schema: `schema/00_core.sql` in full, plus `schema/80_subscription.sql`
   (the entitlement/subscription domain belongs here, not in Phase 8, because
   every metered action from Phase 3 onward must call `checkEntitlement`/

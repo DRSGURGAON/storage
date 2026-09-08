@@ -1,0 +1,10 @@
+{
+  "name": "warehouse-saas",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}
