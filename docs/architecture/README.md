@@ -29,4 +29,5 @@ portable notation, not as a statement that Postgres is the final choice.
 | [permissions-matrix.md](permissions-matrix.md) | §52, saas-layer §14 | Full role × permission grid, RBAC vs. entitlement distinction |
 | [dev-phases.md](dev-phases.md) | §77 | Phase-by-phase build plan mapped to schema files and modules |
 | [test-plan.md](test-plan.md) | §78–§79, saas-layer §6–§17 | Acceptance test, critical-case checklist, entitlement-engine test cases |
+| [v1-scope-specification.md](v1-scope-specification.md) | scope-freeze direction | The frozen V1 document list, deferred items, workflow map, auto-fill/subscription matrices, screen map, gap analysis, launch blockers, and open decisions |
 | [DECISIONS.md](DECISIONS.md) | — | Open questions and the calls made to keep V1 moving |
