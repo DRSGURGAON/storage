@@ -95,3 +95,59 @@ performance becomes a problem with a large ledger.
 
 The blueprint was delivered in two parts. All 82 sections are now reflected
 in `../blueprint/` and this architecture folder. No section is outstanding.
+
+## §10 — Audit performed for the saas-layer blueprint (product architecture, UX, subscription engine)
+
+A second blueprint arrived requesting a project audit before any further
+work. The audit was performed by inspecting the actual repository state
+directly, not assumed: as of that request, the repository contained only
+the documentation and schema from §1–§9 above — no frontend, backend,
+running database, authentication, PDF generation, or subscription logic
+existed. The audit's findings (current state, what's good, what must
+change, what should not be touched, proposed architecture, implementation
+order) were reported in that turn and are not duplicated here; nothing in
+the existing schema or design docs was found to need rework, only
+extension. See `../blueprint-saas-layer/README.md` for the process rule
+that prompted this and `entitlement-engine.md` for the resulting design.
+
+## §11 — Entitlement engine mirrors the stock engine's ledger-first pattern
+
+`usage_counters` (schema/80_subscription.sql) is a materialised view over
+`usage_ledger`, exactly as `stock_lots` is over `stock_ledger`
+(`stock-engine.md` §1). This was a deliberate reuse of an already-proven
+pattern in this codebase rather than a new design, for the same reason:
+the saas-layer blueprint's ban on double-consuming usage on a retry (§10)
+and its audit requirement (§9 of that document) are best guaranteed
+structurally, not by convention.
+
+## §12 — Feature-disabled is the default when a plan has no row for a feature
+
+`entitlement-engine.md` §3 resolves an unconfigured `(plan, feature)` pair
+to `disabled` rather than `unlimited`. This is a fail-closed choice: a new
+feature added to `feature_keys` without also adding `plan_feature_limits`
+rows is off for every plan until explicitly enabled, rather than
+accidentally free for everyone. Confirm this matches intent if a future
+feature should default to available-on-all-plans instead.
+
+## §13 — Payment gateway: not yet chosen
+
+`entitlement-engine.md` §8 and `dev-phases.md`'s Phase 8 entry deliberately
+keep `tenant_subscriptions.payment_gateway` and related columns generic.
+Common choices for an India-first SaaS are Razorpay and Cashfree; neither
+has been selected. **Action needed** before Phase 8's payment integration
+work starts: pick the gateway (subscription/recurring-billing support,
+webhook reliability, and settlement timelines are the relevant criteria),
+matching this document's existing practice of naming stack decisions as
+explicit open items rather than silently assuming one.
+
+## §14 — "Two free copies" is Free-plan seed data, not a constant
+
+Per saas-layer §16's explicit instruction, the number 2 is never written
+into application code. It exists exactly once, as
+`plan_feature_limits.limit_value = 2` on the seeded `FREE` plan's
+document-generation feature rows. Confirm the intended free allowance is
+uniform across all document-generation features (GRN, Invoice, Gate Pass,
+Quotation, POD, …) as the blueprint's examples suggest — if any feature
+should have a different free allowance than others, that's still just a
+different seed row, not an architecture change, but the seed data itself
+needs that input.

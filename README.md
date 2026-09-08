@@ -13,12 +13,17 @@ still-open technology stack choice.
 
 ## Where to start
 
-- [`docs/blueprint/`](docs/blueprint/README.md) — the product requirements,
-  organized by numbered section (§1–§82), exactly as specified.
+- [`docs/blueprint/`](docs/blueprint/README.md) — the functional product
+  requirements, organized by numbered section (§1–§82).
+- [`docs/blueprint-saas-layer/`](docs/blueprint-saas-layer/README.md) — a
+  second blueprint layered on top of the first: the SaaS product
+  architecture, UX system, and subscription/entitlement engine (§1–§51 of
+  that document).
 - [`docs/architecture/`](docs/architecture/README.md) — the engineering
-  interpretation: a full reference database schema, multi-tenancy and
-  security model, numbering engine, stock engine, billing engine, document
-  engine, permissions matrix, phased delivery plan, and test plan.
+  interpretation of both: a full reference database schema, multi-tenancy
+  and security model, numbering engine, stock engine, billing engine,
+  document engine, entitlement engine, UX system, permissions matrix,
+  phased delivery plan, and test plan.
 
 ## Scope
 

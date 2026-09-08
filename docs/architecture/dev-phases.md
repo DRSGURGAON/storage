@@ -1,18 +1,32 @@
 # Development Phases
 
 Blueprint refs: §77 (order), mapped to the concrete schema files and
-architecture docs each phase depends on.
+architecture docs each phase depends on. The saas-layer blueprint's
+onboarding, UX system, and entitlement engine are folded into the phases
+below rather than left for a later "polish" pass, per its own instruction
+not to bolt monetization onto individual modules after the fact.
 
-## Phase 1 — Authentication, Multi-tenancy, Company, Users, Roles, Permissions
+## Phase 1 — Authentication, Multi-tenancy, Company, Users, Roles, Permissions, Entitlement Engine
 
-- Schema: `schema/00_core.sql` in full.
-- Docs to implement against: `tenancy-and-security.md`, `permissions-matrix.md`.
+- Schema: `schema/00_core.sql` in full, plus `schema/80_subscription.sql`
+  (the entitlement/subscription domain belongs here, not in Phase 8, because
+  every metered action from Phase 3 onward must call `checkEntitlement`/
+  `consumeEntitlement` from day one — see `entitlement-engine.md` §1).
+- Docs to implement against: `tenancy-and-security.md`, `permissions-matrix.md`,
+  `entitlement-engine.md` in full.
 - Deliverable: a tenant can sign up, invite users, assign roles; RLS policies
-  are live from the first migration, not bolted on later.
+  are live from the first migration, not bolted on later; a new tenant is
+  created with a `trial` `tenant_subscriptions` row on the seeded `FREE`
+  plan; `checkEntitlement`/`consumeEntitlement` are implemented and unit
+  tested against the seed data even though no document-generating module
+  exists yet to call them.
 - Exit check: two tenants' users cannot see each other's `tenants` row or
   any tenant-scoped table via the API, verified by an automated test (see
   `test-plan.md` "Customer A cannot access Customer B", generalised to staff
-  users too).
+  users too). Separately, a scripted feature check against a `FREE`-plan
+  tenant returns `allowed: true` twice and `allowed: false,
+  reason: 'LIMIT_REACHED'` on the third call for a `counted` test feature,
+  proving the engine before any real feature depends on it.
 
 ## Phase 2 — Customer, Warehouse, Location, Product/SKU, Transporter, Vehicle, Driver, Rate Card
 
@@ -22,17 +36,29 @@ architecture docs each phase depends on.
   `resolve{Entity}()` endpoints here, since every later phase depends on them).
 - Deliverable: full CRUD + searchable selector (§74) for every master; rate
   card resolution (`billing-engine.md` §3) implemented and unit-tested even
-  though nothing bills yet.
+  though nothing bills yet. Also build the onboarding wizard here
+  (`ux-system.md` §1) — it is nothing more than these same master-record
+  create endpoints called in a guided sequence, so it should ship alongside
+  them rather than as separate later work.
 
 ## Phase 3 — Quotation, Agreement, Document Engine
 
 - Schema: `schema/20_commercial.sql`, plus `documents` /
   `document_verifications` from `schema/70_documents_governance.sql` (build
   the engine now, since every later phase's documents depend on it).
-- Docs: `document-engine.md` in full, `numbering.md`.
+- Docs: `document-engine.md` in full (including §7's entitlement gating and
+  §8's relationship traversal), `numbering.md`, `ux-system.md` §5–§7
+  (Document Centre, relationships, timeline).
 - Deliverable: `generateDocument()` works end-to-end for Quotation and
-  Agreement, including QR verification — proves the shared design system
-  and versioning before 20 more document types are built on top of it.
+  Agreement, including QR verification, the entitlement check/consume
+  wiring, and the Document Centre showing both — proves the shared design
+  system, versioning, and monetization gate together before 20 more
+  document types are built on top of the same pattern.
+- Exit check: generating a Quotation on a `FREE`-plan tenant past its
+  `QUOTATION_GENERATION` limit shows the paywall (`ux-system.md` §11)
+  instead of a document, and a retried "Generate" click on a request that
+  timed out produces exactly one `documents` row and one consumed
+  `usage_ledger` row, never two.
 
 ## Phase 4 — Gate Entry, Inward, GRN, Discrepancy, Inspection, Put-away, Warehouse Receipt
 
@@ -84,10 +110,20 @@ architecture docs each phase depends on.
   in from Phase 1 onward at the interceptor level — this phase is where the
   *viewer* UI for it ships).
 - Docs: `tenancy-and-security.md` §2 (portal isolation), the reporting
-  projections referenced in `schema/60_billing.sql`'s closing comment.
+  projections referenced in `schema/60_billing.sql`'s closing comment,
+  `ux-system.md` §3–§4, §12–§14 (dashboard, global search, usage nudges,
+  Plan & Usage page, pricing page).
 - Deliverable: customer-facing read-only views of their own stock/documents/
   statement; the operations dashboard (§54) and report list (§55); in-app
-  notifications firing on the events listed in §56.
+  notifications firing on the events listed in §56; the Plan & Usage page
+  and public pricing page rendered from `plans`/`plan_feature_limits`
+  (`schema/80_subscription.sql`); a demo tenant seeded with
+  `tenants.is_demo = true` and a generous demo plan, for prospect
+  walkthroughs.
+- Payment gateway integration (subscription checkout, webhook handling per
+  `entitlement-engine.md` §8) lands here once a specific gateway is chosen
+  — see `DECISIONS.md`. Everything through Phase 7 works correctly on the
+  seeded `FREE` plan with no gateway connected at all.
 
 ## Phase 9 — Full Testing
 
@@ -106,3 +142,8 @@ architecture docs each phase depends on.
   the first numbered document) and must not be reimplemented per phase.
 - **Attachments** (`attachments` table) is needed starting Phase 2 (customer
   KYC uploads) and reused by every later phase.
+- **Entitlement checks** (`entitlement-engine.md`) are needed by every
+  metered feature from Phase 3 onward, which is why the engine itself is
+  built in Phase 1 rather than Phase 8. A feature ships its
+  `checkEntitlement`/`consumeEntitlement` calls in the same change that
+  ships the feature — there is no later "add monetization" pass.

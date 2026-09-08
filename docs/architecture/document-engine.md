@@ -1,6 +1,6 @@
 # Document Engine
 
-Blueprint refs: §44–§49, §65, §75
+Blueprint refs: §44–§49, §65, §75; saas-layer §11, §24, §31; `entitlement-engine.md`
 
 ## 1. One service, not one PDF renderer per page
 
@@ -116,3 +116,44 @@ first and renders it inline; only an explicit "Generate PDF" / "Issue" action
 calls `commitDocument`. This is what makes the preview screens in Quotation,
 Invoice, and Billing Run (§39, §66) consistent with every other document
 instead of a one-off feature.
+
+## 7. Entitlement gating (saas-layer §11, §31; `entitlement-engine.md`)
+
+Not every `documentType` is metered — see `feature_keys.is_meterable` in
+`schema/80_subscription.sql` — but for those that are, `generateDocument`
+calls the entitlement engine at two distinct points, never conflated:
+
+- **`previewDocument`** calls `checkEntitlement(tenantId, featureCode)`
+  first. If `allowed: false`, it returns the paywall state instead of a
+  rendered preview — the user sees the upgrade screen (`ux-system.md` §11)
+  before any document content is built, satisfying saas-layer §31's "show
+  the upgrade state before consuming anything." A preview that *is*
+  rendered because the check passed still consumes nothing; only
+  `commitDocument` does.
+- **`commitDocument`** calls `consumeEntitlement(...)` in the **same
+  transaction** as step 5 (the `documents` row insert), using an
+  idempotency key derived from the source record and action (e.g.
+  `"grn:{grn_id}:generate"` — the identical key the stock engine would use
+  for that GRN's approval, since both represent "this GRN was approved
+  exactly once," see `entitlement-engine.md` §4). If a retry lands on a
+  document that was already committed, the entitlement insert is a
+  no-op via `ON CONFLICT DO NOTHING`, and `commitDocument` itself detects
+  the existing `documents` row and returns it rather than rendering a
+  duplicate — one user action, one document, one unit of usage, regardless
+  of how many times the request was retried.
+
+A generation that fails after `checkEntitlement` passed but before
+`commitDocument` succeeds (a rendering error, a timeout) writes a
+`usage_ledger` row with `result = 'failed'`, `consumed = false` — visible
+for audit, but never debited against the tenant's allowance (saas-layer
+§7). Regeneration of an already-committed document (§75) reuses the
+original `generation_id` and does not call `consumeEntitlement` again,
+consistent with saas-layer §8: viewing, downloading, printing, or
+re-rendering an existing document is never a new unit of usage.
+
+## 8. Created From & Related Documents (saas-layer §24, §25)
+
+`documents` rows don't duplicate the foreign-key graph already present on
+every source table — "Created From" and "Related Documents" are computed,
+not stored. See `ux-system.md` §7 for the UI contract and the
+`getDocumentRelations(documentType, sourceId)` traversal it's built on.

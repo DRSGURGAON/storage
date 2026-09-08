@@ -85,7 +85,32 @@ Legend: ✅ full access to the permission · ➖ not granted.
 | `export_reports` | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ➖ (portal export of own statement only, via `view_customer_statement`) |
 | `view_audit_log` | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |
 
+## Subscription & entitlement module
+
+| Permission | Owner | Admin | Wh. Manager | Wh. Operator | Billing Exec. | Accountant | Customer |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| `view_plan_usage` | ✅ | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ |
+| `manage_subscription` (change plan, cancel, view pricing/checkout) | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |
+| `grant_entitlement_override` (platform-level, not a tenant role — see note below) | — | — | — | — | — | — | — |
+
 ## Notes
+
+- **RBAC vs. entitlements are two independent axes, both enforced
+  server-side.** A permission (this document) answers "can this role
+  perform this action at all." An entitlement (`entitlement-engine.md`)
+  answers "has this tenant's plan and usage allowed this action right now."
+  A Warehouse Operator with `create_grn` still gets blocked by
+  `checkEntitlement` if the tenant's `GRN_GENERATION` allowance is
+  exhausted; conversely, an unlimited-plan tenant's Customer-role user is
+  still refused `create_grn` because no permission grants it to that role.
+  Neither system substitutes for the other.
+- `grant_entitlement_override` is deliberately absent from every tenant
+  role — writing an `entitlement_overrides` row (schema/80_subscription.sql)
+  is a platform-operator action (internal support/admin tooling), not
+  something any tenant-side role, including Owner, can grant itself. A
+  tenant's Owner manages *which plan* the tenant is on via
+  `manage_subscription`; only the platform operator can grant a one-off
+  exception to a specific tenant's limits.
 
 - **Customer** role rows never carry any of the non-"own only" permissions
   above; the portal's backend uses an entirely separate, narrower controller

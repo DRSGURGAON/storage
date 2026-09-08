@@ -13,6 +13,7 @@ file stays reviewable; load order matters because of foreign keys.
 | 6 | [50_outbound.sql](50_outbound.sql) | Release Order, Pick List, Packing List, Dispatch, Loading Sheet, Gate Pass, POD, Returns | 29–37 |
 | 7 | [60_billing.sql](60_billing.sql) | Billing Run, Invoice, Debit/Credit Note, Payment Receipt | 38–43 |
 | 8 | [70_documents_governance.sql](70_documents_governance.sql) | Document registry/versioning, QR verification, Approval instances, Audit log, Notifications | 44–51, 56 |
+| 9 | [80_subscription.sql](80_subscription.sql) | Feature catalog, Plans, Plan/Feature limits, Tenant Subscriptions, Subscription events, Entitlement overrides, Usage ledger & counters | saas-layer 6–17, 41–45 |
 
 ## Conventions
 

@@ -79,3 +79,19 @@ Integrity:
 - [ ] File access requires a valid signed URL scoped to the requester's tenant/customer
 - [ ] Stock-affecting endpoints are atomic under simulated mid-transaction failure (kill the process between ledger insert and lot upsert in a test double — the transaction must roll back both or neither)
 - [ ] Mobile responsiveness for the operator-facing flows: Gate Entry, GRN, stock lookup, scan, picking, loading, Gate Pass, POD, photo/signature capture
+
+## 4. Entitlement & subscription engine (saas-layer §6–§17, §41–§45; `entitlement-engine.md`)
+
+- [ ] A `FREE`-plan tenant can generate exactly 2 of a `counted` document feature (e.g. GRN), and the 3rd call returns `allowed: false, reason: 'LIMIT_REACHED', upgradeRequired: true`
+- [ ] A failed generation (simulate a rendering error after `checkEntitlement` passes) does not increment `usage_counters` — the next `checkEntitlement` call still shows the same `remaining` as before the failed attempt
+- [ ] A cancelled draft never calls `consumeEntitlement` at all
+- [ ] Calling `previewDocument` repeatedly for the same source record never consumes usage; only `commitDocument` does
+- [ ] Retrying the same "Generate" click twice (simulated network retry with the same idempotency key) produces exactly one `documents` row and exactly one consumed `usage_ledger` row, not two
+- [ ] Downloading, printing, or viewing an already-generated document never calls `consumeEntitlement`
+- [ ] Changing a plan's `plan_feature_limits.limit_value` from 2 to 5 changes enforcement immediately, with no application deploy
+- [ ] An `entitlement_overrides` row for one tenant does not affect any other tenant's limit for the same feature
+- [ ] A tenant whose `tenant_subscriptions.status` is `past_due` beyond its grace period is blocked from a paid-plan-only feature even if its counted usage for the period has not been reached
+- [ ] Two tenants' `usage_ledger`/`usage_counters` rows never intermix — Tenant A's consumption never affects Tenant B's `remaining`
+- [ ] A demo tenant (`tenants.is_demo = true`) is excluded from billing runs, real-usage reports, and cross-tenant analytics
+- [ ] The frontend cannot bypass a block by skipping the UI: calling the generation API directly on a limit-exhausted feature is rejected server-side with the same `LIMIT_REACHED` response the UI would have shown
+- [ ] The public pricing page's displayed limits match `plan_feature_limits` exactly — no hard-coded numbers in the page that could drift from what is enforced
