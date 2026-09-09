@@ -2,10 +2,11 @@
 
 Backend for the product specified in `../../docs/`. So far: project
 scaffolding, tenant/user auth with JWT, row-level tenant isolation, the
-seeded RBAC role/permission catalog, and a fully working entitlement/
-subscription engine (2-free-copies enforcement, seeded and tested). No
-masters, operations, or billing modules yet, and no RBAC *enforcement*
-guard — that's deferred to Phase 2, built alongside the first real
+seeded RBAC role/permission catalog, a fully working entitlement/
+subscription engine (2-free-copies enforcement, seeded and tested), and
+audit logging on every mutating/security-relevant auth action. No masters,
+operations, or billing modules yet, and no RBAC *enforcement* guard —
+that's deferred to Phase 2, built alongside the first real
 permission-gated endpoint rather than against no caller (see
 `docs/architecture/dev-phases.md` Phase 1).
 
@@ -66,9 +67,10 @@ npm test
 All against the real local database (`DATABASE_URL`), not mocks:
 
 - `health.controller.spec.ts` — connectivity.
-- `auth/auth.spec.ts` — signup, login, `/me`, and the invalid/duplicate/
-  unauthenticated cases, including repeated `/me` calls across a reused
-  connection to catch the class of bug in `DECISIONS.md` §18.
+- `auth/auth.spec.ts` — signup, login, `/me`, the invalid/duplicate/
+  unauthenticated cases, repeated `/me` calls across a reused connection to
+  catch the class of bug in `DECISIONS.md` §18, and that signup/login/
+  login\_failed each land the `audit_logs` row they're supposed to.
 - `db/tenant-isolation.spec.ts` — the mechanism every future module will
   rely on (`withTenant()` + RLS), proven directly against a real table
   since no masters module exists yet to prove it through HTTP.

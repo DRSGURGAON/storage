@@ -8,6 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import type postgres from 'postgres';
+import { AuditService } from '../audit/audit.service';
 import { PG_CONNECTION } from '../db/db.module';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
@@ -26,9 +27,10 @@ export class AuthService {
   constructor(
     @Inject(PG_CONNECTION) private readonly sql: postgres.Sql,
     private readonly jwt: JwtService,
+    private readonly audit: AuditService,
   ) {}
 
-  async signup(dto: SignupDto) {
+  async signup(dto: SignupDto, ipAddress?: string) {
     const [emailTaken] =
       await this.sql`select id from users where email = ${dto.email}`;
     if (emailTaken) {
@@ -111,6 +113,17 @@ export class AuthService {
       roleCode: 'owner',
     });
 
+    await this.audit.record({
+      tenantId: created.tenantId,
+      userId: created.userId,
+      userRoleCode: 'owner',
+      action: 'create',
+      entityType: 'tenant',
+      entityId: created.tenantId,
+      newValue: { slug: dto.tenantSlug, legalName: dto.companyLegalName, ownerEmail: dto.email },
+      ipAddress,
+    });
+
     return {
       accessToken,
       tenant: { slug: dto.tenantSlug, legalName: dto.companyLegalName },
@@ -118,18 +131,23 @@ export class AuthService {
     };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, ipAddress?: string) {
     const [user] = await this.sql<
       { id: string; password_hash: string | null }[]
     >`select id, password_hash from users where email = ${dto.email}`;
 
+    // No user at all -- nothing to attribute a login_failed row to (no
+    // tenant, no user_id), so unlike every other failure below, this one
+    // isn't audited. See DECISIONS.md for why that's a deliberate scope
+    // boundary, not an oversight.
     if (!user || !user.password_hash) {
       throw new UnauthorizedException('Invalid email or password');
     }
-    if (!(await argon2.verify(user.password_hash, dto.password))) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
 
+    // Looked up before the password check (not just after a successful
+    // one) so a wrong-password attempt against a real account can still be
+    // audited against every tenant it would have reached -- the security-
+    // relevant signal audit logging exists to capture in the first place.
     const memberships = await this.sql.begin(async (tx) => {
       // No tenant is known yet -- this is what we're about to discover --
       // so app.tenant_id can't be set. schema/91_tenant_users_self_lookup.sql's
@@ -145,6 +163,11 @@ export class AuthService {
         where tu.user_id = ${user.id} and tu.status = 'active'
       `;
     });
+
+    if (!(await argon2.verify(user.password_hash, dto.password))) {
+      await this.auditLoginFailed(user.id, memberships, ipAddress);
+      throw new UnauthorizedException('Invalid email or password');
+    }
 
     if (memberships.length === 0) {
       throw new UnauthorizedException(
@@ -183,6 +206,16 @@ export class AuthService {
       roleCode: chosen.role_code,
     });
 
+    await this.audit.record({
+      tenantId: chosen.tenant_id,
+      userId: user.id,
+      userRoleCode: chosen.role_code,
+      action: 'login',
+      entityType: 'tenant_user',
+      entityId: chosen.tenant_user_id,
+      ipAddress,
+    });
+
     return {
       accessToken,
       tenant: { slug: chosen.tenant_slug, legalName: chosen.legal_name },
@@ -192,6 +225,27 @@ export class AuthService {
 
   private issueToken(payload: JwtPayload): string {
     return this.jwt.sign(payload);
+  }
+
+  /** One login_failed row per tenant the account could have logged into -- a wrong password is a security signal against every one of them, not just whichever tenantSlug (if any) was specified. */
+  private async auditLoginFailed(
+    userId: string,
+    memberships: MembershipRow[],
+    ipAddress?: string,
+  ): Promise<void> {
+    await Promise.all(
+      memberships.map((m) =>
+        this.audit.record({
+          tenantId: m.tenant_id,
+          userId,
+          userRoleCode: m.role_code,
+          action: 'login_failed',
+          entityType: 'tenant_user',
+          entityId: m.tenant_user_id,
+          ipAddress,
+        }),
+      ),
+    );
   }
 }
 

@@ -2,7 +2,16 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
+import type postgres from 'postgres';
 import { AppModule } from '../app.module';
+import { createDbConnection } from '../db/client';
+import { withTenant } from '../db/tenant-context';
+
+/** Decodes the JWT payload without verifying it -- fine for a test asserting against a token this same process just issued. */
+function decodeJwtTenantId(token: string): string {
+  const [, payload] = token.split('.');
+  return JSON.parse(Buffer.from(payload, 'base64').toString()).tenantId;
+}
 
 /**
  * Integration test against the real database, exercising signup, login,
@@ -14,6 +23,8 @@ import { AppModule } from '../app.module';
  */
 describe('Auth', () => {
   let app: INestApplication;
+  let sql: postgres.Sql;
+  let tenantId: string;
   const suffix = randomUUID().slice(0, 8);
   const tenantSlug = `test-tenant-${suffix}`;
   const email = `owner-${suffix}@test.local`;
@@ -33,10 +44,13 @@ describe('Auth', () => {
       }),
     );
     await app.init();
+
+    sql = createDbConnection(process.env.DATABASE_URL!).sql;
   });
 
   afterAll(async () => {
     await app.close();
+    await sql.end();
   });
 
   it('rejects signup with an invalid payload', async () => {
@@ -61,6 +75,18 @@ describe('Auth', () => {
     expect(res.body.accessToken).toEqual(expect.any(String));
     expect(res.body.role).toBe('owner');
     expect(res.body.tenant.slug).toBe(tenantSlug);
+    tenantId = decodeJwtTenantId(res.body.accessToken);
+  });
+
+  it('recorded a create audit_logs entry for the signup, with IP captured', async () => {
+    const rows = await withTenant(sql, tenantId, (tx) => tx<
+      { action: string; entity_type: string; ip_address: string }[]
+    >`select action, entity_type, ip_address from audit_logs where tenant_id = ${tenantId}`);
+
+    expect(rows).toEqual([
+      expect.objectContaining({ action: 'create', entity_type: 'tenant' }),
+    ]);
+    expect(rows[0].ip_address).toBeTruthy();
   });
 
   it('rejects a duplicate signup with the same email', async () => {
@@ -83,6 +109,13 @@ describe('Auth', () => {
       .expect(401);
   });
 
+  it('recorded a login_failed audit_logs entry for the wrong password', async () => {
+    const rows = await withTenant(sql, tenantId, (tx) => tx<
+      { action: string }[]
+    >`select action from audit_logs where tenant_id = ${tenantId} and action = 'login_failed'`);
+    expect(rows).toHaveLength(1);
+  });
+
   it('logs in with the right password and returns a token', async () => {
     const res = await request(app.getHttpServer())
       .post('/auth/login')
@@ -91,6 +124,13 @@ describe('Auth', () => {
 
     expect(res.body.accessToken).toEqual(expect.any(String));
     expect(res.body.tenant.slug).toBe(tenantSlug);
+  });
+
+  it('recorded a login audit_logs entry for the successful login', async () => {
+    const rows = await withTenant(sql, tenantId, (tx) => tx<
+      { action: string }[]
+    >`select action from audit_logs where tenant_id = ${tenantId} and action = 'login'`);
+    expect(rows).toHaveLength(1);
   });
 
   it('rejects /me with no token', async () => {

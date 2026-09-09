@@ -8,7 +8,8 @@ not to bolt monetization onto individual modules after the fact.
 
 ## Phase 1 — Authentication, Multi-tenancy, Company, Users, Roles, Permissions, Entitlement Engine
 
-**Status: tenancy, auth, and the entitlement engine have landed.**
+**Status: tenancy, auth, the entitlement engine, and audit logging have
+landed.**
 `apps/api` is a NestJS + TypeScript + Drizzle project (`../../DECISIONS.md`
 §0) whose migration runner applies this directory's schema files as real,
 tracked migrations — now including `85_integrity_fixes.sql`,
@@ -27,9 +28,14 @@ specifies (clarified in one respect during implementation — see
 `tenant_subscriptions` row on the FREE plan at signup (`active`, not
 `trial` — there is no time-boxed trial without a paid plan to convert to
 yet, and the doc's original "trial" wording below is superseded by this).
-The RBAC *enforcement* guard is still deliberately deferred to Phase 2,
-alongside the first real permission-gated endpoint, rather than built
-against no caller (the seed data it will enforce —
+`AuditService.record()` is wired into signup (`create`) and both login
+outcomes (`login`/`login_failed`, the latter fanned out across every
+tenant a wrong-password attempt could have reached, looked up before the
+password check so it's available on failure too), each verified against
+real `audit_logs` rows, not just that the call didn't throw. The RBAC
+*enforcement* guard is still deliberately deferred to Phase 2, alongside
+the first real permission-gated endpoint, rather than built against no
+caller (the seed data it will enforce —
 `roles`/`permissions`/`role_permissions` — is already live). See
 `apps/api/README.md` for setup.
 
@@ -168,9 +174,13 @@ against no caller (the seed data it will enforce —
 
 ## Cross-cutting, not a phase
 
-- **Audit logging** (`audit_logs`) should be wired into the service-layer
-  interceptor starting Phase 1, not deferred to Phase 8 — Phase 8 only adds
-  the UI to browse it.
+- **Audit logging** (`audit_logs`) is wired in starting Phase 1, not
+  deferred to Phase 8 — Phase 8 only adds the UI to browse it.
+  `apps/api/src/audit/audit.service.ts`'s `record()` is the one function
+  every mutating and security-relevant action calls; signup (`create`) and
+  login/login\_failed already go through it. Every later phase's
+  create/update/approve/reject/cancel endpoints must call it too, not
+  write their own `audit_logs` insert.
 - **Numbering** (`numbering.md`) is needed by Phase 3 onward (Quotation is
   the first numbered document) and must not be reimplemented per phase.
 - **Attachments** (`attachments` table) is needed starting Phase 2 (customer
