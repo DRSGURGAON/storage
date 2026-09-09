@@ -94,15 +94,34 @@ describe('Users (memberships)', () => {
   });
 
   it('an existing account joins a second tenant as a new membership, password untouched', async () => {
+    // `password` is required whether or not the address already has an
+    // account, and is ignored when it does. It used to be optional, with a
+    // 400 saying a password was needed "when the email has no account
+    // yet" -- which answered, for any tenant admin and any address they
+    // cared to try, whether that address was registered *anywhere on the
+    // platform*, other tenants included. The membership is tenant-scoped;
+    // that answer was not.
+    await request(app.getHttpServer())
+      .post('/users')
+      .set('Authorization', `Bearer ${otherOwner}`)
+      .send({ email: memberEmail, fullName: 'Member', roleCode: 'accountant' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post('/users')
+      .set('Authorization', `Bearer ${otherOwner}`)
+      .send({ email: `never-seen-${suffix}@test.local`, fullName: 'Nobody', roleCode: 'accountant' })
+      .expect(400);
+
     const res = await request(app.getHttpServer())
       .post('/users')
       .set('Authorization', `Bearer ${otherOwner}`)
-      .send({ email: memberEmail, fullName: 'Member', roleCode: 'accountant' }) // no password needed
+      .send({ email: memberEmail, fullName: 'Member', password: 'a-different-password', roleCode: 'accountant' })
       .expect(201);
     expect(res.body.role.code).toBe('accountant');
 
-    // Now belongs to two tenants: login must ask which, and the original
-    // password still works for both.
+    // Now belongs to two tenants: login must ask which, and the *original*
+    // password still works for both -- the one supplied just now was
+    // discarded, not applied to an account this admin does not own.
     await request(app.getHttpServer())
       .post('/auth/login')
       .send({ email: memberEmail, password })

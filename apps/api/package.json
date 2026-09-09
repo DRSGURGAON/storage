@@ -21,6 +21,7 @@
     "@nestjs/mapped-types": "^2.1.1",
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.4.15",
+    "@nestjs/throttler": "^6.5.0",
     "@types/qrcode": "^1.5.6",
     "argon2": "^0.41.1",
     "class-transformer": "^0.5.1",

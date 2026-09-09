@@ -165,4 +165,75 @@ describe('Auth', () => {
       expect(res.body.tenant.slug).toBe(tenantSlug);
     }
   });
+
+  it('throttles repeated login attempts against one account, without penalising the rest of the office', async () => {
+    // Passwords are argon2id at 64 MiB a hash, so unlimited attempts are
+    // both a guessing oracle and a cheap way to make the server do 64 MiB
+    // of work per anonymous request. The limit is keyed on (IP, email)
+    // rather than IP alone: a warehouse office behind one NAT address must
+    // not throttle itself, while guessing one password has to stop.
+    const victim = `victim-${suffix}@test.local`;
+    await request(app.getHttpServer())
+      .post('/auth/signup')
+      .send({ companyLegalName: 'Victim Ltd', tenantSlug: `victim-${suffix}`, email: victim, fullName: 'Vic', password })
+      .expect(201);
+
+    const statuses: number[] = [];
+    for (let i = 0; i < 12; i += 1) {
+      const res = await request(app.getHttpServer()).post('/auth/login').send({ email: victim, password: 'wrong-guess' });
+      statuses.push(res.status);
+    }
+    expect(statuses).toContain(429);
+    // The first few are answered normally; the limit bites part way in
+    // rather than at the first attempt (a real person mistypes a password).
+    expect(statuses[0]).toBe(401);
+    expect(statuses[statuses.length - 1]).toBe(429);
+
+    // Locked out for that account -- even with the correct password, which
+    // is the point: guessing cannot be distinguished from succeeding.
+    await request(app.getHttpServer()).post('/auth/login').send({ email: victim, password }).expect(429);
+
+    // A different account from the same address is unaffected. This is the
+    // whole reason the key includes the email.
+    const colleague = `colleague-${suffix}@test.local`;
+    await request(app.getHttpServer())
+      .post('/auth/signup')
+      .send({
+        companyLegalName: 'Colleague Ltd',
+        tenantSlug: `colleague-${suffix}`,
+        email: colleague,
+        fullName: 'Colleague',
+        password,
+      })
+      .expect(201);
+    await request(app.getHttpServer()).post('/auth/login').send({ email: colleague, password }).expect(201);
+  });
+
+  it('takes the same work on a login for an unknown email as for a real one', async () => {
+    // Returning early for an unknown address answered in a millisecond
+    // while a real account spent ~100ms in argon2 -- a timing oracle for
+    // "does this email have an account?", readable without even looking at
+    // the response body. A fixed dummy hash is verified instead, so both
+    // paths do the same work.
+    const known = `timing-known-${suffix}@test.local`;
+    await request(app.getHttpServer())
+      .post('/auth/signup')
+      .send({ companyLegalName: 'Timing Ltd', tenantSlug: `timing-${suffix}`, email: known, fullName: 'Tim', password })
+      .expect(201);
+
+    const time = async (email: string) => {
+      const started = process.hrtime.bigint();
+      await request(app.getHttpServer()).post('/auth/login').send({ email, password: 'definitely-wrong' }).expect(401);
+      return Number(process.hrtime.bigint() - started) / 1e6;
+    };
+    const knownMs = await time(known);
+    const unknownMs = await time(`timing-nobody-${suffix}@test.local`);
+
+    // Both should sit in the same order of magnitude -- an argon2 verify.
+    // Asserted as a ratio rather than an absolute, since CI machines vary,
+    // and loosely enough not to flake: before the fix the unknown path was
+    // ~100x faster, so anything under 5x proves the early return is gone.
+    expect(unknownMs).toBeGreaterThan(knownMs / 5);
+    expect(unknownMs).toBeLessThan(knownMs * 5);
+  });
 });

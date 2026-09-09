@@ -23,6 +23,17 @@ interface MembershipRow {
   role_code: string;
 }
 
+/**
+ * A real argon2id hash of a value nobody knows, used only to spend the
+ * same ~100ms on a login for an email that has no account as on one that
+ * does. Its plaintext is irrelevant and intentionally unrecoverable --
+ * nothing ever verifies successfully against it. Baked in as a literal
+ * rather than hashed at boot so every process, and every restart, takes
+ * the identical amount of work.
+ */
+const TIMING_EQUALISER_HASH =
+  '$argon2id$v=19$m=65536,t=3,p=4$r1aeTYVWnIqPqPP9iqjAig$GsIv5gxGyMqvDKgsd5STopcnCVCc84zo0nqI4qwUYOE';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -151,6 +162,12 @@ export class AuthService {
     // isn't audited. See DECISIONS.md for why that's a deliberate scope
     // boundary, not an oversight.
     if (!user || !user.password_hash) {
+      // Returning here immediately would answer in a millisecond, while a
+      // real account spends ~100ms in argon2 -- a clean timing oracle for
+      // "does this email have an account?", readable over the network
+      // without needing the response body at all. Verifying against a
+      // fixed dummy hash costs the same work and gives the same answer.
+      await argon2.verify(TIMING_EQUALISER_HASH, dto.password).catch(() => false);
       throw new UnauthorizedException('Invalid email or password');
     }
 

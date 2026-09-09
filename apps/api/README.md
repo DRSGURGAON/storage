@@ -74,6 +74,15 @@ rows with no error at all.
   membership; returns a JWT.
 - `POST /auth/login` — `{ email, password, tenantSlug? }`; `tenantSlug` is
   required only when the account belongs to more than one tenant.
+  Rate-limited to 8/minute per **(IP, email)** — per IP alone would either
+  lock out a warehouse office sharing one NAT address or leave room to
+  guess one password thousands of times a day; keying on the account under
+  attack does neither. Once tripped the correct password is refused too,
+  which is the point: otherwise the 429-vs-401 boundary would itself
+  answer "was that guess right?". A login for an unknown address now
+  verifies a fixed dummy hash so it costs the same ~50ms as a real one —
+  returning early was a timing oracle for whether an address is
+  registered. See `DECISIONS.md` §36.
 - `GET /auth/me` — requires `Authorization: Bearer <token>`; returns the
   authenticated user's tenant/role, read through `withTenant()`
   (`src/db/tenant-context.ts`) so every response is proven, not assumed,
@@ -92,7 +101,11 @@ rows with no error at all.
 - `GET /users`, `POST /users`, `PATCH /users/:id` (`manage_users_and_roles`)
   — tenant memberships. Adding an email with no account yet requires an
   initial `password` (no email delivery until V1.1's notification engine);
-  an existing account just gains a membership. Guards: you cannot change
+  an existing account just gains a membership; `password` is required
+  either way and ignored (never applied) when the account exists — it used
+  to be optional, and the 400 explaining when it was needed told any tenant
+  admin whether an address was registered anywhere on the platform. Guards:
+  you cannot change
   your own membership, and the last active Owner cannot be demoted or
   disabled. The `customer` role is rejected here — that's the portal
   (V1.1). `warehouseIds` restricts a Warehouse Manager/Operator to those
@@ -219,7 +232,10 @@ rows with no error at all.
   the Document Centre's read side, gated on the broader `view_documents`
   rather than each source record's own permission (an Operator can view
   documents even though it can't generate a quotation's own).
-- `GET /verify/:qrToken` — fully public, no JWT. Resolves `valid` (with
+- `GET /verify/:qrToken` — fully public, no JWT, and rate-limited to
+  60/minute per IP: it writes a `document_verifications` row on every
+  matching hit, which unbounded is write amplification anyone holding one
+  valid token can aim at the database. Resolves `valid` (with
   the document number, issuer trade name, generated date, and the source
   record's live status), `revoked` (a superseded version — not a 404, so
   a scanner can tell "used to be valid" from "never existed"), or
@@ -354,6 +370,23 @@ caller. `NumberingService` has real callers: customer codes, `QT`/`AG`
 numbers, and now every `documents` row shares its source record's own
 number rather than getting one of its own.
 
+## Rate limiting
+
+One throttler, with per-route overrides — not several named ones. With
+`@nestjs/throttler` every named throttler is evaluated on *every* route
+(`@Throttle({ auth: ... })` overrides a limit for a route, it does not
+scope it to one), so declaring a tight `auth` limit alongside a loose
+default silently capped the entire API at the tight figure. The global
+2000/minute is a runaway-script backstop and deliberately loose: a per-IP
+limit is the wrong shape for authenticated routes in a multi-tenant API,
+where a customer's whole office is one address and every route already
+requires a JWT and a permission. All limits are env-overridable
+(`RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`, `VERIFY_RATE_LIMIT_MAX`, and
+their `*_TTL_MS` pairs). `TRUST_PROXY_HOPS` is off by default —
+`X-Forwarded-For` is client-settable, so trusting it on a directly
+reachable host would hand out a fresh rate-limit bucket per forged
+header.
+
 ## Tests
 
 ```bash
@@ -367,6 +400,13 @@ All against the real local database (`DATABASE_URL`), not mocks:
   unauthenticated cases, repeated `/me` calls across a reused connection to
   catch the class of bug in `DECISIONS.md` §18, and that signup/login/
   login\_failed each land the `audit_logs` row they're supposed to.
+- `auth/auth.spec.ts`'s throttling cases — twelve wrong-password attempts
+  on one account returning `401` then `429`, the correct password refused
+  once the limit trips, a *different* account from the same address still
+  logging in (which is what proves the key includes the email), and a
+  timing comparison asserting a login for an unknown address takes the
+  same order of magnitude as one for a real account, as a ratio rather
+  than an absolute so it does not flake on a slow machine.
 - `db/tenant-isolation.spec.ts` — the mechanism every future module will
   rely on (`withTenant()` + RLS), proven directly against a real table
   since no masters module exists yet to prove it through HTTP.

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AgreementsModule } from './agreements/agreements.module';
 import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
@@ -24,12 +26,17 @@ import { TransportModule } from './transport/transport.module';
 import { UsersModule } from './users/users.module';
 import { WarehouseReceiptsModule } from './warehouse-receipts/warehouse-receipts.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
+import { ScopedThrottlerGuard, throttlerConfig } from './throttling';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    // A broad per-IP ceiling on every route. The credential endpoints add
+    // a second, much tighter limit of their own (see AuthThrottlerGuard);
+    // both apply, because they defend against different things.
+    ThrottlerModule.forRoot(throttlerConfig(process.env)),
     DbModule,
     AuthModule,
     EntitlementModule,
@@ -55,5 +62,6 @@ import { WarehousesModule } from './warehouses/warehouses.module';
     WarehouseReceiptsModule,
   ],
   controllers: [HealthController],
+  providers: [{ provide: APP_GUARD, useClass: ScopedThrottlerGuard }],
 })
 export class AppModule {}

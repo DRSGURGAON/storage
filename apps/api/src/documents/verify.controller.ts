@@ -1,4 +1,6 @@
 import { Controller, Get, Headers, Inject, Injectable, Ip, Param } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { positiveNumber } from '../throttling';
 import type postgres from 'postgres';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
@@ -79,6 +81,19 @@ export class VerifyService {
 export class VerifyController {
   constructor(private readonly verify: VerifyService) {}
 
+  /**
+   * Public and unauthenticated, and it *writes* -- a
+   * `document_verifications` row per matching hit. Left unbounded that is
+   * write amplification anyone holding one valid token can aim at the
+   * database, so it carries a limit of its own, tighter than the global
+   * one but still far above what scanning a printed document looks like.
+   */
+  @Throttle({
+    default: {
+      ttl: positiveNumber(process.env.VERIFY_RATE_LIMIT_TTL_MS, 60_000),
+      limit: positiveNumber(process.env.VERIFY_RATE_LIMIT_MAX, 60),
+    },
+  })
   @Get(':qrToken')
   check(@Param('qrToken') qrToken: string, @Ip() ip: string, @Headers('user-agent') userAgent?: string) {
     return this.verify.verify(qrToken, ip, userAgent);

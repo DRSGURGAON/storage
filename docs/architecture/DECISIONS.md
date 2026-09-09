@@ -1131,3 +1131,100 @@ in. It now checks the same condition `GET /company` exposes as
 `isDocumentReady`: GSTIN plus a full address, the minimum a letterhead
 needs to stop looking unfinished. A fresh tenant's `nextStep` is
 therefore `company` rather than `warehouse`.
+
+## §36 — rate limiting: one throttler with per-route limits, keyed on the credential for auth
+
+Findings 4 and 6 of the Phase 5 audit. There was no throttling of any
+kind. `POST /auth/login` accepted unlimited attempts, and passwords are
+argon2id at 64 MiB a hash, so it was both a guessing oracle and a cheap
+way to make the server allocate memory on request: a hundred concurrent
+attempts is 6.4 GB of work an anonymous caller can ask for.
+`GET /verify/:qrToken` is public, unauthenticated, and *writes* a
+`document_verifications` row on every matching hit.
+
+### The library does not scope named throttlers to routes
+
+The obvious shape — a generous `default`, a tight `auth`, a middling
+`verify` — is wrong with `@nestjs/throttler`, and wrong in a way that
+looks right. Every named throttler is evaluated on **every** route;
+`@Throttle({ auth: ... })` overrides one's *configuration* for a route,
+it does not confine it to that route. Declaring `auth: 8/min` alongside
+the others therefore capped the whole API at eight requests a minute.
+The suite went from green to 54 failures, every one a `429`, on document
+and gate-entry routes that have nothing to do with logging in — and the
+first instinct, that the global limit was too low, was wrong: raising it
+from 300 to 2000 changed nothing, because the limit doing the rejecting
+was the one named `auth`.
+
+So: **one throttler, with per-route overrides**. `@Throttle({ default:
+{...} })` on the routes that need something tighter says exactly what it
+means and nothing else.
+
+### The global limit is deliberately loose
+
+2000/minute per IP is a runaway-script backstop, not a policy. A per-IP
+limit is the wrong shape for the authenticated half of a multi-tenant
+API: a whole warehouse office sits behind one NAT address, so any figure
+tight enough to be a real defence throttles a customer's entire staff as
+one caller. Those routes already require a JWT and a permission, so the
+attacker it would stop has to authenticate first. Rationing them properly
+means a per-tenant quota — a plan/entitlement question, not a network
+one. Until that exists, a ceiling that catches an infinite loop is worth
+more than one that pages someone every busy shift.
+
+### Auth is keyed on (IP, email), not IP
+
+The credential endpoints are limited to 8 per minute per **(IP, email)**.
+Per-IP alone fails in both directions: too low and the shared-NAT office
+locks itself out, too high and one account's password can be guessed
+thousands of times a day. Keying on the account being attacked fixes
+both — guessing one password stops after eight tries while forty people
+at one address never collide.
+
+The IP stays in the key on purpose. Keying on the account alone would let
+anyone lock a victim out of their own account from anywhere, trading a
+guessing problem for a denial-of-service one.
+
+Once the limit trips, the *correct* password is refused too. That is the
+point rather than a side effect: if a valid credential still got through,
+the 429-vs-401 boundary would itself answer "was that guess right?"
+
+### The enumeration oracles
+
+Three, and they did not all deserve the same treatment.
+
+**Login timing — fixed.** Returning early for an unknown email answered
+in about a millisecond while a real account spent ~100ms in argon2: a
+clean oracle for "does this address have an account?", readable off the
+wire without even parsing the response. The unknown path now verifies
+against a fixed dummy hash, so both do the same work. Measured on the
+running server afterwards: 56ms for a known address, 52ms for an unknown
+one.
+
+**`POST /users` — fixed.** `password` was optional, with a 400 explaining
+it was needed "when the email has no account yet". That told any tenant
+admin, for any address they cared to try, whether it was registered
+*anywhere on the platform*, other tenants included. The membership is
+tenant-scoped; that answer was not. `password` is now required
+unconditionally and discarded when the account exists — and it is hashed
+either way, since branching there would move the same oracle into the
+response time.
+
+**Signup — kept, deliberately.** It still distinguishes "an account with
+this email already exists" from "that workspace URL is taken". A generic
+message would close a weak oracle at real cost to a real person: someone
+who has forgotten they already have an account, being told only that
+something unspecified went wrong. The mitigation is the throttle — eight
+attempts a minute per (IP, email) makes enumeration expensive without
+making the product worse for the person it is actually talking to. Worth
+naming as a decision rather than leaving as an oversight.
+
+### `trust proxy` stays off by default
+
+`@Ip()` behind a load balancer records the balancer's address, which
+degrades the audit trail. The fix is `trust proxy`, and turning it on
+unconditionally would be worse than the problem: `X-Forwarded-For` is
+client-settable, so on a directly reachable host it hands an attacker a
+fresh rate-limit bucket per forged header and a fabricated IP in every
+`audit_logs` row. `TRUST_PROXY_HOPS` is opt-in and takes a hop count, so
+a deployment trusts only the addresses its own proxy appended.

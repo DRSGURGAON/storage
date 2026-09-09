@@ -69,13 +69,14 @@ export class UsersService {
     const [existing] = await this.sql<{ id: string }[]>`
       select id from users where email = ${dto.email}
     `;
-    if (!existing && !dto.password) {
-      throw new BadRequestException(
-        'password is required when the email has no account yet',
-      );
-    }
 
-    const passwordHash = existing ? null : await argon2.hash(dto.password!);
+    // Hashed either way, and discarded when the account already exists.
+    // The wasted work is the point: branching on `existing` here would
+    // make the response time say whether the address is registered
+    // somewhere on the platform -- the same oracle the DTO change closes
+    // on the validation side. An existing account's own password is never
+    // touched.
+    const passwordHash = await argon2.hash(dto.password);
     let member: MemberRow;
     try {
       member = await withTenant(this.sql, actor.tenantId, async (tx) => {
