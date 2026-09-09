@@ -4,6 +4,7 @@ import type postgres from 'postgres';
 import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
+import { assertWarehouseInScope, loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { NumberingService } from '../numbering/numbering.service';
 import { StockMovement, StockService } from '../stock/stock.service';
@@ -460,6 +461,7 @@ export class GrnsService {
 
   async create(actor: AuthenticatedUser, dto: CreateGrnDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const inwardDefaults = dto.inwardId ? await this.loadInwardDefaults(tx, actor.tenantId, dto.inwardId) : null;
 
       const warehouseId = dto.warehouseId ?? inwardDefaults?.warehouseId;
@@ -469,6 +471,7 @@ export class GrnsService {
       }
       const [warehouse] = await tx`select 1 from warehouses where id = ${warehouseId} and tenant_id = ${actor.tenantId}`;
       if (!warehouse) throw new NotFoundException('Warehouse not found');
+      assertWarehouseInScope(scope, warehouseId);
       const [customer] = await tx`select 1 from customers where id = ${customerId} and tenant_id = ${actor.tenantId}`;
       if (!customer) throw new NotFoundException('Customer not found');
 
@@ -542,10 +545,12 @@ export class GrnsService {
     const statusFilter = query.status ?? null;
 
     return withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const rows = await tx<GrnRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)}
         from grns
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern} or invoice_number ilike ${pattern} or lr_number ilike ${pattern})
           and (${warehouseFilter}::uuid is null or warehouse_id = ${warehouseFilter})
           and (${customerFilter}::uuid is null or customer_id = ${customerFilter})
@@ -556,6 +561,7 @@ export class GrnsService {
       const [{ count }] = await tx<{ count: string }[]>`
         select count(*)::text as count from grns
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern} or invoice_number ilike ${pattern} or lr_number ilike ${pattern})
           and (${warehouseFilter}::uuid is null or warehouse_id = ${warehouseFilter})
           and (${customerFilter}::uuid is null or customer_id = ${customerFilter})
@@ -573,8 +579,10 @@ export class GrnsService {
 
   async update(actor: AuthenticatedUser, id: string, dto: UpdateGrnDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [before] = await tx<GrnRow[]>`
-        select ${tx.unsafe(SELECT_COLUMNS)} from grns where id = ${id} and tenant_id = ${actor.tenantId} for update
+        select ${tx.unsafe(SELECT_COLUMNS)} from grns where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope})) for update
       `;
       if (!before) return null;
       if (before.status !== 'draft') {
@@ -589,6 +597,7 @@ export class GrnsService {
       if (dto.warehouseId) {
         const [warehouse] = await tx`select 1 from warehouses where id = ${dto.warehouseId} and tenant_id = ${actor.tenantId}`;
         if (!warehouse) throw new NotFoundException('Warehouse not found');
+        assertWarehouseInScope(scope, dto.warehouseId);
       }
       if (dto.supplierId) {
         const [supplier] = await tx`select 1 from suppliers where id = ${dto.supplierId} and tenant_id = ${actor.tenantId}`;
@@ -669,8 +678,10 @@ export class GrnsService {
     apply: (tx: postgres.TransactionSql, before: GrnRow) => Promise<void>,
   ) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [before] = await tx<GrnRow[]>`
-        select ${tx.unsafe(SELECT_COLUMNS)} from grns where id = ${id} and tenant_id = ${actor.tenantId} for update
+        select ${tx.unsafe(SELECT_COLUMNS)} from grns where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope})) for update
       `;
       if (!before) return null;
       if (!allowedFrom.includes(before.status)) {

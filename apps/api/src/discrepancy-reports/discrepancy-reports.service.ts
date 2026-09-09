@@ -4,6 +4,7 @@ import type postgres from 'postgres';
 import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
+import { assertWarehouseInScope, loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { NumberingService } from '../numbering/numbering.service';
 import { AcknowledgeDiscrepancyDto } from './dto/acknowledge-discrepancy.dto';
@@ -158,6 +159,7 @@ export class DiscrepancyReportsService {
 
   async create(actor: AuthenticatedUser, dto: CreateDiscrepancyReportDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       let warehouseId = dto.warehouseId;
       let customerId = dto.customerId;
       let supplierId = dto.supplierId ?? null;
@@ -231,6 +233,7 @@ export class DiscrepancyReportsService {
       }
       const [warehouse] = await tx`select 1 from warehouses where id = ${warehouseId} and tenant_id = ${actor.tenantId}`;
       if (!warehouse) throw new NotFoundException('Warehouse not found');
+      assertWarehouseInScope(scope, warehouseId);
       const [customer] = await tx`select 1 from customers where id = ${customerId} and tenant_id = ${actor.tenantId}`;
       if (!customer) throw new NotFoundException('Customer not found');
       if (dto.supplierId) {
@@ -276,10 +279,12 @@ export class DiscrepancyReportsService {
     const statusFilter = query.status ?? null;
 
     return withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const rows = await tx<DiscrepancyReportRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)}
         from discrepancy_reports
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern} or supplier_name ilike ${pattern})
           and (${grnFilter}::uuid is null or grn_id = ${grnFilter})
           and (${customerFilter}::uuid is null or customer_id = ${customerFilter})
@@ -290,6 +295,7 @@ export class DiscrepancyReportsService {
       const [{ count }] = await tx<{ count: string }[]>`
         select count(*)::text as count from discrepancy_reports
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern} or supplier_name ilike ${pattern})
           and (${grnFilter}::uuid is null or grn_id = ${grnFilter})
           and (${customerFilter}::uuid is null or customer_id = ${customerFilter})
@@ -307,9 +313,11 @@ export class DiscrepancyReportsService {
 
   async update(actor: AuthenticatedUser, id: string, dto: UpdateDiscrepancyReportDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [before] = await tx<DiscrepancyReportRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)} from discrepancy_reports
-        where id = ${id} and tenant_id = ${actor.tenantId} for update
+        where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope})) for update
       `;
       if (!before) return null;
       if (before.status !== 'draft') {
@@ -363,9 +371,11 @@ export class DiscrepancyReportsService {
     apply: (tx: postgres.TransactionSql) => Promise<void>,
   ) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [before] = await tx<DiscrepancyReportRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)} from discrepancy_reports
-        where id = ${id} and tenant_id = ${actor.tenantId} for update
+        where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope})) for update
       `;
       if (!before) return null;
       if (!allowedFrom.includes(before.status)) {

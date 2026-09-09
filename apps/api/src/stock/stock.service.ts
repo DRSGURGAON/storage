@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
+import { loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { ListStockLedgerQuery } from './dto/list-stock-ledger.query';
 import { ListStockQuery } from './dto/list-stock.query';
@@ -265,6 +266,7 @@ export class StockService {
     const includeEmpty = query.includeEmpty ?? false;
 
     return withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const rows = await tx<Record<string, string | null>[]>`
         select sl.id, sl.customer_id, c.name as customer_name,
                sl.warehouse_id, w.code as warehouse_code,
@@ -280,6 +282,7 @@ export class StockService {
         left join locations l on l.id = sl.location_id
         left join batches b on b.id = sl.batch_id
         where sl.tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or sl.warehouse_id = any(${scope}))
           and (${customerFilter}::uuid is null or sl.customer_id = ${customerFilter})
           and (${warehouseFilter}::uuid is null or sl.warehouse_id = ${warehouseFilter})
           and (${productFilter}::uuid is null or sl.product_id = ${productFilter})
@@ -291,6 +294,7 @@ export class StockService {
       const [{ count }] = await tx<{ count: string }[]>`
         select count(*)::text as count from stock_lots sl
         where sl.tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or sl.warehouse_id = any(${scope}))
           and (${customerFilter}::uuid is null or sl.customer_id = ${customerFilter})
           and (${warehouseFilter}::uuid is null or sl.warehouse_id = ${warehouseFilter})
           and (${productFilter}::uuid is null or sl.product_id = ${productFilter})
@@ -337,6 +341,7 @@ export class StockService {
     const sourceIdFilter = query.sourceId ?? null;
 
     return withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const rows = await tx<Record<string, string | null>[]>`
         select sle.id, sle.txn_at, sle.txn_type, sle.customer_id,
                sle.warehouse_id, w.code as warehouse_code,
@@ -353,6 +358,7 @@ export class StockService {
         left join locations l on l.id = sle.location_id
         left join batches b on b.id = sle.batch_id
         where sle.tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or sle.warehouse_id = any(${scope}))
           and (${customerFilter}::uuid is null or sle.customer_id = ${customerFilter})
           and (${warehouseFilter}::uuid is null or sle.warehouse_id = ${warehouseFilter})
           and (${productFilter}::uuid is null or sle.product_id = ${productFilter})
@@ -365,6 +371,7 @@ export class StockService {
       const [{ count }] = await tx<{ count: string }[]>`
         select count(*)::text as count from stock_ledger sle
         where sle.tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or sle.warehouse_id = any(${scope}))
           and (${customerFilter}::uuid is null or sle.customer_id = ${customerFilter})
           and (${warehouseFilter}::uuid is null or sle.warehouse_id = ${warehouseFilter})
           and (${productFilter}::uuid is null or sle.product_id = ${productFilter})

@@ -4,6 +4,7 @@ import type postgres from 'postgres';
 import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
+import { assertWarehouseInScope, loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { NumberingService } from '../numbering/numbering.service';
 import { CreateInspectionDto, CreateInspectionItemDto } from './dto/create-inspection.dto';
@@ -155,6 +156,7 @@ export class InspectionsService {
 
   async create(actor: AuthenticatedUser, dto: CreateInspectionDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       let warehouseId = dto.warehouseId;
       let customerId = dto.customerId;
 
@@ -170,6 +172,7 @@ export class InspectionsService {
         throw new BadRequestException('warehouseId and customerId are required (directly, or via a grnId)');
       }
       const [warehouse] = await tx`select 1 from warehouses where id = ${warehouseId} and tenant_id = ${actor.tenantId}`;
+      assertWarehouseInScope(scope, warehouseId);
       if (!warehouse) throw new NotFoundException('Warehouse not found');
       const [customer] = await tx`select 1 from customers where id = ${customerId} and tenant_id = ${actor.tenantId}`;
       if (!customer) throw new NotFoundException('Customer not found');
@@ -215,10 +218,12 @@ export class InspectionsService {
     const statusFilter = query.status ?? null;
 
     return withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const rows = await tx<InspectionRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)}
         from inspections
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern} or inspector_name ilike ${pattern})
           and (${grnFilter}::uuid is null or grn_id = ${grnFilter})
           and (${customerFilter}::uuid is null or customer_id = ${customerFilter})
@@ -229,6 +234,7 @@ export class InspectionsService {
       const [{ count }] = await tx<{ count: string }[]>`
         select count(*)::text as count from inspections
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern} or inspector_name ilike ${pattern})
           and (${grnFilter}::uuid is null or grn_id = ${grnFilter})
           and (${customerFilter}::uuid is null or customer_id = ${customerFilter})
@@ -246,8 +252,10 @@ export class InspectionsService {
 
   async update(actor: AuthenticatedUser, id: string, dto: UpdateInspectionDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [before] = await tx<InspectionRow[]>`
-        select ${tx.unsafe(SELECT_COLUMNS)} from inspections where id = ${id} and tenant_id = ${actor.tenantId} for update
+        select ${tx.unsafe(SELECT_COLUMNS)} from inspections where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope})) for update
       `;
       if (!before) return null;
       if (before.status !== 'draft') {
@@ -296,8 +304,10 @@ export class InspectionsService {
     newStatus: string,
   ) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [before] = await tx<InspectionRow[]>`
-        select ${tx.unsafe(SELECT_COLUMNS)} from inspections where id = ${id} and tenant_id = ${actor.tenantId} for update
+        select ${tx.unsafe(SELECT_COLUMNS)} from inspections where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope})) for update
       `;
       if (!before) return null;
       if (!allowedFrom.includes(before.status)) {

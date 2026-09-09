@@ -4,6 +4,7 @@ import type postgres from 'postgres';
 import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
+import { assertWarehouseInScope, loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { NumberingService } from '../numbering/numbering.service';
 import { CreateInwardItemDto } from './dto/create-inward-item.dto';
@@ -286,8 +287,10 @@ export class InwardsService {
 
   async create(actor: AuthenticatedUser, dto: CreateInwardDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [warehouse] = await tx`select 1 from warehouses where id = ${dto.warehouseId} and tenant_id = ${actor.tenantId}`;
       if (!warehouse) throw new NotFoundException('Warehouse not found');
+      assertWarehouseInScope(scope, dto.warehouseId);
 
       let customerId = dto.customerId ?? null;
       let gateEntryDefaults: GateEntryDefaults | null = null;
@@ -387,10 +390,12 @@ export class InwardsService {
     const statusFilter = query.status ?? null;
 
     return withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const rows = await tx<InwardRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)}
         from inwards
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern} or lr_number ilike ${pattern} or invoice_number ilike ${pattern})
           and (${warehouseFilter}::uuid is null or warehouse_id = ${warehouseFilter})
           and (${customerFilter}::uuid is null or customer_id = ${customerFilter})
@@ -401,6 +406,7 @@ export class InwardsService {
       const [{ count }] = await tx<{ count: string }[]>`
         select count(*)::text as count from inwards
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern} or lr_number ilike ${pattern} or invoice_number ilike ${pattern})
           and (${warehouseFilter}::uuid is null or warehouse_id = ${warehouseFilter})
           and (${customerFilter}::uuid is null or customer_id = ${customerFilter})
@@ -418,8 +424,10 @@ export class InwardsService {
 
   async update(actor: AuthenticatedUser, id: string, dto: UpdateInwardDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [before] = await tx<InwardRow[]>`
-        select ${tx.unsafe(SELECT_COLUMNS)} from inwards where id = ${id} and tenant_id = ${actor.tenantId} for update
+        select ${tx.unsafe(SELECT_COLUMNS)} from inwards where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope})) for update
       `;
       if (!before) return null;
       if (before.status !== 'draft') {
@@ -429,6 +437,7 @@ export class InwardsService {
       if (dto.warehouseId) {
         const [warehouse] = await tx`select 1 from warehouses where id = ${dto.warehouseId} and tenant_id = ${actor.tenantId}`;
         if (!warehouse) throw new NotFoundException('Warehouse not found');
+        assertWarehouseInScope(scope, dto.warehouseId);
       }
       const customerId = dto.customerId ?? before.customer_id;
       if (dto.customerId) {
@@ -515,8 +524,10 @@ export class InwardsService {
     newStatus: string,
   ) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [before] = await tx<InwardRow[]>`
-        select ${tx.unsafe(SELECT_COLUMNS)} from inwards where id = ${id} and tenant_id = ${actor.tenantId} for update
+        select ${tx.unsafe(SELECT_COLUMNS)} from inwards where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope})) for update
       `;
       if (!before) return null;
       if (!allowedFrom.includes(before.status)) {

@@ -9,6 +9,7 @@ import type postgres from 'postgres';
 import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
+import { loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
@@ -98,17 +99,28 @@ export class WarehousesService {
   }
 
   async list(actor: AuthenticatedUser) {
-    const rows = await withTenant(this.sql, actor.tenantId, (tx) => tx<WarehouseRow[]>`
+    // permissions-matrix.md: a restricted membership's warehouse list is
+    // narrowed too -- a warehouse the caller may not operate in should not
+    // show up in their picker at all.
+    const rows = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
+      return tx<WarehouseRow[]>`
       select ${tx.unsafe(COLS)} from warehouses
-      where tenant_id = ${actor.tenantId} order by code
-    `);
+      where tenant_id = ${actor.tenantId}
+        and (${scope}::uuid[] is null or id = any(${scope}))
+      order by code
+    `;
+    });
     return rows.map(toApi);
   }
 
   async get(actor: AuthenticatedUser, id: string) {
     const row = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [found] = await tx<WarehouseRow[]>`
-        select ${tx.unsafe(COLS)} from warehouses where id = ${id} and tenant_id = ${actor.tenantId}
+        select ${tx.unsafe(COLS)} from warehouses
+        where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or id = any(${scope}))
       `;
       return found;
     });

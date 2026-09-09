@@ -4,6 +4,7 @@ import type postgres from 'postgres';
 import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
+import { assertWarehouseInScope, loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { NumberingService } from '../numbering/numbering.service';
 import { CreateGateEntryDto } from './dto/create-gate-entry.dto';
@@ -152,8 +153,10 @@ export class GateEntriesService {
 
   async create(actor: AuthenticatedUser, dto: CreateGateEntryDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [warehouse] = await tx`select 1 from warehouses where id = ${dto.warehouseId} and tenant_id = ${actor.tenantId}`;
       if (!warehouse) throw new NotFoundException('Warehouse not found');
+      assertWarehouseInScope(scope, dto.warehouseId);
       if (dto.customerId) {
         const [customer] = await tx`select 1 from customers where id = ${dto.customerId} and tenant_id = ${actor.tenantId}`;
         if (!customer) throw new NotFoundException('Customer not found');
@@ -199,10 +202,12 @@ export class GateEntriesService {
     const directionFilter = query.direction ?? null;
 
     return withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const rows = await tx<GateEntryRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)}
         from gate_entries
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern} or vehicle_number ilike ${pattern} or driver_name ilike ${pattern} or reference_no ilike ${pattern})
           and (${warehouseFilter}::uuid is null or warehouse_id = ${warehouseFilter})
           and (${statusFilter}::text is null or status = ${statusFilter})
@@ -213,6 +218,7 @@ export class GateEntriesService {
       const [{ count }] = await tx<{ count: string }[]>`
         select count(*)::text as count from gate_entries
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern} or vehicle_number ilike ${pattern} or driver_name ilike ${pattern} or reference_no ilike ${pattern})
           and (${warehouseFilter}::uuid is null or warehouse_id = ${warehouseFilter})
           and (${statusFilter}::text is null or status = ${statusFilter})
@@ -223,18 +229,25 @@ export class GateEntriesService {
   }
 
   async get(actor: AuthenticatedUser, id: string) {
-    const [row] = await withTenant(this.sql, actor.tenantId, (tx) => tx<GateEntryRow[]>`
-      select ${tx.unsafe(SELECT_COLUMNS)} from gate_entries where id = ${id} and tenant_id = ${actor.tenantId}
-    `);
+    const [row] = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
+      return tx<GateEntryRow[]>`
+        select ${tx.unsafe(SELECT_COLUMNS)} from gate_entries
+        where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
+      `;
+    });
     if (!row) throw new NotFoundException('Gate entry not found');
     return toApi(row);
   }
 
   async update(actor: AuthenticatedUser, id: string, dto: UpdateGateEntryDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [before] = await tx<GateEntryRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)} from gate_entries
         where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
         for update
       `;
       if (!before) return null;
@@ -245,6 +258,7 @@ export class GateEntriesService {
       if (dto.warehouseId) {
         const [warehouse] = await tx`select 1 from warehouses where id = ${dto.warehouseId} and tenant_id = ${actor.tenantId}`;
         if (!warehouse) throw new NotFoundException('Warehouse not found');
+        assertWarehouseInScope(scope, dto.warehouseId);
       }
       const customerId = dto.customerId !== undefined ? dto.customerId : before.customer_id;
       if (dto.customerId) {
@@ -309,9 +323,11 @@ export class GateEntriesService {
     setClauseFor: (tx: postgres.TransactionSql, before: GateEntryRow) => Promise<void>,
   ) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [before] = await tx<GateEntryRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)} from gate_entries
         where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
         for update
       `;
       if (!before) return null;

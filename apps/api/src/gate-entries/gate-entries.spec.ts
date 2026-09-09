@@ -205,6 +205,79 @@ describe('Gate Entries', () => {
     await api().get('/gate-entries').set('Authorization', `Bearer ${billingExec}`).expect(403);
   });
 
+  it('narrows a restricted membership to its assigned warehouses, on reads and on writes', async () => {
+    // tenancy-and-security.md §4: `tenant_users.warehouse_ids`, when set,
+    // additionally filters every operational query. It was written, returned
+    // by the API as an active restriction, and enforced nowhere -- an
+    // operator "restricted" to one warehouse could create records in, and
+    // read stock from, every other warehouse in the tenant. It is a third
+    // axis alongside RLS (which tenant) and RBAC (which action), so it is
+    // tested as its own thing rather than folded into either.
+    const assigned = await api()
+      .post('/warehouses')
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ code: 'WH09', name: 'Assigned Godown' })
+      .expect(201);
+
+    const email = `scoped-${suffix}@test.local`;
+    await api()
+      .post('/users')
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ email, fullName: 'Scoped Op', password, roleCode: 'warehouse_operator', warehouseIds: [assigned.body.id] })
+      .expect(201);
+    const scoped = (await api().post('/auth/login').send({ email, password }).expect(201)).body.accessToken;
+
+    // The unrestricted warehouse is refused outright rather than 404'd: a
+    // write naming a warehouse you may not touch is a mistake worth naming.
+    await api()
+      .post('/gate-entries')
+      .set('Authorization', `Bearer ${scoped}`)
+      .send({ warehouseId, customerId, direction: 'in', purpose: 'inward' })
+      .expect(403);
+
+    const own = await api()
+      .post('/gate-entries')
+      .set('Authorization', `Bearer ${scoped}`)
+      .send({ warehouseId: assigned.body.id, customerId, direction: 'in', purpose: 'inward' })
+      .expect(201);
+    // Narrowing must not become blocking: their own warehouse still works.
+    await api().get(`/gate-entries/${own.body.id}`).set('Authorization', `Bearer ${scoped}`).expect(200);
+
+    // Reads narrow silently -- a filter, not an error.
+    const theirs = await api().get('/gate-entries').set('Authorization', `Bearer ${scoped}`).expect(200);
+    expect(theirs.body.items.every((r: { warehouseId: string }) => r.warehouseId === assigned.body.id)).toBe(true);
+    const ownerSees = await api().get('/gate-entries').set('Authorization', `Bearer ${owner}`).expect(200);
+    expect(ownerSees.body.total).toBeGreaterThan(theirs.body.total);
+
+    // A record in the other warehouse is simply not there for them.
+    const elsewhere = await api()
+      .post('/gate-entries')
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ warehouseId, customerId, direction: 'in', purpose: 'inward' })
+      .expect(201);
+    await api().get(`/gate-entries/${elsewhere.body.id}`).set('Authorization', `Bearer ${scoped}`).expect(404);
+    await api().get(`/gate-entries/${elsewhere.body.id}`).set('Authorization', `Bearer ${owner}`).expect(200);
+
+    // permissions-matrix.md narrows *every* one of that role's permissions,
+    // so the warehouse picker itself is filtered too.
+    const visible = await api().get('/warehouses').set('Authorization', `Bearer ${scoped}`).expect(200);
+    expect(visible.body.map((w: { code: string }) => w.code)).toEqual(['WH09']);
+    const allWarehouses = await api().get('/warehouses').set('Authorization', `Bearer ${owner}`).expect(200);
+    expect(allWarehouses.body.length).toBeGreaterThan(1);
+
+    // An empty array is "never restricted", not "locked out of everywhere" --
+    // otherwise a stray empty write would silently disable the account.
+    const unrestrictedEmail = `unscoped-${suffix}@test.local`;
+    await api()
+      .post('/users')
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ email: unrestrictedEmail, fullName: 'Open Op', password, roleCode: 'warehouse_operator', warehouseIds: [] })
+      .expect(201);
+    const unrestricted = (await api().post('/auth/login').send({ email: unrestrictedEmail, password }).expect(201)).body
+      .accessToken;
+    await api().get(`/gate-entries/${elsewhere.body.id}`).set('Authorization', `Bearer ${unrestricted}`).expect(200);
+  });
+
   it('rejects unauthenticated access', async () => {
     await api().get('/gate-entries').expect(401);
   });

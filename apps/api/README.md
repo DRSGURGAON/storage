@@ -95,7 +95,14 @@ rows with no error at all.
   an existing account just gains a membership. Guards: you cannot change
   your own membership, and the last active Owner cannot be demoted or
   disabled. The `customer` role is rejected here — that's the portal
-  (V1.1).
+  (V1.1). `warehouseIds` restricts a Warehouse Manager/Operator to those
+  warehouses, and is genuinely enforced: every operational read (gate
+  entries, inwards, GRNs, inspections, discrepancy reports, put-aways,
+  warehouse receipts, stock, ledger, and the warehouse list itself) is
+  filtered to them, and a write naming a warehouse outside the set is a
+  403. Reads narrow silently, writes refuse loudly — see
+  `tenancy-and-security.md` §4 and `DECISIONS.md` §34. An empty array
+  means unrestricted, not "locked out of everywhere".
 - `POST/GET/PATCH /warehouses[/:id]` (`create_warehouse` / `view_warehouse`
   / `edit_warehouse`; `code` is immutable) and
   `POST/GET/PATCH /warehouses/:id/locations[/:locationId]` (locations use

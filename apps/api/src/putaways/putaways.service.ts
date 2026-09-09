@@ -4,6 +4,7 @@ import type postgres from 'postgres';
 import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
+import { assertWarehouseInScope, loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { NumberingService } from '../numbering/numbering.service';
 import { StockMovement, StockService } from '../stock/stock.service';
@@ -119,10 +120,14 @@ export class PutawaysService {
 
   async create(actor: AuthenticatedUser, dto: CreatePutawayDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [grn] = await tx<{ status: string; warehouse_id: string; customer_id: string }[]>`
         select status, warehouse_id, customer_id from grns where id = ${dto.grnId} and tenant_id = ${actor.tenantId}
       `;
       if (!grn) throw new NotFoundException('GRN not found');
+      // The warehouse is the GRN's, not the caller's to choose -- so the scope
+      // check is against where the goods actually are.
+      assertWarehouseInScope(scope, grn.warehouse_id);
       if (grn.status !== 'approved') {
         throw new BadRequestException(
           `Cannot create a put-away for a GRN in '${grn.status}' status (expected 'approved')`,
@@ -219,10 +224,12 @@ export class PutawaysService {
     const statusFilter = query.status ?? null;
 
     return withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const rows = await tx<PutawayRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)}
         from putaways
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern})
           and (${grnFilter}::uuid is null or grn_id = ${grnFilter})
           and (${warehouseFilter}::uuid is null or warehouse_id = ${warehouseFilter})
@@ -233,6 +240,7 @@ export class PutawaysService {
       const [{ count }] = await tx<{ count: string }[]>`
         select count(*)::text as count from putaways
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern})
           and (${grnFilter}::uuid is null or grn_id = ${grnFilter})
           and (${warehouseFilter}::uuid is null or warehouse_id = ${warehouseFilter})
@@ -256,8 +264,10 @@ export class PutawaysService {
     apply: (tx: postgres.TransactionSql, before: PutawayRow) => Promise<void>,
   ) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [before] = await tx<PutawayRow[]>`
-        select ${tx.unsafe(SELECT_COLUMNS)} from putaways where id = ${id} and tenant_id = ${actor.tenantId} for update
+        select ${tx.unsafe(SELECT_COLUMNS)} from putaways where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope})) for update
       `;
       if (!before) return null;
       if (!allowedFrom.includes(before.status)) {

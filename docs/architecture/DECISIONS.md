@@ -987,3 +987,70 @@ the missing endpoint is *visibly* missing, while a missing check on an
 endpoint that does exist looks exactly like a working one. Worth a
 periodic diff of seeded codes against `@RequirePermission` usage —
 "unused" is the interesting direction, not "undefined".
+
+## §34 — `warehouse_ids` was a restriction the API reported as active and enforced nowhere
+
+The second finding of the Phase 5 audit, and the same shape as §33: a
+control that was specified, stored, surfaced, and never applied.
+
+`tenancy-and-security.md` §4 says `tenant_users.warehouse_ids`, when set,
+makes "every operational query additionally filter `warehouse_id =
+ANY(...)`", and `permissions-matrix.md` adds that it narrows every one of
+that role's permissions. The column was written by `POST /users`, echoed
+back by `GET /users`, and matched by exactly one file in the whole
+repository — the one that wrote it. Reproduced against a running server:
+
+```
+Member created; the API reports warehouseIds: [WH02]
+Operator creates a gate entry in WH01  ->  201 GE/26-27/000002
+Operator reads WH01 stock              ->  200, 1 lot
+```
+
+No cross-tenant leak, so it never showed up in an isolation test — the
+tenant's own RLS was working perfectly. That is what made it survive: the
+axis it guards is *inside* the tenant, and nothing else in the system
+looks there.
+
+### Reads narrow, writes refuse
+
+The two halves behave differently on purpose. A read filters: an
+out-of-scope gate entry is simply absent from the list and 404s on
+fetch, because that is what "additionally filters" means, and because a
+403 on a read would tell the caller the record exists. A write refuses
+with 403 and says why. A silent 404 on `POST /gate-entries` would read as
+"that warehouse doesn't exist", which is both confusing to a real
+operator and less honest than naming the restriction.
+
+Where the warehouse is derived rather than supplied — a put-away and a
+warehouse receipt both take it from their GRN — the check is against the
+GRN's warehouse. Checking the request body there would check nothing,
+since the body never names a warehouse.
+
+### Empty array means unrestricted
+
+`warehouse_ids = '{}'` is treated as "no restriction", identically to
+`NULL`. The alternative reading — "assigned to zero warehouses,
+therefore sees nothing" — is defensible in the abstract and dangerous in
+practice: it turns a stray empty write from a UI multi-select into a
+silently disabled account, with no error anywhere to explain it.
+Disabling someone is what `status` is for, and it is visible.
+
+### Why it is a filter in the service and not RLS
+
+RLS would have been the tempting answer, given §90's policies already
+exist. It is the wrong tool here: the restriction is per *user*, not per
+tenant, and `withTenant()` deliberately knows only the tenant — it sets
+one GUC and has no notion of who is asking. Threading a user into it to
+drive a second family of policies would put per-user authorization into
+the layer whose whole job is the tenant boundary, and would apply it to
+migrations and seeds too. The service-layer filter is explicit,
+greppable, and testable through HTTP, which is how it is now covered.
+
+### The pattern worth noticing
+
+§33 and §34 are the same failure twice: a control that exists everywhere
+except in the code path it governs. Both passed every review that asked
+"is this specified, stored, and granted?" — the question that would have
+caught them is "what reads this?" A column or permission code that
+nothing references is the signal; it looks like completeness and is the
+opposite.

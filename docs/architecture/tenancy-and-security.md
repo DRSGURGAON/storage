@@ -75,6 +75,32 @@ issue time (see §5 below).
 - `tenant_users.warehouse_ids` optionally restricts a Warehouse
   Manager/Operator to specific warehouses; when set, every operational query
   additionally filters `warehouse_id = ANY(tenant_users.warehouse_ids)`.
+
+  > **Implemented** (`apps/api/src/auth/warehouse-scope.ts`), and not
+  > before the Phase 5 audit: the column was written, returned by the API
+  > as an active restriction, and enforced by nothing — an operator
+  > "restricted" to one warehouse could create records in, and read stock
+  > from, every other warehouse in the tenant. `loadWarehouseScope()` now
+  > reads it per request (like the role, so narrowing takes effect
+  > immediately rather than at token expiry) and every operational read —
+  > gate entries, inwards, GRNs, inspections, discrepancy reports,
+  > put-aways, warehouse receipts, `stock_lots`, `stock_ledger`, and the
+  > warehouse list itself — carries
+  > `and (${scope}::uuid[] is null or warehouse_id = any(${scope}))`.
+  >
+  > Reads narrow *silently* and writes refuse *loudly*: an out-of-scope
+  > record is simply not there (404 on a fetch, absent from a list), which
+  > is what a filter means, while a create naming a warehouse the caller
+  > may not touch is a `403` — a silent 404 there would read as "that
+  > warehouse doesn't exist", which is both confusing and less honest.
+  > Where the warehouse is derived rather than chosen (a put-away or
+  > warehouse receipt takes it from the GRN), the check is against where
+  > the goods actually are.
+  >
+  > An empty array means *unrestricted*, deliberately: a membership with
+  > `warehouse_ids = '{}'` is someone who was never restricted, not
+  > someone locked out of everywhere, and treating it as "see nothing"
+  > would silently disable an account on a stray empty write.
 - Permission checks and RLS are independent: RBAC decides *whether this role
   may perform this action at all*; RLS decides *which rows of that type this
   tenant/customer may see*. Both must pass.

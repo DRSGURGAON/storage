@@ -4,6 +4,7 @@ import type postgres from 'postgres';
 import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
+import { assertWarehouseInScope, loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { NumberingService } from '../numbering/numbering.service';
 import { IssueWarehouseReceiptDto } from './dto/issue-warehouse-receipt.dto';
@@ -77,11 +78,13 @@ export class WarehouseReceiptsService {
 
   async issue(actor: AuthenticatedUser, dto: IssueWarehouseReceiptDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [grn] = await tx<{ status: string; warehouse_id: string; customer_id: string; number: string }[]>`
         select status, warehouse_id, customer_id, number from grns
         where id = ${dto.grnId} and tenant_id = ${actor.tenantId}
       `;
       if (!grn) throw new NotFoundException('GRN not found');
+      assertWarehouseInScope(scope, grn.warehouse_id);
       if (grn.status !== 'approved') {
         throw new BadRequestException(
           `Cannot issue a warehouse receipt for a GRN in '${grn.status}' status (expected 'approved')`,
@@ -205,10 +208,12 @@ export class WarehouseReceiptsService {
     const statusFilter = query.status ?? null;
 
     return withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const rows = await tx<WarehouseReceiptRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)}
         from warehouse_receipts
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern})
           and (${grnFilter}::uuid is null or grn_id = ${grnFilter})
           and (${customerFilter}::uuid is null or customer_id = ${customerFilter})
@@ -219,6 +224,7 @@ export class WarehouseReceiptsService {
       const [{ count }] = await tx<{ count: string }[]>`
         select count(*)::text as count from warehouse_receipts
         where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
           and (${pattern}::text is null or number ilike ${pattern})
           and (${grnFilter}::uuid is null or grn_id = ${grnFilter})
           and (${customerFilter}::uuid is null or customer_id = ${customerFilter})
@@ -229,18 +235,24 @@ export class WarehouseReceiptsService {
   }
 
   async get(actor: AuthenticatedUser, id: string) {
-    const [row] = await withTenant(this.sql, actor.tenantId, (tx) => tx<WarehouseReceiptRow[]>`
-      select ${tx.unsafe(SELECT_COLUMNS)} from warehouse_receipts where id = ${id} and tenant_id = ${actor.tenantId}
-    `);
+    const [row] = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
+      return tx<WarehouseReceiptRow[]>`
+        select ${tx.unsafe(SELECT_COLUMNS)} from warehouse_receipts where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
+      `;
+    });
     if (!row) throw new NotFoundException('Warehouse receipt not found');
     return toApi(row);
   }
 
   async cancel(actor: AuthenticatedUser, id: string, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
       const [before] = await tx<WarehouseReceiptRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)} from warehouse_receipts
-        where id = ${id} and tenant_id = ${actor.tenantId} for update
+        where id = ${id} and tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id = any(${scope})) for update
       `;
       if (!before) return null;
       if (before.status !== 'issued') {
