@@ -182,4 +182,113 @@ describe('Customers', () => {
   it('rejects unauthenticated access', async () => {
     await request(app.getHttpServer()).get('/customers').expect(401);
   });
+
+  describe('addresses and contacts', () => {
+    it('enforces only one default address per (customer, kind), independently across kinds', async () => {
+      const registered = await request(app.getHttpServer())
+        .post(`/customers/${customerAId}/addresses`)
+        .set('Authorization', `Bearer ${ownerA}`)
+        .send({ kind: 'registered', addressLine1: '123 Main St', city: 'Gurgaon', isDefault: true })
+        .expect(201);
+      expect(registered.body.isDefault).toBe(true);
+
+      const delivery1 = await request(app.getHttpServer())
+        .post(`/customers/${customerAId}/addresses`)
+        .set('Authorization', `Bearer ${ownerA}`)
+        .send({ kind: 'delivery', label: 'Plant 2', addressLine1: '456 Industrial Rd', isDefault: true })
+        .expect(201);
+      expect(delivery1.body.isDefault).toBe(true);
+
+      const delivery2 = await request(app.getHttpServer())
+        .post(`/customers/${customerAId}/addresses`)
+        .set('Authorization', `Bearer ${ownerA}`)
+        .send({ kind: 'delivery', label: 'Plant 3', addressLine1: '789 New Rd', isDefault: true })
+        .expect(201);
+      expect(delivery2.body.isDefault).toBe(true);
+
+      const list = await request(app.getHttpServer())
+        .get(`/customers/${customerAId}/addresses`)
+        .set('Authorization', `Bearer ${ownerA}`)
+        .expect(200);
+      const byId = new Map(list.body.map((a: { id: string; isDefault: boolean }) => [a.id, a.isDefault]));
+      // The registered default is untouched by the delivery-kind churn; only one delivery default remains.
+      expect(byId.get(registered.body.id)).toBe(true);
+      expect(byId.get(delivery1.body.id)).toBe(false);
+      expect(byId.get(delivery2.body.id)).toBe(true);
+    });
+
+    it('enforces only one primary contact per customer, and re-toggling moves it back', async () => {
+      const first = await request(app.getHttpServer())
+        .post(`/customers/${customerAId}/contacts`)
+        .set('Authorization', `Bearer ${ownerA}`)
+        .send({ name: 'Rakesh Sharma', mobile: '9876543210', isPrimary: true })
+        .expect(201);
+      expect(first.body.isPrimary).toBe(true);
+
+      const second = await request(app.getHttpServer())
+        .post(`/customers/${customerAId}/contacts`)
+        .set('Authorization', `Bearer ${ownerA}`)
+        .send({ name: 'Priya Singh', email: 'priya@acme.test', isPrimary: true })
+        .expect(201);
+      expect(second.body.isPrimary).toBe(true);
+
+      let list = await request(app.getHttpServer())
+        .get(`/customers/${customerAId}/contacts`)
+        .set('Authorization', `Bearer ${ownerA}`)
+        .expect(200);
+      expect(list.body.filter((c: { isPrimary: boolean }) => c.isPrimary)).toHaveLength(1);
+      expect(list.body.find((c: { id: string }) => c.id === first.body.id).isPrimary).toBe(false);
+
+      await request(app.getHttpServer())
+        .patch(`/customers/${customerAId}/contacts/${first.body.id}`)
+        .set('Authorization', `Bearer ${ownerA}`)
+        .send({ isPrimary: true })
+        .expect(200);
+
+      list = await request(app.getHttpServer())
+        .get(`/customers/${customerAId}/contacts`)
+        .set('Authorization', `Bearer ${ownerA}`)
+        .expect(200);
+      expect(list.body.filter((c: { isPrimary: boolean }) => c.isPrimary)).toHaveLength(1);
+      expect(list.body.find((c: { id: string }) => c.id === first.body.id).isPrimary).toBe(true);
+      expect(list.body.find((c: { id: string }) => c.id === second.body.id).isPrimary).toBe(false);
+    });
+
+    it('404s addresses/contacts under an unknown or cross-tenant customer', async () => {
+      const unknownId = '00000000-0000-0000-0000-000000000000';
+      await request(app.getHttpServer())
+        .get(`/customers/${unknownId}/addresses`)
+        .set('Authorization', `Bearer ${ownerA}`)
+        .expect(404);
+      await request(app.getHttpServer())
+        .post(`/customers/${unknownId}/contacts`)
+        .set('Authorization', `Bearer ${ownerA}`)
+        .send({ name: 'Ghost' })
+        .expect(404);
+
+      // Tenant B cannot see or write into tenant A's customer's addresses/contacts.
+      await request(app.getHttpServer())
+        .get(`/customers/${customerAId}/addresses`)
+        .set('Authorization', `Bearer ${ownerB}`)
+        .expect(404);
+      await request(app.getHttpServer())
+        .post(`/customers/${customerAId}/contacts`)
+        .set('Authorization', `Bearer ${ownerB}`)
+        .send({ name: 'Hijack' })
+        .expect(404);
+    });
+
+    it('an operator can view but not create addresses/contacts', async () => {
+      await request(app.getHttpServer())
+        .get(`/customers/${customerAId}/addresses`)
+        .set('Authorization', `Bearer ${operatorA}`)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post(`/customers/${customerAId}/addresses`)
+        .set('Authorization', `Bearer ${operatorA}`)
+        .send({ kind: 'registered', addressLine1: 'Should Not Exist' })
+        .expect(403);
+    });
+  });
 });

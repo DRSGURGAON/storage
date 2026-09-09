@@ -176,9 +176,24 @@ entirely — is proven against a real 3-card stack in `billing.spec.ts`,
 not just asserted from the query shape. A `GET /rate-cards/resolve`
 endpoint exposes the same resolution for the future rate-card UI to
 preview "what would this actually charge" before Phase 7 bills anything.
-Not yet: customer addresses/contacts/KYC documents, location QR label
-rendering (document engine, Phase 3), and the onboarding wizard below —
-Phase 2's masters are otherwise complete.
+**Customer addresses and contacts landed** (nested under
+`apps/api/src/customers/`, `customer_addresses`/`customer_contacts` in
+`schema/10_masters.sql`): `registered`/`billing`/`delivery` addresses and
+contacts, both under `/customers/:id/`. Neither table has a database
+constraint enforcing "only one default/primary" — `is_default` is scoped
+per `(customer, kind)` and `is_primary` per customer, both service-layer
+invariants enforced in the same transaction as the write (clear the old
+flag, then set the new one), the same "not a DB constraint, so enforce it
+here" pattern as rate cards' scope check. Proven directly: three
+addresses across two kinds confirm a new `delivery` default clears the
+previous `delivery` default while leaving the unrelated `registered`
+default untouched, and toggling `isPrimary` back onto an earlier contact
+correctly un-primaries the one that displaced it. Both ride the existing
+`view_customer`/`edit_customer` permissions — no separate permission code
+exists for either sub-resource. KYC documents are deferred to the
+`attachments` table (Phase 4, per the schema's own comment: "Customer
+documents... live in attachments with owner_type='customer'"). Phase 2's
+masters are otherwise complete — only the onboarding wizard remains.
 
 - Schema: `schema/10_masters.sql`.
 - Docs: `numbering.md` (customer codes, warehouse codes if numbered),

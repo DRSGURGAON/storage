@@ -60,6 +60,13 @@ exist.
   and `GET /customers/:id` (`view_customer`), `PATCH /customers/:id`
   (`edit_customer`). Every route is behind `JwtAuthGuard` + `PermissionsGuard`;
   the permission codes are the seeded ones from `permissions-matrix.md`.
+- `POST/GET/PATCH /customers/:id/addresses[/:addressId]` and
+  `.../contacts[/:contactId]` — ride the same `view_customer`/
+  `edit_customer` permissions (no separate code exists for either).
+  `isDefault` (addresses, scoped per `kind`) and `isPrimary` (contacts,
+  per customer) are service-enforced single-flag invariants: setting one
+  clears any other of the same scope in the same transaction, since
+  neither is a database constraint.
 - `GET /users`, `POST /users`, `PATCH /users/:id` (`manage_users_and_roles`)
   — tenant memberships. Adding an email with no account yet requires an
   initial `password` (no email delivery until V1.1's notification engine);
@@ -137,7 +144,13 @@ All against the real local database (`DATABASE_URL`), not mocks:
   it the first API-level proofs of tenant isolation (tenant B sees none
   of tenant A's customers, 404s on fetch/patch, gets its own `CUST0001`)
   and RBAC (a Warehouse Operator can list but gets 403 + a
-  `permission_denied` audit row on create).
+  `permission_denied` audit row on create). Its nested `addresses and
+  contacts` block proves the single-default-per-kind and
+  single-primary-contact invariants directly (a new default in one
+  address kind leaves another kind's default untouched; re-toggling
+  `isPrimary` onto an earlier contact correctly moves it off the one that
+  displaced it), 404s under an unknown or cross-tenant customer, and
+  operator 403.
 - `users/users.spec.ts` — memberships through HTTP: add, log in as the
   member, an existing account joining a second tenant (login then demands
   `tenantSlug`), a role change / disablement taking effect on the member's
