@@ -18,19 +18,19 @@ Entry → Inward → GRN (with §50's Operator → Manager approval split) →
 Inspection / Discrepancy Report → Put-away → Warehouse Receipt; and a
 real document engine — server-rendered PDF generation (headless Chromium
 via `puppeteer-core`), QR-code verification, versioning, and FREE-plan
-entitlement gating — proven end-to-end against **eight** registered
+entitlement gating — proven end-to-end against **nine** registered
 templates: Quotation, Agreement, Gate Entry, Inward, GRN, Discrepancy
-Report, Put-away Slip, and Warehouse Receipt.
+Report, Put-away Slip, Warehouse Receipt, and Stock Transfer Note.
 
 Phase 5 is under way: the **stock engine** is built and wired into the
 inbound chain. `StockService` is the only thing in the codebase that
 writes a stock balance — GRN approval posts real `INWARD` ledger rows
 and resolves batches, put-away completion relocates that stock as a
 `TRANSFER_OUT`/`TRANSFER_IN` pair, and `GET /stock` / `GET /stock/ledger`
-read it back. Stock Transfer, Physical Verification, Stock Adjustment,
-the ageing report, and GRN reversal (`'reversed'` still has no
-transition) are the rest of the phase; Outward and the billing-run
-modules come after it.
+read it back. Stock Transfer is built on top of it, and Physical
+Verification, Stock Adjustment, the ageing report and GRN reversal
+(`'reversed'` still has no transition) are the rest of the phase; Outward
+and the billing-run modules come after it.
 
 ## Stack
 
@@ -342,6 +342,25 @@ rows with no error at all.
   not a negotiable/WDRA receipt, not a document of title, and may not be
   transferred, endorsed, or pledged — a legal boundary, not a wording
   preference.
+- `POST/GET /stock-transfers[/:id]` plus `POST /stock-transfers/:id/approve`,
+  `/dispatch`, `/complete`, `/cancel`, and the same `document/preview` /
+  `document` pair (`documentType: 'stock_transfer'`, `featureCode:
+  'STOCK_TRANSFER'`). Every route rides `create_stock_transfer` — the
+  matrix seeds no separate approve code for this module, unlike stock
+  adjustments where it seeds two. `transferKind` decides **when** the two
+  ledger rows are written, and that is the point of the module: a
+  `'location'` (bin-to-bin) move posts `TRANSFER_OUT` and `TRANSFER_IN`
+  together at `complete`, because a pallet crossing an aisle has no
+  journey; a `'warehouse'` move posts the OUT at `dispatch` and the IN at
+  `complete`, so while the truck is on the road the goods are in
+  **neither** warehouse's balance — which is where they actually are.
+  Consequences, all deliberate: a `'warehouse'` transfer can't be
+  completed before it's dispatched, a `'location'` one can't be dispatched
+  at all, and an `in_transit` transfer can't be cancelled (the departure
+  is already in the ledger; reversal is additive per `stock-engine.md`
+  §3.5). A line with no `toLocationId` lands unallocated at the
+  destination, exactly as a receipt awaiting put-away does. See
+  `DECISIONS.md` §37.
 - `GET /stock?customerId=&warehouseId=&productId=&locationId=&includeEmpty=`
   (`view_stock`) and `GET /stock/ledger?...&txnType=&sourceType=&sourceId=`
   (`view_stock_ledger`) — current balances and the append-only movement
@@ -595,6 +614,19 @@ All against the real local database (`DATABASE_URL`), not mocks:
   worth asserting here because `tenants` is keyed by `id` rather than
   `tenant_id`, so `schema/90`'s generator gives it no RLS policy and the
   explicit filter is the only thing scoping it.
+- `stock-transfers/stock-transfers.spec.ts` — a kind that contradicts its
+  warehouses refused both ways, a location outside its own warehouse and a
+  same-bin move refused; a bin-to-bin transfer moving nothing until it is
+  completed and then posting exactly `TRANSFER_OUT`/`TRANSFER_IN`; the
+  warehouse transfer asserted through its whole shape — arrival refused
+  before departure, the total on hand dropping by 40 while in transit and
+  returning on arrival, cancellation refused once the goods have left, and
+  the two ledger rows landing in the two different warehouses; a line with
+  no destination bin arriving unallocated; §79's negative-stock case
+  reached through a real document with the transition proven to roll back
+  whole (still `approved`, no ledger rows, no balance moved); the ninth
+  template rendering, committing and verifying; plus cancel-before-move,
+  filtering and tenant isolation.
 - `stock/stock.spec.ts` — the stock engine, tested through the documents
   that actually move stock. GRN approval posting only what was *accepted*
   (90 of 100 received) as one unallocated `INWARD` row; a batch resolved

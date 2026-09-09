@@ -21,6 +21,7 @@ import { OnboardingModule } from './onboarding/onboarding.module';
 import { ProductsModule } from './products/products.module';
 import { PutawaysModule } from './putaways/putaways.module';
 import { StockModule } from './stock/stock.module';
+import { StockTransfersModule } from './stock-transfers/stock-transfers.module';
 import { QuotationsModule } from './quotations/quotations.module';
 import { TransportModule } from './transport/transport.module';
 import { UsersModule } from './users/users.module';
@@ -59,6 +60,7 @@ import { ScopedThrottlerGuard, throttlerConfig } from './throttling';
     DiscrepancyReportsModule,
     PutawaysModule,
     StockModule,
+    StockTransfersModule,
     WarehouseReceiptsModule,
   ],
   controllers: [HealthController],

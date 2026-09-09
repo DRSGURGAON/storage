@@ -34,6 +34,10 @@ export const PROVISIONAL_SOURCE_STATUSES: Record<string, readonly string[]> = {
   discrepancy_report: ['draft'],
   putaway: ['pending', 'in_progress'],
   warehouse_receipt: [],
+  // A transfer note is provisional until the goods leave. Once it is
+  // in_transit the TRANSFER_OUT is in the ledger and a driver may be
+  // carrying the printed copy.
+  stock_transfer: ['draft', 'approved'],
 };
 
 /**

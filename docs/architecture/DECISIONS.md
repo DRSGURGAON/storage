@@ -1228,3 +1228,73 @@ client-settable, so on a directly reachable host it hands an attacker a
 fresh rate-limit bucket per forged header and a fabricated IP in every
 `audit_logs` row. `TRUST_PROXY_HOPS` is opt-in and takes a hop count, so
 a deployment trusts only the addresses its own proxy appended.
+
+## §37 — a warehouse transfer posts its two ledger rows at *different* moments
+
+`stock-engine.md` §7 says a transfer between warehouses is two ledger
+rows, `TRANSFER_OUT` at the source and `TRANSFER_IN` at the destination,
+"not a mutation of a single row's `warehouse_id`". It does not say
+*when*, and the two available answers are not equivalent.
+
+Posting both at completion would show the goods sitting in the source
+warehouse for as long as the journey takes — a day, a week for a
+Gurugram-to-Bhiwandi run. That is not a rounding error; it is stock a
+picker can see, reserve, and be sent to fetch from a rack it left on
+Tuesday. Posting both at dispatch has the mirror problem: the
+destination shows stock that has not arrived, and someone allocates it.
+
+So the two rows are written at the two moments they describe:
+
+| kind | `TRANSFER_OUT` | `TRANSFER_IN` |
+|---|---|---|
+| `location` (bin to bin) | at `complete` | at `complete` |
+| `warehouse` | at `dispatch` (`in_transit`) | at `complete` |
+
+A bin-to-bin move has no journey and no vehicle, so splitting it would
+invent a state that does not exist; both rows go together.
+
+### The gap is the honest part
+
+Between dispatch and arrival, a warehouse transfer's goods are in
+**neither** warehouse's balance. Verified live: 100 bags in, 40 dispatched,
+`GET /stock` totals 60 until the truck arrives. That looks like missing
+stock and is not — it is stock in a vehicle, on a road, in nobody's rack,
+and the balance now says exactly that. The trace is the transfer record
+itself plus `GET /stock/ledger?sourceId=`, which shows the departure with
+no matching arrival yet.
+
+The alternative considered and rejected was an in-transit holding row —
+`location_id` null at the destination warehouse, reusing 40_stock.sql's
+"unallocated / in-transit" comment. It keeps the total constant, which is
+its whole appeal, and it lies about *where*: the goods would appear in
+the destination warehouse's balance before reaching the building, which
+is the same error as posting both rows at dispatch, only better hidden.
+Four ledger rows per line instead of two, to make a number look tidier.
+
+### What follows from the gap
+
+An `in_transit` transfer cannot be cancelled. The `TRANSFER_OUT` is
+already in the ledger and §3.5 is explicit that reversal is additive:
+undoing a departure is a second, deliberate movement, not an edit to this
+record. `cancel` therefore allows `draft` and `approved` only, and says
+so.
+
+A `warehouse` transfer also cannot be completed without being dispatched
+— goods cannot arrive before they leave — and `dispatch` is refused on a
+`location` transfer, which has nothing to dispatch. Both are 400s that
+name the reason rather than silently reinterpreting the request.
+
+### Everything rides `create_stock_transfer`
+
+`permissions-matrix.md` seeds one code for this module and no separate
+approve code — unlike stock adjustments, where it seeds two. So approval
+here is the same authority as raising the note. Inventing a distinction
+the matrix does not make would be inventing policy, not implementing it.
+
+### A line with no destination bin
+
+Allowed on a warehouse transfer, and it means what a GRN's receipt means:
+the goods have arrived but not been shelved, so they land unallocated
+(`location_id` null) at the destination and wait for a put-away. Refused
+on a location transfer, where "move this pallet to nowhere in particular"
+is not a real instruction.

@@ -550,13 +550,27 @@ source document so one GRN's whole stock footprint is one query, per
 §67). Both are read-only by design: there is no endpoint anywhere that
 writes a balance.
 
-**Still to build in this phase:** Stock Transfer, Physical Verification
-and Stock Adjustment with their approval chains; the Customer Stock
-Statement and Ageing report; and GRN reversal — `'reversed'` still has
-no transition, because undoing a posting once the goods have been put
-away (or partly dispatched) is a real design question, not a
-transcription of §3.5, and it deserves its own slice rather than a
-half-correct one bolted onto this one.
+**Stock Transfer landed** (`apps/api/src/stock-transfers/`), §28's
+Stock Transfer Note, and with it §79's "transfer between bins/warehouses"
+and "prevent negative stock" cases. `transferKind` decides *when* the two
+ledger rows are written, which is the whole design of the slice: a
+bin-to-bin move posts both at completion (there is no journey), while a
+warehouse-to-warehouse move posts the `TRANSFER_OUT` when the truck
+leaves and the `TRANSFER_IN` when it arrives — so while the goods are on
+the road they are in **neither** warehouse's balance, because that is
+where they physically are. `DECISIONS.md` §37 records why an in-transit
+holding row was rejected. An `in_transit` transfer cannot be cancelled
+(the departure is already in the ledger; §3.5's reversal is additive),
+and a line with no destination bin lands unallocated at the far end
+exactly as a receipt awaiting put-away does. The Stock Transfer Note is
+the **ninth** registered document template.
+
+**Still to build in this phase:** Physical Verification and Stock
+Adjustment with their approval chains; the Customer Stock Statement and
+Ageing report; and GRN reversal — `'reversed'` still has no transition,
+because undoing a posting once the goods have been put away (or partly
+dispatched) is a real design question, not a transcription of §3.5, and
+it deserves its own slice rather than a half-correct one bolted on.
 
 - Schema: `schema/40_stock.sql`.
 - Docs: `stock-engine.md` in full.

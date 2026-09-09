@@ -128,6 +128,8 @@ Wired in so far:
 |---|---|---|
 | GRN approval (§18) | one `INWARD` per accepted quantity, `location_id` null | `grn:{id}:approve` |
 | Put-away completion (§20) | `TRANSFER_OUT` (unallocated) + `TRANSFER_IN` (bin) per line | `putaway:{id}:complete` |
+| Stock transfer, bin to bin (§28) | `TRANSFER_OUT` + `TRANSFER_IN` per line, both at `complete` | `stock_transfer:{id}:out` / `:in` |
+| Stock transfer, warehouse to warehouse | `TRANSFER_OUT` at `dispatch`, `TRANSFER_IN` at `complete` | `stock_transfer:{id}:out` / `:in` |
 
 Three things the implementation settled that this document left open:
 
@@ -150,7 +152,15 @@ Read side: `GET /stock` (balances; emptied lots hidden unless
 query, per §67). Neither writes anything, and no other endpoint writes a
 balance either.
 
-Not yet built: Stock Transfer, Physical Verification, Stock Adjustment,
+**When** a transfer's two rows are written is a decision in itself, not
+a detail: a warehouse-to-warehouse move posts its departure and its
+arrival at the two moments they describe, so the goods are in neither
+balance while they are on the road. See `DECISIONS.md` §37 for why the
+tidier-looking alternative — an in-transit holding row that keeps the
+total constant — was rejected as a better-hidden version of the same
+error.
+
+Not yet built: Physical Verification, Stock Adjustment,
 the reservation types (`RESERVE`/`UNRESERVE`, which Phase 6's Release
 Order owns), `OUTWARD`, and §3.5's controlled reversal — GRN
 `'reversed'` still has no transition, since undoing a posting after the

@@ -7,6 +7,7 @@ import { GrnDocumentTemplate } from './templates/grn-document.template';
 import { InwardDocumentTemplate } from './templates/inward-document.template';
 import { PutawayDocumentTemplate } from './templates/putaway-document.template';
 import { QuotationDocumentTemplate } from './templates/quotation-document.template';
+import { StockTransferDocumentTemplate } from './templates/stock-transfer-document.template';
 import { WarehouseReceiptDocumentTemplate } from './templates/warehouse-receipt-document.template';
 
 /**
@@ -28,6 +29,7 @@ export class DocumentTemplateRegistry {
     discrepancyTemplate: DiscrepancyDocumentTemplate,
     putawayTemplate: PutawayDocumentTemplate,
     warehouseReceiptTemplate: WarehouseReceiptDocumentTemplate,
+    stockTransferTemplate: StockTransferDocumentTemplate,
   ) {
     this.templates.set(quotationTemplate.documentType, quotationTemplate);
     this.templates.set(agreementTemplate.documentType, agreementTemplate);
@@ -37,6 +39,7 @@ export class DocumentTemplateRegistry {
     this.templates.set(discrepancyTemplate.documentType, discrepancyTemplate);
     this.templates.set(putawayTemplate.documentType, putawayTemplate);
     this.templates.set(warehouseReceiptTemplate.documentType, warehouseReceiptTemplate);
+    this.templates.set(stockTransferTemplate.documentType, stockTransferTemplate);
   }
 
   get(documentType: string): DocumentTemplate {
