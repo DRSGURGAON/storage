@@ -19,5 +19,8 @@ import { TaxRatesService } from './tax-rates.service';
     ChargeTypesService,
     TaxRatesService,
   ],
+  // ChargeTypesService/TaxRatesService's exists() and RateCardResolutionService.resolve()
+  // are reused by QuotationsService to validate line references and, later, auto-fill rates.
+  exports: [ChargeTypesService, TaxRatesService, RateCardResolutionService],
 })
 export class BillingModule {}

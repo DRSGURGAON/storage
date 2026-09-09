@@ -228,6 +228,32 @@ Phase 2 in full.
 
 ## Phase 3 — Quotation, Agreement, Document Engine
 
+**Status: Quotation record landed** (`apps/api/src/quotations/`):
+`quotations` + `quotation_lines`, `QT/{fy}/{seq:6}` numbering
+(`allocateNumberIn`, same engine every other module uses), and the
+Draft → Sent → Accepted/Rejected/Cancelled workflow from blueprint §14
+(`expired` is in the schema's check constraint but has no transition yet
+— it needs a scheduler this codebase doesn't have, so it's deliberately
+deferred rather than faked with a manual endpoint). `customer_snapshot`
+is built server-side at creation from the customer's own record plus its
+billing/registered address and primary contact (falling back to the
+customer row's own `contact_person`/`mobile`/`email` when neither
+sub-resource exists yet) and never touched again — "documents must not
+change retroactively" (schema/20_commercial.sql's own comment) enforced
+by simply never re-deriving it on update, even when `customerId` itself
+changes on a draft. Each line's `amount` is `quantity × rate` when a
+quantity is given, or `rate` itself for a flat/lumpsum basis with no
+quantity; tax rides on `amount`, never on `rate` directly. Editing (full
+header + line replacement) is only permitted in `draft`; every status
+transition re-validates its own `allowedFrom` set and audits as
+`status_change`. Deliberately scoped to the quotation record and its
+workflow only — `generateDocument()`, PDF rendering, and QR verification
+(this section's own remaining deliverable, below) are a separate
+increment: building a real PDF pipeline is its own technology decision
+(a rendering library, a document-storage strategy) that hasn't been made
+yet, and doesn't belong bundled into the same increment as the source
+record it will eventually render.
+
 - Schema: `schema/20_commercial.sql`, plus `documents` /
   `document_verifications` from `schema/70_documents_governance.sql` (build
   the engine now, since every later phase's documents depend on it).

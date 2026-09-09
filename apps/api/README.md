@@ -12,8 +12,12 @@ contacts), Warehouses and their location hierarchy, Product/SKU (with
 UOMs and categories), the Transport master (Transporters, Vehicles,
 Drivers), and Rate Cards (with Charge Types, Tax Rates, and the full
 billing-engine.md §3 resolution priority) — and the onboarding wizard
-status endpoint. Phase 2 is complete; operations and billing-run modules
-are not built yet (see `docs/architecture/dev-phases.md`).
+status endpoint. Phase 2 is complete. Phase 3 has its first slice: the
+Quotation record and its Draft/Sent/Accepted/Rejected/Cancelled workflow
+(not yet the PDF document engine — see `docs/architecture/dev-phases.md`
+for why that's a deliberately separate increment). Agreement, the
+document engine itself, operations, and billing-run modules are not
+built yet.
 
 ## Stack
 
@@ -116,6 +120,13 @@ exist.
   `nextStep` and `isComplete`. The `rateCard` step checks for at least one
   `rate_card_lines` row, not just a `rate_cards` row — an unpriced card
   isn't a complete step.
+- `POST/GET/PATCH /quotations[/:id]` (`create`/`view`/`edit_quotation` —
+  Owner/Admin only, per `permissions-matrix.md`; there is no `edit` once a
+  quotation leaves `draft`) and the workflow actions
+  `POST /quotations/:id/send`, `/accept`, `/reject` (body: `{ reason }`),
+  `/cancel`. `customerSnapshot` is captured once at creation and never
+  recomputed. `subtotal`/`taxTotal`/`grandTotal` are always server-computed
+  from the line items, never accepted from the client.
 
 No entitlement-gated endpoint exists yet (nothing generates a document
 yet) — `EntitlementService` (`src/entitlement/`) is complete and tested
@@ -203,3 +214,13 @@ All against the real local database (`DATABASE_URL`), not mocks:
   the rate-card-with-no-line-yet case still reporting `done: false`, then
   confirms a second, brand-new tenant is unaffected by the first one's
   progress.
+- `quotations/quotations.spec.ts` — an allocated `QT` number, a frozen
+  customer snapshot built from the customer's own address/contact
+  sub-resources, server-computed totals across a taxed quantity line and
+  an untaxed flat line, empty-line-array and reference-validation
+  rejections, the full draft → sent → accepted workflow with every
+  invalid transition (skip-ahead, double-send, edit-after-send, cancel-a-
+  terminal-state) rejected as 400, reject requiring a reason, list
+  filtering/search, tenant isolation, and Owner/Admin-only enforcement
+  (a Warehouse Operator gets 403 even on `GET`, matching
+  `permissions-matrix.md`'s all-➖ row for every other role).
