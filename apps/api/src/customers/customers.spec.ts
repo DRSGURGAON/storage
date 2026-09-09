@@ -1,6 +1,5 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import * as argon2 from 'argon2';
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import request from 'supertest';
@@ -47,19 +46,14 @@ describe('Customers', () => {
     tenantAId = tenantIdOf(ownerA);
 
     // A Warehouse Operator in tenant A: has view_customer but not
-    // create_customer (permissions-matrix.md). No invite endpoint exists
-    // yet, so the membership is created directly.
+    // create_customer (permissions-matrix.md), added through the real
+    // membership endpoint.
     const operatorEmail = `operator-a-${suffix}@test.local`;
-    const userId = randomUUID();
-    await sql`
-      insert into users (id, email, full_name, password_hash)
-      values (${userId}, ${operatorEmail}, 'Operator', ${await argon2.hash(password)})
-    `;
-    await withTenant(sql, tenantAId, (tx) => tx`
-      insert into tenant_users (id, tenant_id, user_id, role_id, status)
-      select ${randomUUID()}, ${tenantAId}, ${userId}, id, 'active'
-      from roles where code = 'warehouse_operator' and tenant_id is null
-    `);
+    await request(app.getHttpServer())
+      .post('/users')
+      .set('Authorization', `Bearer ${ownerA}`)
+      .send({ email: operatorEmail, fullName: 'Operator', password, roleCode: 'warehouse_operator' })
+      .expect(201);
     const login = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ email: operatorEmail, password })

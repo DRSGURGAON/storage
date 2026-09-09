@@ -44,10 +44,18 @@ with Phase 2's first endpoint rather than ahead of it: it resolves the
 caller's grants live through `tenant_users → role_permissions` on every
 request (a role change or disabled membership bites immediately, not at
 token expiry), fails closed on an endpoint that declares no permission,
-and records `permission_denied` in `audit_logs`. Still open from this
-phase's deliverable: inviting users / assigning roles has no endpoint yet
-(tests create the extra membership directly). See `apps/api/README.md`
-for setup.
+and records `permission_denied` in `audit_logs`. Inviting users and
+assigning roles (`apps/api/src/users/`) closes the last open item of this
+phase's deliverable: an Owner/Admin adds a member with a role, changes
+roles, restricts to warehouses, and disables — with two lockout guards
+(never your own membership, never the last active Owner) and the proof
+that a role change or disablement bites the member's *existing* token on
+the next request. Because there is no email delivery until the
+notification engine (V1.1), a brand-new account gets its initial password
+from the admin instead of an emailed set-password link — a working flow,
+not a placeholder; an email that already has an account elsewhere simply
+gains a membership here, password untouched (tenancy-and-security.md
+§3's one-identity-many-tenants). See `apps/api/README.md` for setup.
 
 - Schema: `schema/00_core.sql` in full, plus `schema/80_subscription.sql`
   (the entitlement/subscription domain belongs here, not in Phase 8, because

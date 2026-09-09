@@ -6,9 +6,9 @@ seeded RBAC role/permission catalog, a fully working entitlement/
 subscription engine (2-free-copies enforcement, seeded and tested), audit
 logging on every mutating/security-relevant auth action, centralized
 document numbering (`allocateNumber()`), RBAC enforcement
-(`PermissionsGuard` + `@RequirePermission`), and the first master —
-Customers. No other masters, operations, or billing modules yet (see
-`docs/architecture/dev-phases.md`).
+(`PermissionsGuard` + `@RequirePermission`), tenant memberships (add /
+role / disable), and the first master — Customers. No other masters,
+operations, or billing modules yet (see `docs/architecture/dev-phases.md`).
 
 ## Stack
 
@@ -56,6 +56,13 @@ exist.
   and `GET /customers/:id` (`view_customer`), `PATCH /customers/:id`
   (`edit_customer`). Every route is behind `JwtAuthGuard` + `PermissionsGuard`;
   the permission codes are the seeded ones from `permissions-matrix.md`.
+- `GET /users`, `POST /users`, `PATCH /users/:id` (`manage_users_and_roles`)
+  — tenant memberships. Adding an email with no account yet requires an
+  initial `password` (no email delivery until V1.1's notification engine);
+  an existing account just gains a membership. Guards: you cannot change
+  your own membership, and the last active Owner cannot be demoted or
+  disabled. The `customer` role is rejected here — that's the portal
+  (V1.1).
 
 No entitlement-gated endpoint exists yet (nothing generates a document
 yet) — `EntitlementService` (`src/entitlement/`) is complete and tested
@@ -93,3 +100,7 @@ All against the real local database (`DATABASE_URL`), not mocks:
   of tenant A's customers, 404s on fetch/patch, gets its own `CUST0001`)
   and RBAC (a Warehouse Operator can list but gets 403 + a
   `permission_denied` audit row on create).
+- `users/users.spec.ts` — memberships through HTTP: add, log in as the
+  member, an existing account joining a second tenant (login then demands
+  `tenantSlug`), a role change / disablement taking effect on the member's
+  existing token, both lockout guards, and cross-tenant 404.
