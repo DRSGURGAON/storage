@@ -452,3 +452,197 @@ connection deliberately (it needs an `onnotice` override
 the schema files — no jsonb parameter binding, so it isn't exposed to
 this bug); anything that starts binding jsonb parameters would need to
 move onto the shared factory or gain the same wrapping some other way.
+
+## §24 — Document engine implementation: Puppeteer per §0 (not re-decided), `qrcode`, and local-filesystem attachment storage behind an interface
+
+`document-engine.md` specifies the design system's *shape* (one shared
+A4 layout, header/title/party/table/totals/signature/QR/footer blocks)
+but the actual rendering library was not an open question here — §0
+already decided it, back in Phase 1's stack table: *"Documents/PDF:
+Server-rendered HTML/CSS through headless Chromium (Puppeteer), one
+shared template set."* Building the engine now means implementing that,
+not re-opening it. (An earlier draft of this entry picked Playwright
+instead, reasoning from this session's environment having Playwright's
+browser cache pre-configured rather than from checking §0 first — caught
+before committing any code, by rereading DECISIONS.md itself. Left in
+here as a reminder: check what's already been decided before deciding
+again, even the second time you write a "decision" entry.) Implemented
+with `puppeteer-core` — no bundled browser download, since one already
+needs to be pointed at either way — driving the same headless Chromium
+this session's environment provides at `/opt/pw-browsers/chromium`
+(`PLAYWRIGHT_BROWSERS_PATH`; the env var name is Playwright's own, but
+the binary itself is a normal Chromium build any CDP-speaking driver,
+Puppeteer included, can launch). Verified directly: `puppeteer-core`
+against that binary needs `--no-sandbox` (this container runs as root,
+and Chromium's sandbox requires either a non-root user or that flag —
+confirmed by hitting `ERROR: Running as root without --no-sandbox is not
+supported` on the first attempt, not assumed). `PdfRendererService`
+reads an optional `PUPPETEER_CHROMIUM_EXECUTABLE` env var and only
+passes `executablePath` when it's set, so a real deployment that ran its
+own `npx puppeteer browsers install chrome` (or points at a system
+Chromium another way) runs the identical code path unmodified.
+
+Considered pdfkit/pdf-lib (draw text and shapes imperatively, no CSS)
+as an alternative to §0's own choice and rejected reopening it in their
+favor: this codebase's specific requirement is *one* shared design
+system reused unmodified by ~23 document types (`document-engine.md`
+§3), and CSS makes "one header partial, one footer partial, one
+line-item table style" trivial and visually enforced, where an
+imperative drawing API means re-deriving x/y positions by hand per
+template with nothing structurally preventing drift from the shared
+look — the same reasoning §0 itself must have used. No templating
+engine (Handlebars/EJS) was added on top of Puppeteer — the codebase's
+existing pattern (`AgreementsService`'s own placeholder resolver) is
+small hand-written TypeScript functions over a new dependency for
+something this size, so each document type's HTML is built the same
+way: composable functions returning escaped HTML strings, sharing one
+CSS block. The operational cost is real and worth naming plainly: every
+render spins up a headless browser process, heavier than a pure-JS PDF
+library, and needs a Chromium-capable container image in production —
+accepted because it's what §0 already committed to, and the alternative
+would fail the shared-design-system requirement structurally, not just
+cosmetically.
+
+**QR codes: the `qrcode` npm package.** Single-purpose, no native
+dependency, `toDataURL()` embeds directly as an `<img>` src before
+Puppeteer renders the page — no separate image-file step.
+
+**Attachment storage: an `AttachmentStorage` interface, with
+`LocalFilesystemAttachmentStorage` as the only implementation for now.**
+This is the one place V1 does not literally follow this repository's own
+`README`-level architecture note ("File storage: S3-compatible object
+storage, signed URLs") — because no object-storage bucket or credentials
+exist in this environment to point at, and inventing one would be
+choosing infrastructure the user hasn't provisioned, not a technology
+decision this session can make unilaterally. `tenancy-and-security.md`
+itself already sanctions the fallback taken here, verbatim: "Downloads
+are served via short-lived signed URLs **(or a proxy endpoint)**..." —
+V1 implements the proxy-endpoint half of that either/or:
+`GET /documents/:id/download` re-authenticates the caller (JWT +
+`view_documents` + tenant match) on every request and streams the file
+from local disk, rather than issuing a bearer-token signed URL. Nothing
+in `attachments.storage_key`'s meaning changes (still an opaque path,
+never a public URL); only *which* implementation resolves it does. A
+real `S3AttachmentStorage` is a drop-in second implementation of the
+same interface — swapping it in requires no change to `documents`,
+`attachments`, or any caller, only a different provider bound in
+`AttachmentsModule`. This is flagged here explicitly so it reads as a
+deliberate, documented gap — not a silent substitution of the locked
+architecture.
+
+## §25 — `documents` had the same "no session, no rows" gap as §17 — the public `/verify/:qrToken` endpoint needed its own self-lookup RLS policy
+
+Manually curling the freshly built `GET /verify/:qrToken` against a real,
+just-committed document returned `{"result":"not_found"}` for a token
+that genuinely existed. Root cause was the same class of bug already
+seen once before and fixed as §17/`91_tenant_users_self_lookup.sql`:
+`documents` carries `force row level security` with only
+`tenant_isolation` (`tenant_id = current_setting('app.tenant_id')::uuid`)
+from `90_row_level_security.sql`, and the whole point of the verify
+endpoint is that it runs with **no** JWT and **no** tenant context at
+all — discovering which tenant a document belongs to *is* the lookup.
+With `app.tenant_id` unset, `tenant_isolation` blocks every row,
+unconditionally, every time.
+
+Fixed the same way §17 was: not by weakening `tenant_isolation` or
+adding a blanket `using(true)` policy (which would let any caller list
+every tenant's documents), but with a second, narrow, SELECT-only policy
+additional to it —
+`docs/architecture/schema/95_document_qr_verify_lookup.sql`:
+```sql
+create policy qr_verify_lookup on documents
+  for select
+  using (qr_token = current_setting('app.verify_qr_token', true));
+```
+A row becomes visible under this policy only when its own `qr_token`
+matches a session variable the *caller* sets to the exact value it's
+looking up — so seeing one document requires already possessing that
+document's own random, unguessable token (`document-engine.md` §4), the
+same shape as `tenant_users`' self-lookup requiring an already-verified
+user id. It cannot be used to enumerate other tenants' documents (there
+is no way to iterate `qr_token` values you don't already have), and it's
+SELECT-only. `VerifyService.verify()` sets that session variable inside
+an explicit `sql.begin()` transaction (`set_config('app.verify_qr_token',
+qrToken, true)`, the `true` making it transaction-local) before running
+the lookup, then re-scopes to the discovered tenant via `withTenant` for
+everything after — recording the `document_verifications` row and
+resolving the source record's live status through its template's
+`loadData`.
+
+One more check worth recording rather than assuming: unlike the
+UUID-cast policies elsewhere in this schema, this comparison is plain
+text (`qr_token = current_setting(...)`), so it doesn't need a `nullif`
+guard against the "empty string after GUC reset" failure mode §18 found
+— `qr_token = ''` just evaluates to `false` harmlessly here, it never
+throws a cast error the way `''::uuid` would.
+
+Verified against the live database end-to-end, not just re-read: a
+valid token resolves `result: 'valid'` with the correct document number,
+issuer trade name, and current status; a superseded token (after
+`regenerate: true`) resolves `result: 'revoked'`, not 404, while the new
+version's token resolves `valid`; an unknown token resolves
+`not_found`. (A stale `node dist/main.js` process from before the fix
+briefly masked this during re-testing — `pkill` reported success but
+left the old PID holding port 3000, so the "confirmed" first pass was
+actually against pre-fix code. Caught by `ps aux | grep "node dist/main"`
+showing two PIDs; `kill -9` on the stale one and a clean restart before
+re-verifying for real.)
+
+## §26 — `puppeteer-core` is ESM-only; Jest's module loader can't `require()` it the way plain Node can
+
+Writing `documents.spec.ts` hit `SyntaxError: Cannot use import
+statement outside a module`, pointing at `puppeteer-core`'s own entry
+file, the moment any test imported `AppModule`. The live server (`node
+dist/main.js`) had already been rendering real PDFs for hours by this
+point with no such error, so this wasn't `PdfRendererService` being
+broken — it was Jest's module loader being a different thing from plain
+Node's.
+
+`puppeteer-core@25`'s `package.json` declares `"type": "module"` all the
+way down its own files (not just a dual-published package with a CJS
+fallback — `exports["."].require` points at the *same* ESM file as
+`.import`). This project's `tsconfig.json` targets `module: commonjs`,
+so `import puppeteer from 'puppeteer-core'` compiles to a plain
+`require('puppeteer-core')`. Under plain Node 22+ that succeeds, because
+Node itself gained the ability to `require()` an ESM module
+synchronously (stable since Node 22.12, and this environment runs
+22.22). Jest does not run test files under plain Node `require` — its
+own `jest-runtime` implements CommonJS module loading independently, and
+that implementation doesn't have Node's require(-esm) interop, so the
+identical `require('puppeteer-core')` call throws inside Jest even
+though it works fine outside it.
+
+The fix is not a Jest-only test hack; it replaces the static import with
+a genuine dynamic `import()`, resolved lazily at first render rather
+than at module load — something `PdfRendererService.getBrowser()` was
+already structured to do lazily for the *browser launch* itself, so this
+extends the same laziness one level further to the *module load*. The
+one wrinkle: TypeScript's `commonjs` module target downlevels dynamic
+`import()` right back into a wrapped `require()` (confirmed by
+compiling a throwaway file and reading the emitted JS — not assumed),
+which would hit the exact same Jest failure. Routing the call through
+`new Function('return import("puppeteer-core")')` hides it from
+TypeScript's compiler entirely (it's just a string literal from tsc's
+point of view), so the emitted code contains a literal `import(...)`
+expression that survives to runtime unchanged, rather than whatever tsc
+would otherwise have rewritten it into.
+
+That alone still wasn't enough, and this was verified, not assumed —
+the first run under plain `jest` hung for minutes and then failed every
+test touching `PdfRendererService` with `TypeError: A dynamic import
+callback was invoked without --experimental-vm-modules`. Jest's own
+test VM (`jest-runtime`, built on Node's `vm` module) intercepts *every*
+dynamic `import()` executed inside it — including one reached through
+`new Function`, which only hides the call from TypeScript's compiler,
+not from the VM the compiled code actually runs in — and by default
+refuses to let it through at all. The remaining piece is
+`apps/api/package.json`'s `test`/`test:watch` scripts running Jest with
+`NODE_OPTIONS=--experimental-vm-modules`, which is what makes Jest
+service that `import()` call for real rather than rejecting it. Verified
+by running the same suite both ways: identical `SyntaxError`/`TypeError`
+failures without the flag, a real headless Chromium launching and real
+PDFs rendering with it. This is a portability improvement, not merely a
+workaround: it stops relying on Node 22's specific require(-esm) interop
+at all, so the same production code would keep working under an older
+Node major that lacks it — Jest is the only piece that needed the extra
+flag.

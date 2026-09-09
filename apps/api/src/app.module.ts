@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
 import { CustomersModule } from './customers/customers.module';
 import { DbModule } from './db/db.module';
+import { DocumentsModule } from './documents/documents.module';
 import { EntitlementModule } from './entitlement/entitlement.module';
 import { HealthController } from './health/health.controller';
 import { NumberingModule } from './numbering/numbering.module';
@@ -33,6 +34,7 @@ import { WarehousesModule } from './warehouses/warehouses.module';
     OnboardingModule,
     QuotationsModule,
     AgreementsModule,
+    DocumentsModule,
   ],
   controllers: [HealthController],
 })

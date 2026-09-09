@@ -288,6 +288,37 @@ connection factory as the running app, not by changing the query
 pattern itself, since the query pattern was already correct for every
 other caller).
 
+**Document engine landed** (`apps/api/src/documents/`,
+`apps/api/src/attachments/`): `DocumentEngineService.previewDocument()`
+/ `.commitDocument()`, headless-Chromium PDF rendering (`puppeteer-core`
+— `DECISIONS.md` §24 records this as §0's own already-locked choice,
+implemented rather than reopened), the shared A4 design system
+(`documents/html/layout.ts`), QR generation and the public
+`GET /verify/:qrToken` endpoint, `documents` versioning
+(regenerate → new version, old version's QR resolves `revoked`), and the
+`AttachmentStorage` interface with `LocalFilesystemAttachmentStorage` as
+its only implementation so far (`DECISIONS.md` §24 again, against this
+repo's own S3-signed-URL note). Proven against exactly one registered
+template, `QuotationDocumentTemplate` — Agreement's own template is not
+built yet, so `generateDocument()` does not yet work "for Quotation and
+Agreement" as this phase's deliverable below still asks; that is this
+phase's one remaining slice before Phase 3 can be called closed. Two
+real bugs surfaced building this, both in DECISIONS.md: §25 (`documents`
+needed the same self-lookup RLS policy as `tenant_users` — §17 — since
+the public verify endpoint has no tenant context to filter by until the
+row itself is found) and §26 (`puppeteer-core`'s ESM-only build breaks
+under Jest's own module loader even though it runs fine under plain
+Node 22; fixed with a `new Function`-hidden dynamic `import()` that
+TypeScript's `commonjs` downlevel can't rewrite back into a `require()`,
+plus running the test scripts with `NODE_OPTIONS=--experimental-vm-modules`
+so Jest's own VM sandbox actually services that `import()` instead of
+rejecting it).
+The exit check below (FREE-plan paywall on `QUOTATION_GENERATION`) is
+proven in `documents.spec.ts`, including preview and commit both
+blocking before any PDF is built, and idempotent-retry-produces-one-
+document is proven directly against the same source record across
+multiple retries.
+
 - Schema: `schema/20_commercial.sql`, plus `documents` /
   `document_verifications` from `schema/70_documents_governance.sql` (build
   the engine now, since every later phase's documents depend on it).

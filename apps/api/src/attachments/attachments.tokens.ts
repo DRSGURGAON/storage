@@ -1,0 +1,1 @@
+export const ATTACHMENT_STORAGE = Symbol('ATTACHMENT_STORAGE');

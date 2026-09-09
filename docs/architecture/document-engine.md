@@ -33,6 +33,36 @@ still allows edits, or by a user holding a specific
 document does not silently replace history, it creates a new version with an
 audit-logged reason (§49, §51).
 
+> **Implemented** (`apps/api/src/documents/`, `apps/api/src/attachments/`,
+> Phase 3): `DocumentEngineService.previewDocument()` /
+> `.commitDocument()` is this section's function split into its two halves
+> (§6) — preview does steps 1–4 with no write, gated by `checkEntitlement`;
+> commit does 1–6 inside one `withTenant` transaction, gated by
+> `consumeEntitlement` on first commit only (a plain retry with no
+> `regenerate` returns the existing row untouched — no re-render, no
+> re-consumption; `regenerate: true` never calls `consumeEntitlement`
+> again). PDF rendering is headless Chromium via `puppeteer-core`
+> (`PdfRendererService`), driven by hand-written HTML/CSS functions in
+> `documents/html/layout.ts` implementing §3's shared design system —
+> `DECISIONS.md` §24 records why (this was §0's own already-locked choice,
+> not reopened here) and §26 records an unrelated Jest/ESM loader issue
+> the package's ESM-only build surfaced. QR codes are the `qrcode` package
+> embedded as a data-URI before render. Attachments go through an
+> `AttachmentStorage` interface with `LocalFilesystemAttachmentStorage` as
+> the only implementation so far — `DECISIONS.md` §24 records the gap
+> against this repo's own S3-signed-URL note and the proxy-endpoint
+> fallback `tenancy-and-security.md` already sanctions. One template is
+> registered so far, `QuotationDocumentTemplate` (`documentType:
+> 'quotation'`, `featureCode: 'QUOTATION_GENERATION'`) — adding the next
+> `documentType` from §2's list means one more `DocumentTemplate`
+> implementation plus one more constructor argument to
+> `DocumentTemplateRegistry`, not a new pipeline. Proven end-to-end in
+> `documents.spec.ts`: preview vs. commit, idempotent retry, regenerate
+> producing a new version with the old one's QR resolving `revoked`
+> through the public verify endpoint (§4, below), cross-tenant isolation,
+> permission gating, and the FREE-plan 2-copy paywall on both preview and
+> commit.
+
 ## 2. Supported `documentType` values
 
 Quotation, Agreement, Gate Entry, Inward, GRN, Discrepancy Report, Put-away,
@@ -99,6 +129,18 @@ unnecessary customer-sensitive information publicly." A revoked/superseded
 document's QR resolves with `result = 'revoked'` and a corresponding message,
 not a 404 (so a scanner can tell "this used to be valid" from "never
 existed").
+
+> **Implemented** (`apps/api/src/documents/verify.controller.ts`): a
+> fully public `GET /verify/:qrToken` (no `@UseGuards`, matching this
+> section's requirement that it needs no login). `documents` carries
+> `force row level security` with only the standard tenant-isolation
+> policy, which blocks every row when no tenant is known yet — exactly
+> the problem the QR-verify flow starts with. Fixed the same way the
+> login self-lookup was (`schema/91_tenant_users_self_lookup.sql`): a
+> second, narrow, SELECT-only policy
+> (`schema/95_document_qr_verify_lookup.sql`) that only exposes a row
+> once the caller already supplies its own `qr_token` as a session
+> variable — see `DECISIONS.md` §25 for the full bug and fix.
 
 ## 5. Versioning (§49)
 

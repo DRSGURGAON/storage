@@ -13,10 +13,13 @@ UOMs and categories), the Transport master (Transporters, Vehicles,
 Drivers), and Rate Cards (with Charge Types, Tax Rates, and the full
 billing-engine.md §3 resolution priority) — and the onboarding wizard
 status endpoint. Phase 2 is complete. Phase 3 has its Quotation and
-Agreement records, each with its own workflow (not yet the PDF document
-engine — see `docs/architecture/dev-phases.md` for why that's a
-deliberately separate increment). The document engine itself,
-operations, and billing-run modules are not built yet.
+Agreement records, each with its own workflow, plus a real document
+engine: server-rendered PDF generation (headless Chromium via
+`puppeteer-core`), QR-code verification, versioning, and FREE-plan
+entitlement gating, proven end-to-end against the Quotation template —
+see `docs/architecture/dev-phases.md` for what's left (Agreement's own
+template) before Phase 3 is closed. Operations and billing-run modules
+are not built yet.
 
 ## Stack
 
@@ -43,10 +46,10 @@ npm run start:dev              # http://localhost:3000
 `../../docs/architecture/schema/*.sql` directly — that directory is the
 single source of truth for the data model (see its own `README.md` for
 conventions). This app does not keep a second, duplicated copy of the
-schema; adding a new domain means adding a file there, not here. Six of
-those files (`85`–`94`) are fixes for real bugs found only by building and
+schema; adding a new domain means adding a file there, not here. Seven of
+those files (`85`–`95`) are fixes for real bugs found only by building and
 load-testing this app against the schema, not by review — see
-`docs/architecture/DECISIONS.md` §16–§22 if you're wondering why they
+`docs/architecture/DECISIONS.md` §16–§25 if you're wondering why they
 exist.
 
 ## Endpoints so far
@@ -137,12 +140,32 @@ exist.
   clauses with `{{dotted.path}}` tokens filled in from company/customer/
   warehouse/agreement data — never accepted from the client, and
   recomputed on every `draft` edit.
+- `POST /quotations/:id/document/preview` (`view_quotation`) renders and
+  returns a PDF without writing anything or consuming an entitlement unit.
+  `POST /quotations/:id/document` (`create_quotation`, body:
+  `{ regenerate?: boolean }`) commits it — first call consumes one
+  `QUOTATION_GENERATION` unit and writes a `documents` row; a plain retry
+  is an idempotent no-op returning the same row; `regenerate: true`
+  creates a new version (old one's `isLatest` flips to `false`) without
+  consuming another unit. Blocked with `402 { paywall: true, ... }` once
+  the FREE plan's 2 free copies are used up, on both preview and commit.
+- `GET /documents?documentType=&sourceId=&latestOnly=` (default `true`),
+  `GET /documents/:id`, `GET /documents/:id/download` (streams the PDF) —
+  the Document Centre's read side, gated on the broader `view_documents`
+  rather than each source record's own permission (an Operator can view
+  documents even though it can't generate a quotation's own).
+- `GET /verify/:qrToken` — fully public, no JWT. Resolves `valid` (with
+  the document number, issuer trade name, generated date, and the source
+  record's live status), `revoked` (a superseded version — not a 404, so
+  a scanner can tell "used to be valid" from "never existed"), or
+  `not_found`. Never returns line items, amounts, or anything else from
+  the document's `render_data_snapshot`.
 
-No entitlement-gated endpoint exists yet (nothing generates a document
-yet) — `EntitlementService` (`src/entitlement/`) is complete and tested
-directly; Phase 3 wires `checkEntitlement`/`consumeEntitlement` into the
-first real `generateDocument()` call. `NumberingService` already has a
-real caller: customer codes.
+`EntitlementService` (`src/entitlement/`) is wired into the document
+engine's `commitDocument()`/`previewDocument()` split — the first real
+caller. `NumberingService` has real callers: customer codes, `QT`/`AG`
+numbers, and now every `documents` row shares its source record's own
+number rather than getting one of its own.
 
 ## Tests
 
@@ -246,3 +269,22 @@ All against the real local database (`DATABASE_URL`), not mocks:
   terminate requiring a reason, tenant isolation, and the
   Warehouse-Manager-can-view-but-not-create /
   Warehouse-Operator-can't-even-view split from `permissions-matrix.md`.
+- `documents/documents.spec.ts` — the document engine end to end against
+  the real headless-Chromium renderer (no mock): preview returns a real
+  PDF (`%PDF` magic bytes checked, not just a 200) with no `documents`
+  row written; commit is idempotent on a plain retry (same id/version);
+  `regenerate: true` produces a new version whose predecessor's QR then
+  resolves `revoked` through the *public, unauthenticated* `/verify`
+  endpoint while the new version's resolves `valid`; an unknown token
+  resolves `not_found`; regenerating a source with no prior commit 400s;
+  the FREE-plan 2-copy paywall blocks both preview and commit with `402`
+  once used up, on a dedicated tenant so it can't interfere with other
+  tests' own entitlement budget; cross-tenant 404s on get/download/list;
+  an Operator is 403'd on preview/generate (gated on the quotation's own
+  permissions) but can still view/list via the broader `view_documents`;
+  404s on an unknown source/document id; and unauthenticated 401s
+  everywhere except the deliberately public verify route. Running this
+  suite needs `NODE_OPTIONS=--experimental-vm-modules` (already set in
+  the `test`/`test:watch` scripts) — `puppeteer-core` ships ESM-only, and
+  Jest's own module loader needs that flag to service the dynamic
+  `import()` that loads it; see `DECISIONS.md` §26.
