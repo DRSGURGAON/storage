@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
+import { BillingModule } from './billing/billing.module';
 import { CustomersModule } from './customers/customers.module';
 import { DbModule } from './db/db.module';
 import { EntitlementModule } from './entitlement/entitlement.module';
@@ -25,6 +26,7 @@ import { WarehousesModule } from './warehouses/warehouses.module';
     WarehousesModule,
     ProductsModule,
     TransportModule,
+    BillingModule,
   ],
   controllers: [HealthController],
 })

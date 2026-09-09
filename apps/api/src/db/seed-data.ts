@@ -302,3 +302,34 @@ export const DEFAULT_UOMS = [
   { code: 'CBM', name: 'Cubic Meter' },
   { code: 'SQFT', name: 'Square Feet' },
 ] as const;
+
+/**
+ * billing-engine.md §2's seeded catalogue. System-wide (tenant_id null),
+ * like roles/permissions -- schema/85_integrity_fixes.sql's
+ * charge_types_system_code_uq is what makes that safe to seed idempotently
+ * (see DECISIONS.md §16). "Tenants may add charge types beyond this seed
+ * list" (§2) -- this is a starting catalogue, not a closed enum.
+ */
+export const SYSTEM_CHARGE_TYPES = [
+  { code: 'STORAGE', name: 'Storage', category: 'storage', defaultBasis: 'unit_day', triggerEvent: null },
+  { code: 'INWARD_HANDLING', name: 'Inward Handling', category: 'handling', defaultBasis: 'per_unit', triggerEvent: 'grn_approved' },
+  { code: 'OUTWARD_HANDLING', name: 'Outward Handling', category: 'handling', defaultBasis: 'per_unit', triggerEvent: 'gate_out' },
+  { code: 'LOADING', name: 'Loading', category: 'handling', defaultBasis: 'per_vehicle', triggerEvent: 'loading_confirmed' },
+  { code: 'UNLOADING', name: 'Unloading', category: 'handling', defaultBasis: 'per_vehicle', triggerEvent: 'grn_approved' },
+  { code: 'LABOUR', name: 'Labour', category: 'handling', defaultBasis: 'per_hour', triggerEvent: null },
+  { code: 'PALLETIZATION', name: 'Palletization', category: 'handling', defaultBasis: 'per_pallet', triggerEvent: 'putaway_completed' },
+  { code: 'PICK_PACK', name: 'Pick & Pack', category: 'handling', defaultBasis: 'per_package', triggerEvent: 'pick_confirmed' },
+  { code: 'DOCUMENTATION', name: 'Documentation', category: 'other', defaultBasis: 'per_document', triggerEvent: null },
+  { code: 'SPECIAL_HANDLING', name: 'Special Handling', category: 'other', defaultBasis: 'lumpsum', triggerEvent: null },
+  { code: 'ADDITIONAL_LABOUR', name: 'Additional Labour', category: 'other', defaultBasis: 'per_hour', triggerEvent: null },
+  { code: 'WAITING_DETENTION', name: 'Waiting / Detention', category: 'other', defaultBasis: 'per_hour', triggerEvent: null },
+] as const;
+
+/** billing-engine.md §6: GST rate catalogue, system-wide, tenant-editable per tax_rates' own comment. */
+export const SYSTEM_TAX_RATES = [
+  { code: 'GST18', name: 'GST 18%', ratePct: 18 },
+  { code: 'GST12', name: 'GST 12%', ratePct: 12 },
+  { code: 'GST5', name: 'GST 5%', ratePct: 5 },
+  { code: 'EXEMPT', name: 'Exempt', ratePct: 0 },
+  { code: 'NIL', name: 'Nil-rated', ratePct: 0 },
+] as const;

@@ -7,10 +7,11 @@ subscription engine (2-free-copies enforcement, seeded and tested), audit
 logging on every mutating/security-relevant auth action, centralized
 document numbering (`allocateNumber()`), RBAC enforcement
 (`PermissionsGuard` + `@RequirePermission`), tenant memberships (add /
-role / disable), and the first masters — Customers, Warehouses and their
-location hierarchy, Product/SKU (with UOMs and categories), and the
-Transport master (Transporters, Vehicles, Drivers). Remaining masters,
-operations, and billing modules are not built yet (see
+role / disable), and every Phase 2 master — Customers, Warehouses and
+their location hierarchy, Product/SKU (with UOMs and categories), the
+Transport master (Transporters, Vehicles, Drivers), and Rate Cards (with
+Charge Types, Tax Rates, and the full billing-engine.md §3 resolution
+priority). Operations and billing-run modules are not built yet (see
 `docs/architecture/dev-phases.md`).
 
 ## Stack
@@ -87,6 +88,19 @@ exist.
   dk 1234` and `HR26DK1234` are the same vehicle. `GET /vehicles?transporterId=`
   and `GET /drivers?transporterId=` filter to one transporter's fleet;
   `transporterId` is optional on both (an owned fleet has no transporter).
+- `GET/POST /charge-types` and `GET/POST /tax-rates` (both ride the rate
+  card permissions). `list()` merges the system-seeded catalogue
+  (`isSystem: true`) with a tenant's own additions, preferring the
+  tenant's row when both share a code.
+- `POST/GET/PATCH /rate-cards[/:id]` (`create`/`view`/`edit_rate_card`;
+  `scope` is `customer`/`warehouse`/`company` with the matching id
+  required — enforced as a 400 before it ever reaches the database's own
+  check constraint) and `POST/GET/PATCH /rate-cards/:id/lines[/:lineId]`
+  (rides the same rate-card permissions). `GET
+  /rate-cards/resolve?customerId=&warehouseId=&chargeTypeCode=&productId=&categoryId=`
+  runs billing-engine.md §3's resolution priority (customer > warehouse >
+  company, product/category line override) and returns the winning line —
+  a preview endpoint for the future rate-card UI, since nothing bills yet.
 
 No entitlement-gated endpoint exists yet (nothing generates a document
 yet) — `EntitlementService` (`src/entitlement/`) is complete and tested
@@ -149,3 +163,16 @@ All against the real local database (`DATABASE_URL`), not mocks:
   names being allowed, transporter-scoped filtering, tenant isolation with
   an independently reusable transporter name and vehicle number, and
   operator 403.
+- `billing/billing.spec.ts` — the system charge-type/tax-rate catalogue
+  plus a tenant's own addition, the scope check constraint as a 400 for
+  all three scopes' invalid combinations (including the check constraint
+  wouldn't itself catch: the *wrong* id set for a scope), rate card
+  duplicate-code 409, line creation with reference validation, and —
+  built up as a real 3-card stack (company, then warehouse, then
+  customer, each added one at a time so every priority level is proven
+  independently) — the full customer > warehouse > company resolution
+  order, a product-specific line beating the general one, a second
+  customer with no card of its own still landing on the warehouse card
+  rather than the first customer's, omitting `warehouseId` correctly
+  skipping the warehouse level, an explicit 404 for an unresolvable
+  charge type, tenant isolation, and operator 403.

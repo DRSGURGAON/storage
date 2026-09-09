@@ -7,7 +7,9 @@ import {
   METERED_FEATURE_KEYS,
   PERMISSIONS,
   ROLE_PERMISSIONS,
+  SYSTEM_CHARGE_TYPES,
   SYSTEM_ROLES,
+  SYSTEM_TAX_RATES,
   UNMETERED_FEATURE_KEYS,
 } from './seed-data';
 
@@ -110,6 +112,28 @@ async function main() {
     console.log(
       `seeded FREE plan with ${METERED_FEATURE_KEYS.length} metered + ${UNMETERED_FEATURE_KEYS.length} unlimited feature limits`,
     );
+
+    for (const chargeType of SYSTEM_CHARGE_TYPES) {
+      await sql`
+        insert into charge_types (id, tenant_id, code, name, category, default_basis, trigger_event, is_billable_event)
+        values (gen_random_uuid(), null, ${chargeType.code}, ${chargeType.name}, ${chargeType.category},
+                ${chargeType.defaultBasis}, ${chargeType.triggerEvent}, ${chargeType.triggerEvent !== null})
+        on conflict (code) where tenant_id is null
+        do update set name = excluded.name, category = excluded.category,
+                       default_basis = excluded.default_basis, trigger_event = excluded.trigger_event
+      `;
+    }
+    console.log(`seeded ${SYSTEM_CHARGE_TYPES.length} system charge types`);
+
+    for (const taxRate of SYSTEM_TAX_RATES) {
+      await sql`
+        insert into tax_rates (id, tenant_id, code, name, rate_pct)
+        values (gen_random_uuid(), null, ${taxRate.code}, ${taxRate.name}, ${taxRate.ratePct})
+        on conflict (code) where tenant_id is null
+        do update set name = excluded.name, rate_pct = excluded.rate_pct
+      `;
+    }
+    console.log(`seeded ${SYSTEM_TAX_RATES.length} system tax rates`);
 
     console.log('Seed complete.');
   } finally {

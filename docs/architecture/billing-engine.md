@@ -54,6 +54,19 @@ error** rather than silently charging zero or falling back to a guess — this
 is what "never hard-code rates" and "never silently generate incorrect
 billing" require together.
 
+> **Implemented** (`apps/api/src/billing/`, Phase 2): `RateCardsService`
+> (CRUD with the scope/id pairing re-validated as a 400 before it reaches
+> the database's check constraint), `RateCardLinesService`, and
+> `RateCardResolutionService.resolve()`, which is this section's algorithm
+> read literally — "trying, in order, until one matches" means until a
+> *line* matches, not just an active card, so a customer-scope card that
+> has no line for the requested charge type falls through to
+> warehouse/company rather than failing the whole resolution. Proven
+> against a real 3-level card stack in `billing.spec.ts`, including a
+> second customer with no card of its own correctly landing on the
+> warehouse card. Not yet wired to anything that bills (Phase 7) —
+> `GET /rate-cards/resolve` exists as a standalone preview endpoint.
+
 ## 4. Storage accrual algorithm
 
 Unlike handling charges (one event → one charge), storage is a function of

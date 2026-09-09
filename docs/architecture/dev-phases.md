@@ -145,9 +145,40 @@ in `transport.spec.ts`, not just assumed from the transform existing.
 (an owned fleet has no transporter) and validated against the tenant's
 own transporters when present; `drivers` carries no unique constraint at
 all in the schema, so duplicate names/mobiles are accepted deliberately,
-unlike transporters (`unique (tenant_id, name)`) and vehicles. Not yet:
-customer addresses/contacts/KYC documents, location QR label rendering
-(document engine, Phase 3), Rate Card, and the onboarding wizard below.
+unlike transporters (`unique (tenant_id, name)`) and vehicles.
+**Rate Card master + resolution engine landed** (`apps/api/src/billing/`):
+Charge Types and Tax Rates (both seeded system-wide at deploy time —
+`db/seed-data.ts` `SYSTEM_CHARGE_TYPES`/`SYSTEM_TAX_RATES`, `db/seed.ts`,
+same `tenant_id is null` + partial-unique-index pattern as roles — with a
+tenant able to add its own; `list()` prefers a tenant's own row over the
+system row of the same code when both exist), Rate Cards, and Rate Card
+Lines. `rate_cards`' check constraint (`scope='customer' and customer_id
+is not null`, etc.) is re-validated in `RateCardsService` before the
+insert/update, so a bad scope/id combination is a clean 400 — including
+the *wrong* id being set for a scope (e.g. a `company`-scope card with a
+`customerId`), which the DB constraint alone would not catch. The
+`RateCardResolutionService` implements billing-engine.md §3's priority
+order end to end: a customer-scope card (optionally narrowed to one
+warehouse) beats a warehouse-scope card beats the company default, and
+within whichever card wins, a line is picked product-id match >
+category-id match > general line. Critically, "resolve until one
+*matches*" is read as matching a **line**, not just an active card — a
+customer-scope card that has no line for the requested charge type falls
+through to warehouse/company rather than failing outright, so a
+customer's card can override only some charge types and inherit the
+rest. No line anywhere for a charge type is an explicit 404, never a
+fallback to zero (billing-engine.md §1: "never silently generate
+incorrect billing"). All of this — the 3-level priority, the
+product-override, a second customer with no card of its own correctly
+landing on the warehouse card rather than the first customer's, and
+omitting `warehouseId` correctly skipping the warehouse-scope level
+entirely — is proven against a real 3-card stack in `billing.spec.ts`,
+not just asserted from the query shape. A `GET /rate-cards/resolve`
+endpoint exposes the same resolution for the future rate-card UI to
+preview "what would this actually charge" before Phase 7 bills anything.
+Not yet: customer addresses/contacts/KYC documents, location QR label
+rendering (document engine, Phase 3), and the onboarding wizard below —
+Phase 2's masters are otherwise complete.
 
 - Schema: `schema/10_masters.sql`.
 - Docs: `numbering.md` (customer codes, warehouse codes if numbered),
