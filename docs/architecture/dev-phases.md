@@ -192,8 +192,28 @@ correctly un-primaries the one that displaced it. Both ride the existing
 `view_customer`/`edit_customer` permissions — no separate permission code
 exists for either sub-resource. KYC documents are deferred to the
 `attachments` table (Phase 4, per the schema's own comment: "Customer
-documents... live in attachments with owner_type='customer'"). Phase 2's
-masters are otherwise complete — only the onboarding wizard remains.
+documents... live in attachments with owner_type='customer'").
+**Onboarding wizard landed** (`apps/api/src/onboarding/`, `GET
+/onboarding/status`): ux-system.md §1 offers two ways to persist wizard
+progress — "a small `onboarding_state` field on the tenant, or derived
+live by checking whether each entity type has at least one row." This
+takes the derived-live option deliberately: no onboarding-only API (every
+step is backed by the ordinary master create-endpoint, exactly as §1
+specifies), no extra column or migration, and no risk of the flag
+drifting from what a tenant actually has if records get created out of
+order or the wizard is skipped entirely (§1: "this is guidance, not a
+hard gate"). One nuance worth calling out: the rate-card step checks
+`rate_card_lines`, not just `rate_cards` — §1's own step description is
+"creates one `rate_cards` + `rate_card_lines` set", and a card with no
+priced line isn't a usable rate card yet, so counting the card alone
+would report a false positive. Proven end to end in `onboarding.spec.ts`
+by driving one tenant through all five steps via the real master
+endpoints and asserting `nextStep`/`isComplete` after each one — including
+the rate-card-with-no-line-yet case landing on `done: false` — plus a
+second, brand-new tenant confirmed unaffected by the first one's
+progress. No `RequirePermission`: informational and RLS-scoped to the
+caller's own tenant, same posture as `GET /auth/me`. This completes
+Phase 2 in full.
 
 - Schema: `schema/10_masters.sql`.
 - Docs: `numbering.md` (customer codes, warehouse codes if numbered),

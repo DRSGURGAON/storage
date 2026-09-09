@@ -7,12 +7,13 @@ subscription engine (2-free-copies enforcement, seeded and tested), audit
 logging on every mutating/security-relevant auth action, centralized
 document numbering (`allocateNumber()`), RBAC enforcement
 (`PermissionsGuard` + `@RequirePermission`), tenant memberships (add /
-role / disable), and every Phase 2 master — Customers, Warehouses and
-their location hierarchy, Product/SKU (with UOMs and categories), the
-Transport master (Transporters, Vehicles, Drivers), and Rate Cards (with
-Charge Types, Tax Rates, and the full billing-engine.md §3 resolution
-priority). Operations and billing-run modules are not built yet (see
-`docs/architecture/dev-phases.md`).
+role / disable), every Phase 2 master — Customers (with addresses and
+contacts), Warehouses and their location hierarchy, Product/SKU (with
+UOMs and categories), the Transport master (Transporters, Vehicles,
+Drivers), and Rate Cards (with Charge Types, Tax Rates, and the full
+billing-engine.md §3 resolution priority) — and the onboarding wizard
+status endpoint. Phase 2 is complete; operations and billing-run modules
+are not built yet (see `docs/architecture/dev-phases.md`).
 
 ## Stack
 
@@ -108,6 +109,13 @@ exist.
   runs billing-engine.md §3's resolution priority (customer > warehouse >
   company, product/category line override) and returns the winning line —
   a preview endpoint for the future rate-card UI, since nothing bills yet.
+- `GET /onboarding/status` — no permission beyond a valid JWT (informational,
+  RLS-scoped to the caller's tenant). Reports `done`/`count` for each
+  wizard step (`company`/`warehouse`/`customer`/`products`/`rateCard`),
+  derived live from each entity's row count rather than a stored flag, plus
+  `nextStep` and `isComplete`. The `rateCard` step checks for at least one
+  `rate_card_lines` row, not just a `rate_cards` row — an unpriced card
+  isn't a complete step.
 
 No entitlement-gated endpoint exists yet (nothing generates a document
 yet) — `EntitlementService` (`src/entitlement/`) is complete and tested
@@ -189,3 +197,9 @@ All against the real local database (`DATABASE_URL`), not mocks:
   rather than the first customer's, omitting `warehouseId` correctly
   skipping the warehouse level, an explicit 404 for an unresolvable
   charge type, tenant isolation, and operator 403.
+- `onboarding/onboarding.spec.ts` — drives one tenant through all five
+  steps via the real master endpoints (warehouse, customer, product, rate
+  card), asserting `nextStep`/`isComplete` after each write, including
+  the rate-card-with-no-line-yet case still reporting `done: false`, then
+  confirms a second, brand-new tenant is unaffected by the first one's
+  progress.

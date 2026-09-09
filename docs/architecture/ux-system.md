@@ -30,6 +30,16 @@ than restarting. Each completed step renders a checkmark
 allowed — this is guidance, not a hard gate — but the dashboard's empty
 states (§2) pick up exactly where onboarding left off if the user skips.
 
+> **Implemented** (`apps/api/src/onboarding/`, Phase 2): `GET
+> /onboarding/status`, taking the derived-live option above rather than a
+> stored `onboarding_state` field, so a tenant that creates records
+> out of order or skips the wizard always gets an accurate status. The
+> Rate card step checks for a `rate_card_lines` row, not just a
+> `rate_cards` row, matching this section's own "creates one `rate_cards`
+> + `rate_card_lines` set." No onboarding-only endpoints exist — every
+> step is the ordinary create-endpoint for that entity, exactly as
+> specified above.
+
 ## 2. Empty States (§19)
 
 Every list/table view has a designed empty state, not a bare "No data."
