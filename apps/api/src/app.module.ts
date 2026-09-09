@@ -8,6 +8,7 @@ import { DbModule } from './db/db.module';
 import { DocumentsModule } from './documents/documents.module';
 import { EntitlementModule } from './entitlement/entitlement.module';
 import { GateEntriesModule } from './gate-entries/gate-entries.module';
+import { GrnsModule } from './grns/grns.module';
 import { HealthController } from './health/health.controller';
 import { InwardsModule } from './inwards/inwards.module';
 import { NumberingModule } from './numbering/numbering.module';
@@ -39,6 +40,7 @@ import { WarehousesModule } from './warehouses/warehouses.module';
     DocumentsModule,
     GateEntriesModule,
     InwardsModule,
+    GrnsModule,
   ],
   controllers: [HealthController],
 })

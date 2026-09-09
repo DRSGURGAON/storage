@@ -72,6 +72,15 @@ describe('Document engine', () => {
     return res.body.id as string;
   };
 
+  const createGrn = async (token: string, whId: string, custId: string, prodId: string) => {
+    const res = await api()
+      .post('/grns')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ warehouseId: whId, customerId: custId, items: [{ productId: prodId, expectedQty: 10, receivedQty: 8, acceptedQty: 8 }] })
+      .expect(201);
+    return res.body.id as string;
+  };
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
@@ -558,5 +567,36 @@ describe('Document engine', () => {
 
     const inwardId = await createInward(indepOwner, indepWarehouse, indepCustomer, indepProduct);
     await api().post(`/inwards/${inwardId}/document`).set('Authorization', `Bearer ${indepOwner}`).send({}).expect(201);
+  });
+
+  // Per-feature metering independence is established generically above (three separate feature codes,
+  // each proven on its own tenant); templates registered from here on assert their own rendering and
+  // versioning rather than repeating that same proof a fourth and fifth time.
+  it('generates a real GRN document (the fifth registered template), flagging the discrepancy on its face', async () => {
+    const grnId = await createGrn(owner, warehouseId, customerId, productId);
+
+    const preview = await api()
+      .post(`/grns/${grnId}/document/preview`)
+      .set('Authorization', `Bearer ${owner}`)
+      .expect(201);
+    expect(Buffer.from(preview.body).subarray(0, 4).toString()).toBe('%PDF');
+
+    const committed = await api()
+      .post(`/grns/${grnId}/document`)
+      .set('Authorization', `Bearer ${owner}`)
+      .send({})
+      .expect(201);
+    expect(committed.body.documentType).toBe('grn');
+    expect(committed.body.documentNumber).toMatch(/^GRN\//);
+
+    const regenerated = await api()
+      .post(`/grns/${grnId}/document`)
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ regenerate: true })
+      .expect(201);
+    expect(regenerated.body.versionNo).toBe(2);
+
+    const revoked = await api().get(`/verify/${committed.body.qrToken}`).expect(200);
+    expect(revoked.body.result).toBe('revoked');
   });
 });
