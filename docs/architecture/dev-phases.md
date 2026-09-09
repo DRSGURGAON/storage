@@ -106,9 +106,35 @@ blueprint's own example has no Row). Level/segment/parent are immutable
 because they're baked into every descendant's code; a move is a new
 location plus deactivating the old one. Locations ride on the warehouse
 permissions (`view_warehouse` / `edit_warehouse`) rather than needing
-their own. Not yet: customer addresses/contacts/KYC documents, location
-QR label rendering (document engine, Phase 3), and the remaining masters
-below.
+their own.
+**Product/SKU master landed** (`apps/api/src/products/`): UOMs, product
+categories (self-referencing, nestable) and products, all under one
+module. UOMs have no shared/system-wide row the way roles or feature_keys
+do (`uoms.tenant_id` is `not null`), so `DEFAULT_UOMS` — 8 canonical units
+(NOS, BOX, BAG, KG, MT, PLT, CBM, SQFT) — is seeded per tenant inside the
+signup transaction instead of once globally; a tenant can add more
+afterwards. `products.uom_code` and `.category_id` have no FK at the
+database level (`schema/10_masters.sql`), so `ProductsService` validates
+both against the tenant's own rows before insert/update, inside the same
+transaction. `volume_cbm` is server-computed from
+`length_cm × width_cm × height_cm ÷ 1,000,000` and recomputed on any
+partial update that touches a dimension (merging the patch against the
+row's existing values first) — a client-supplied `volume_cbm` is silently
+ignored, per the schema's own "derived, stored for billing" comment. SKU
+uniqueness rides on `unique (tenant_id, customer_id, sku)` plus the
+`products_shared_sku_uq` partial index from §16/85_integrity_fixes.sql, so
+the same SKU string can exist once as a shared/generic product
+(`customer_id is null`) and once per customer without colliding — proven
+in `products.spec.ts`, not just assumed from the index existing. Listing
+supports a `customerId=shared` sentinel alongside a real customer id or no
+filter at all; because that's a three-state filter (unlike the plain
+`ILIKE` search pattern), the query passes a real SQL `null`/uuid parameter
+plus a separate `NOT $active OR ...` flag rather than trying to overload
+`null` as "no filter" — postgres.js rejects a bound JS `undefined`
+outright, so that path was checked deliberately, not by accident. Not yet:
+customer addresses/contacts/KYC documents, location QR label rendering
+(document engine, Phase 3), Transporter/Vehicle/Driver, Rate Card, and the
+onboarding wizard below.
 
 - Schema: `schema/10_masters.sql`.
 - Docs: `numbering.md` (customer codes, warehouse codes if numbered),

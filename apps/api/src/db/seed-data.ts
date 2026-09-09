@@ -283,3 +283,22 @@ export const FREE_PLAN = {
   priceMonthly: 0,
   priceYearly: 0,
 };
+
+/**
+ * Transcribed from schema/10_masters.sql's own comment on `uoms.code`.
+ * Seeded per-tenant at signup (uoms.tenant_id is not null -- there is no
+ * shared/system-wide row here the way there is for roles or feature_keys,
+ * so "give every new tenant a sensible starting catalogue" has to happen
+ * at signup rather than once globally). A tenant can add more afterwards;
+ * this is a starting point, not a closed list.
+ */
+export const DEFAULT_UOMS = [
+  { code: 'NOS', name: 'Numbers (Pieces)' },
+  { code: 'BOX', name: 'Box' },
+  { code: 'BAG', name: 'Bag' },
+  { code: 'KG', name: 'Kilogram' },
+  { code: 'MT', name: 'Metric Ton' },
+  { code: 'PLT', name: 'Pallet' },
+  { code: 'CBM', name: 'Cubic Meter' },
+  { code: 'SQFT', name: 'Square Feet' },
+] as const;

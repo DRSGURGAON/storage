@@ -10,6 +10,7 @@ import * as argon2 from 'argon2';
 import type postgres from 'postgres';
 import { AuditService } from '../audit/audit.service';
 import { PG_CONNECTION } from '../db/db.module';
+import { DEFAULT_UOMS } from '../db/seed-data';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
 import { JwtPayload } from './jwt-payload';
@@ -91,6 +92,15 @@ export class AuthService {
           insert into tenant_subscriptions (id, tenant_id, plan_id, status)
           values (gen_random_uuid(), ${tenant.id}, ${freePlan.id}, 'active')
         `;
+        // db/seed-data.ts DEFAULT_UOMS: uoms has no shared/system-wide row
+        // (tenant_id is not null), so a starting catalogue has to be
+        // seeded per tenant here rather than once globally like roles.
+        for (const uom of DEFAULT_UOMS) {
+          await tx`
+            insert into uoms (tenant_id, code, name)
+            values (${tenant.id}, ${uom.code}, ${uom.name})
+          `;
+        }
         return {
           tenantId: tenant.id,
           userId: user.id,

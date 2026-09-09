@@ -8,8 +8,9 @@ logging on every mutating/security-relevant auth action, centralized
 document numbering (`allocateNumber()`), RBAC enforcement
 (`PermissionsGuard` + `@RequirePermission`), tenant memberships (add /
 role / disable), and the first masters — Customers, Warehouses and their
-location hierarchy. Remaining masters, operations, and billing modules are
-not built yet (see `docs/architecture/dev-phases.md`).
+location hierarchy, and Product/SKU (with UOMs and categories). Remaining
+masters, operations, and billing modules are not built yet (see
+`docs/architecture/dev-phases.md`).
 
 ## Stack
 
@@ -70,6 +71,14 @@ exist.
   the warehouse permissions). `GET .../locations?level=&parentId=<id|root>&q=`.
   A location's level/segment/parent are immutable — they're baked into
   every descendant's `fullCode`.
+- `GET/POST /uoms` and `GET/POST /product-categories` (both ride the
+  product permissions — `permissions-matrix.md` has no separate row for
+  either), `POST/GET/PATCH /products[/:id]` (`create_product` /
+  `view_product` / `edit_product`). `GET /products?q=&customerId=&limit=&offset=`
+  matches SKU/name/barcode; `customerId` accepts a real customer id, the
+  literal `shared` (products with `customer_id is null`), or is omitted
+  for no filter. `volume_cbm` is always server-computed from the product's
+  dimensions and cannot be set directly.
 
 No entitlement-gated endpoint exists yet (nothing generates a document
 yet) — `EntitlementService` (`src/entitlement/`) is complete and tested
@@ -116,3 +125,12 @@ All against the real local database (`DATABASE_URL`), not mocks:
   the blueprint), every invalid placement rejected, list filters, immutable
   structural fields, operator 403s, and cross-tenant 404s with an
   independently reusable `WH01`.
+- `products/products.spec.ts` — the 8 default UOMs seeded at signup and a
+  tenant adding its own, nested categories with an unknown-parent 404,
+  server-computed `volume_cbm` (including a spoofed client value being
+  ignored) both on create and on a partial update that only patches one
+  dimension, the same SKU string coexisting as a shared product and a
+  per-customer product while a duplicate within either scope 409s,
+  uom/category/customer reference validation, search/filter/pagination,
+  tenant isolation (including each tenant's independent UOM and SKU
+  namespace), and operator 403.
