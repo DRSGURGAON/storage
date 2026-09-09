@@ -7,11 +7,12 @@ automatically, update stock automatically, bill from actual operations.**
 
 This repository holds the **product blueprint, engineering architecture,
 and the implementation now underway**. Phase 1 (`docs/architecture/dev-phases.md`)
-has landed tenancy and auth: `apps/api`, a NestJS + PostgreSQL backend with
-row-level-secured multi-tenancy, JWT signup/login, and the seeded RBAC
-catalog, all covered by integration tests against a real database. Masters,
-operations, and billing modules are not built yet — see `apps/api/README.md`
-to run what exists so far.
+has landed tenancy, auth, and the entitlement engine: `apps/api`, a
+NestJS + PostgreSQL backend with row-level-secured multi-tenancy, JWT
+signup/login, the seeded RBAC catalog, and a working 2-free-copies
+subscription engine, all covered by integration tests against a real
+database. Masters, operations, and billing modules are not built yet —
+see `apps/api/README.md` to run what exists so far.
 
 ## Where to start
 

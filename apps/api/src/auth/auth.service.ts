@@ -43,10 +43,13 @@ export class AuthService {
     const [ownerRole] = await this.sql<{ id: string }[]>`
       select id from roles where code = 'owner' and tenant_id is null
     `;
-    if (!ownerRole) {
+    const [freePlan] = await this.sql<{ id: string }[]>`
+      select id from plans where code = 'FREE'
+    `;
+    if (!ownerRole || !freePlan) {
       // Only reachable if `npm run seed` was never run against this database.
       throw new InternalServerErrorException(
-        'System roles are not seeded; run the seed script before signup',
+        'System roles/plans are not seeded; run the seed script before signup',
       );
     }
 
@@ -77,6 +80,14 @@ export class AuthService {
           insert into tenant_users (id, tenant_id, user_id, role_id, status)
           values (gen_random_uuid(), ${tenant.id}, ${user.id}, ${ownerRole.id}, 'active')
           returning id
+        `;
+        // dev-phases.md Phase 1: every new tenant starts on the seeded FREE
+        // plan. 'active', not 'trial' -- there is no time-boxed trial
+        // period without a paid plan to convert to yet, and the Free plan
+        // itself never expires.
+        await tx`
+          insert into tenant_subscriptions (id, tenant_id, plan_id, status)
+          values (gen_random_uuid(), ${tenant.id}, ${freePlan.id}, 'active')
         `;
         return {
           tenantId: tenant.id,

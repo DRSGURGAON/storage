@@ -8,22 +8,30 @@ not to bolt monetization onto individual modules after the fact.
 
 ## Phase 1 — Authentication, Multi-tenancy, Company, Users, Roles, Permissions, Entitlement Engine
 
-**Status: tenancy + auth increment landed.** `apps/api` is a NestJS +
-TypeScript + Drizzle project (`../../DECISIONS.md` §0) whose migration
-runner applies this directory's schema files as real, tracked migrations
-— now including `85_integrity_fixes.sql`, `90_row_level_security.sql`,
-`91_tenant_users_self_lookup.sql`, and `92_rls_empty_string_guard.sql`,
-four fixes found only by building and load-testing real code against the
-schema, not by review (see `DECISIONS.md` §16–§18 for what each closed).
-Signup, login (including multi-tenant membership selection), JWT issuance,
-and a protected `/me` endpoint are live and covered by integration tests
-against a real database, including the exact connection-reuse scenario
-that exposed §18's bug. `entitlement-engine.md`'s `checkEntitlement`/
-`consumeEntitlement` and the RBAC *enforcement* guard are not built yet —
-the latter is deliberately deferred to Phase 2, alongside the first real
-permission-gated endpoint, rather than built against no caller (the seed
-data it will enforce — `roles`/`permissions`/`role_permissions` — is
-already live). See `apps/api/README.md` for setup.
+**Status: tenancy, auth, and the entitlement engine have landed.**
+`apps/api` is a NestJS + TypeScript + Drizzle project (`../../DECISIONS.md`
+§0) whose migration runner applies this directory's schema files as real,
+tracked migrations — now including `85_integrity_fixes.sql`,
+`90_row_level_security.sql`, `91_tenant_users_self_lookup.sql`, and
+`92_rls_empty_string_guard.sql`, four fixes found only by building and
+load-testing real code against the schema, not by review (see
+`DECISIONS.md` §16–§18 for what each closed). Signup, login (including
+multi-tenant membership selection), JWT issuance, and a protected `/me`
+endpoint are live and covered by integration tests against a real
+database, including the exact connection-reuse scenario that exposed
+§18's bug. `checkEntitlement`, `consumeEntitlement`, and
+`recordFailedAttempt` are implemented exactly as `entitlement-engine.md`
+specifies (clarified in one respect during implementation — see
+`DECISIONS.md` §19), with the full feature catalog and the FREE plan's
+2-free-copies limits seeded; every new tenant gets an `active`
+`tenant_subscriptions` row on the FREE plan at signup (`active`, not
+`trial` — there is no time-boxed trial without a paid plan to convert to
+yet, and the doc's original "trial" wording below is superseded by this).
+The RBAC *enforcement* guard is still deliberately deferred to Phase 2,
+alongside the first real permission-gated endpoint, rather than built
+against no caller (the seed data it will enforce —
+`roles`/`permissions`/`role_permissions` — is already live). See
+`apps/api/README.md` for setup.
 
 - Schema: `schema/00_core.sql` in full, plus `schema/80_subscription.sql`
   (the entitlement/subscription domain belongs here, not in Phase 8, because
@@ -43,10 +51,15 @@ already live). See `apps/api/README.md` for setup.
   users too). **Done** for the tenancy/RLS mechanism itself —
   `apps/api/src/db/tenant-isolation.spec.ts` proves it directly against a
   real database (no masters module exists yet to prove it through HTTP;
-  that's Phase 2's job once there's a real endpoint to call). Still open:
-  the scripted entitlement-engine check (`allowed: true` twice,
-  `LIMIT_REACHED` on the third call) — `checkEntitlement`/
-  `consumeEntitlement` are not implemented yet.
+  that's Phase 2's job once there's a real endpoint to call). **Also done**
+  for the entitlement engine — `apps/api/src/entitlement/entitlement.spec.ts`
+  proves `allowed: true` for the first two `GRN_GENERATION` consumptions and
+  `allowed: false, reason: 'LIMIT_REACHED'` on the third, plus idempotent
+  retries, a genuine concurrent race (5 simultaneous calls against a
+  2-copy limit, exactly 2 win), cross-tenant/cross-feature independence,
+  the fail-closed default for an unconfigured feature, and
+  `recordFailedAttempt` never touching the counter — all against the real
+  database, before any document-generating module exists to call it.
 
 ## Phase 2 — Customer, Warehouse, Location, Product/SKU, Transporter, Vehicle, Driver, Rate Card
 

@@ -1,11 +1,13 @@
 # API — Warehouse Documentation & Operations SaaS
 
 Backend for the product specified in `../../docs/`. So far: project
-scaffolding, tenant/user auth with JWT, row-level tenant isolation, and the
-seeded RBAC role/permission catalog. No masters, operations, or billing
-modules yet, and no RBAC *enforcement* guard — that's deferred to Phase 2,
-built alongside the first real permission-gated endpoint rather than
-against no caller (see `docs/architecture/dev-phases.md` Phase 1).
+scaffolding, tenant/user auth with JWT, row-level tenant isolation, the
+seeded RBAC role/permission catalog, and a fully working entitlement/
+subscription engine (2-free-copies enforcement, seeded and tested). No
+masters, operations, or billing modules yet, and no RBAC *enforcement*
+guard — that's deferred to Phase 2, built alongside the first real
+permission-gated endpoint rather than against no caller (see
+`docs/architecture/dev-phases.md` Phase 1).
 
 ## Stack
 
@@ -22,7 +24,7 @@ cp apps/api/.env.example apps/api/.env
 
 cd apps/api
 npm run migrate                # applies ../../docs/architecture/schema/*.sql, in order
-npm run seed                   # seeds system roles/permissions/role_permissions
+npm run seed                   # seeds roles/permissions, the feature catalog, and the FREE plan
 npm run start:dev              # http://localhost:3000
 ```
 
@@ -50,6 +52,11 @@ exist.
   (`src/db/tenant-context.ts`) so every response is proven, not assumed,
   to be RLS-scoped to the caller's own tenant.
 
+No entitlement-gated HTTP endpoint exists yet (nothing generates a
+document yet) — `EntitlementService` (`src/entitlement/`) is complete and
+tested directly; Phase 3 wires `checkEntitlement`/`consumeEntitlement`
+into the first real `generateDocument()` call.
+
 ## Tests
 
 ```bash
@@ -65,3 +72,8 @@ All against the real local database (`DATABASE_URL`), not mocks:
 - `db/tenant-isolation.spec.ts` — the mechanism every future module will
   rely on (`withTenant()` + RLS), proven directly against a real table
   since no masters module exists yet to prove it through HTTP.
+- `entitlement/entitlement.spec.ts` — the 2-free-copies rule end to end:
+  allowed twice then `LIMIT_REACHED`, idempotent retries, a genuine
+  concurrent race (5 simultaneous calls against a 2-copy limit resolve to
+  exactly 2 winners), cross-tenant/cross-feature independence, the
+  fail-closed default, and `recordFailedAttempt`.

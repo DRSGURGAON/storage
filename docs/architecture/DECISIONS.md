@@ -318,3 +318,41 @@ This is also a reminder for future schema/RLS work: **verify against the
 real connection-pooled application, not only fresh manual sessions** — a
 fresh session's `current_setting` semantics are not the same as a reused
 one's for custom GUCs.
+
+## §19 — `checkEntitlement`/`consumeEntitlement` write responsibility, clarified during implementation
+
+`entitlement-engine.md` described both functions and said a "blocked"
+attempt writes a `usage_ledger` row for auditability, but not which
+function owns that write, and `checkEntitlement`'s own params
+(`tenantId`, `featureCode`) have no `idempotencyKey` or `sourceId` to write
+a meaningful ledger row with. Resolved while implementing
+`apps/api/src/entitlement/entitlement.service.ts`:
+
+- **`checkEntitlement`** is a cheap, side-effect-free read, safe to call as
+  often as a screen likes (usage badges, paywall pre-checks) without
+  generating audit noise.
+- **`consumeEntitlement`** is the single atomic operation that re-checks
+  the limit *inside the same transaction* as recording the outcome, and
+  owns every `usage_ledger` write for both `'success'` and `'blocked'`
+  results. Re-checking here rather than trusting an earlier
+  `checkEntitlement` call is what prevents two concurrent requests from
+  both seeing "1 remaining" and both succeeding — a `FOR UPDATE` lock on
+  the `usage_counters` row serializes them, the same discipline as
+  `numbering.md`'s `allocateNumber()`.
+- **`recordFailedAttempt`** is a third method, not in the original doc:
+  for the case where the generation work itself throws *before*
+  `consumeEntitlement` would even be called (nothing to atomically
+  check-and-consume, just an audit record that an attempt happened and
+  didn't consume anything).
+
+A real bug surfaced writing the test for this: `consumeEntitlement`'s
+return value initially reused the same `evaluate()` result whether or not
+*this* call was the one that consumed a unit. For the second of two
+allowed calls on a 2-copy limit, `evaluate()` correctly reports "no
+future call is allowed" (`remaining: 0`) — but that got returned as
+`allowed: false` for the call that had, in fact, just succeeded. Fixed:
+a successful consumption always reports `allowed: true` for itself;
+`upgradeRequired` (not `allowed`) is what signals "that was the last
+one." Caught by asserting the exact response shape of the second of three
+sequential calls, not just the third (blocked) one — a test that only
+checked the final blocked call would have missed this.

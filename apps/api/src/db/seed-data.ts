@@ -225,3 +225,61 @@ export const ROLE_PERMISSIONS: Record<SystemRoleCode, string[]> = {
   // Portal access is enforced by a separate controller set, not these codes.
   customer: [],
 };
+
+/**
+ * Transcribed from v1-scope-specification.md §7 (Subscription & 2-Free-Copy
+ * Matrix). The 21 metered document-generation features get the free-copies
+ * rule; the 5 "Not metered" ones still need an explicit `unlimited` row on
+ * every plan below -- entitlement-engine.md §3's resolution is fail-closed
+ * to `disabled` when no plan_feature_limits row exists at all, so "always
+ * available" has to be seeded, not assumed.
+ */
+export const METERED_FEATURE_KEYS = [
+  { code: 'QUOTATION_GENERATION', module: 'commercial', name: 'Quotation generation' },
+  { code: 'AGREEMENT_GENERATION', module: 'commercial', name: 'Agreement generation' },
+  { code: 'GATE_ENTRY', module: 'operations', name: 'Gate entry' },
+  { code: 'INWARD', module: 'operations', name: 'Goods inward' },
+  { code: 'GRN_GENERATION', module: 'operations', name: 'GRN generation' },
+  { code: 'DISCREPANCY_REPORT', module: 'operations', name: 'Discrepancy/damage report' },
+  { code: 'PUTAWAY', module: 'operations', name: 'Put-away slip' },
+  { code: 'WAREHOUSE_RECEIPT', module: 'operations', name: 'Warehouse receipt' },
+  { code: 'RELEASE_ORDER', module: 'operations', name: 'Release/delivery order' },
+  { code: 'PICK_LIST', module: 'operations', name: 'Pick list' },
+  { code: 'DISPATCH_NOTE', module: 'operations', name: 'Dispatch note' },
+  { code: 'LOADING_SHEET', module: 'operations', name: 'Loading sheet' },
+  { code: 'GATE_PASS', module: 'operations', name: 'Gate pass' },
+  { code: 'POD', module: 'operations', name: 'Proof of delivery' },
+  { code: 'INVOICE_GENERATION', module: 'billing', name: 'Invoice generation' },
+  { code: 'CREDIT_NOTE', module: 'billing', name: 'Credit note' },
+  { code: 'PAYMENT_RECEIPT', module: 'billing', name: 'Payment receipt' },
+  { code: 'DEBIT_NOTE', module: 'billing', name: 'Debit note' },
+  { code: 'STOCK_TRANSFER', module: 'stock', name: 'Stock transfer' },
+  { code: 'STOCK_VERIFICATION', module: 'stock', name: 'Physical stock verification' },
+  { code: 'PACKING_LIST', module: 'operations', name: 'Packing list' },
+] as const;
+
+export const UNMETERED_FEATURE_KEYS = [
+  { code: 'CUSTOMER_KYC', module: 'masters', name: 'Customer KYC' },
+  { code: 'RATE_CARD', module: 'masters', name: 'Rate card' },
+  { code: 'STOCK_LEDGER', module: 'stock', name: 'Stock ledger' },
+  { code: 'STOCK_STATEMENT', module: 'stock', name: 'Customer stock statement' },
+  { code: 'CUSTOMER_STATEMENT', module: 'billing', name: 'Customer account statement' },
+] as const;
+
+export const FEATURE_KEYS = [
+  ...METERED_FEATURE_KEYS.map((f) => ({ ...f, isMeterable: true })),
+  ...UNMETERED_FEATURE_KEYS.map((f) => ({ ...f, isMeterable: false })),
+];
+
+/** The default free-copies allowance (v1-scope-specification.md §7, §16 of the entitlement blueprint). */
+export const FREE_PLAN_DOCUMENT_LIMIT = 2;
+
+export const FREE_PLAN = {
+  code: 'FREE',
+  name: 'Free',
+  description: '2 free copies of every document type, forever. No card required.',
+  isPublic: true,
+  trialDays: 0,
+  priceMonthly: 0,
+  priceYearly: 0,
+};

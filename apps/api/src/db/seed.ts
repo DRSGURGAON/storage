@@ -1,6 +1,15 @@
 import 'dotenv/config';
 import postgres from 'postgres';
-import { PERMISSIONS, ROLE_PERMISSIONS, SYSTEM_ROLES } from './seed-data';
+import {
+  FEATURE_KEYS,
+  FREE_PLAN,
+  FREE_PLAN_DOCUMENT_LIMIT,
+  METERED_FEATURE_KEYS,
+  PERMISSIONS,
+  ROLE_PERMISSIONS,
+  SYSTEM_ROLES,
+  UNMETERED_FEATURE_KEYS,
+} from './seed-data';
 
 /**
  * Idempotent: safe to run on every deploy. Relies on
@@ -59,6 +68,48 @@ async function main() {
       }
     }
     console.log(`seeded ${grantCount} role-permission grants`);
+
+    for (const feature of FEATURE_KEYS) {
+      await sql`
+        insert into feature_keys (code, module, name, is_meterable)
+        values (${feature.code}, ${feature.module}, ${feature.name}, ${feature.isMeterable})
+        on conflict (code)
+        do update set module = excluded.module, name = excluded.name, is_meterable = excluded.is_meterable
+      `;
+    }
+    console.log(`seeded ${FEATURE_KEYS.length} feature keys`);
+
+    const [freePlan] = await sql<{ id: string }[]>`
+      insert into plans (id, code, name, description, is_public, is_active, trial_days, price_monthly, price_yearly, sort_order)
+      values (gen_random_uuid(), ${FREE_PLAN.code}, ${FREE_PLAN.name}, ${FREE_PLAN.description}, ${FREE_PLAN.isPublic}, true, ${FREE_PLAN.trialDays}, ${FREE_PLAN.priceMonthly}, ${FREE_PLAN.priceYearly}, 0)
+      on conflict (code) do update set name = excluded.name, description = excluded.description
+      returning id
+    `;
+
+    // The 2-free-copies rule (entitlement-engine.md §6): seed data, not a
+    // constant in application code.
+    for (const feature of METERED_FEATURE_KEYS) {
+      await sql`
+        insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value, period)
+        values (gen_random_uuid(), ${freePlan.id}, ${feature.code}, 'counted', ${FREE_PLAN_DOCUMENT_LIMIT}, 'lifetime')
+        on conflict (plan_id, feature_code)
+        do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
+      `;
+    }
+    // "Always available" (v1-scope-specification.md §7) has to be an explicit
+    // unlimited row -- entitlement-engine.md §3 resolves an absent row to
+    // disabled, fail-closed, not to unlimited.
+    for (const feature of UNMETERED_FEATURE_KEYS) {
+      await sql`
+        insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value, period)
+        values (gen_random_uuid(), ${freePlan.id}, ${feature.code}, 'unlimited', null, 'lifetime')
+        on conflict (plan_id, feature_code)
+        do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
+      `;
+    }
+    console.log(
+      `seeded FREE plan with ${METERED_FEATURE_KEYS.length} metered + ${UNMETERED_FEATURE_KEYS.length} unlimited feature limits`,
+    );
 
     console.log('Seed complete.');
   } finally {

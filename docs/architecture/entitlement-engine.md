@@ -1,6 +1,7 @@
 # Entitlement & Subscription Engine
 
-Blueprint refs: saas-layer §6–17, §41–45; schema: `schema/80_subscription.sql`
+Blueprint refs: saas-layer §6–17, §41–45; schema: `schema/80_subscription.sql`;
+implemented at `apps/api/src/entitlement/entitlement.service.ts`
 
 ## 1. Principle
 
@@ -30,6 +31,19 @@ inside one database transaction:
 2. Upsert `usage_counters` for `(tenant_id, feature_code, period_key)`:
    `used_count += 1`.
 3. Both steps commit together or not at all.
+
+**Write responsibility, clarified during implementation (DECISIONS.md §19):**
+`checkEntitlement` is a cheap, side-effect-free read only — safe to call as
+often as a screen likes without generating audit noise. `consumeEntitlement`
+is the single atomic operation that *re-checks the limit inside the same
+transaction* as recording the outcome and owns every `usage_ledger` write
+for both `success` and `blocked` results; re-checking here rather than
+trusting an earlier `checkEntitlement` call is what a `FOR UPDATE` lock on
+the `usage_counters` row needs in order to prevent two concurrent requests
+from both seeing "1 remaining" and both succeeding. A third method,
+`recordFailedAttempt`, covers the case where generation work throws
+*before* `consumeEntitlement` would even run — nothing to atomically
+check-and-consume, just an audit record that an attempt happened.
 
 A **blocked** attempt (limit already reached) or a **failed** attempt
 (generation errored) also writes a `usage_ledger` row — for auditability —
