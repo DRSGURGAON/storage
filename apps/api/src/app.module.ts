@@ -7,6 +7,7 @@ import { EntitlementModule } from './entitlement/entitlement.module';
 import { HealthController } from './health/health.controller';
 import { NumberingModule } from './numbering/numbering.module';
 import { ProductsModule } from './products/products.module';
+import { TransportModule } from './transport/transport.module';
 import { UsersModule } from './users/users.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
 
@@ -23,6 +24,7 @@ import { WarehousesModule } from './warehouses/warehouses.module';
     UsersModule,
     WarehousesModule,
     ProductsModule,
+    TransportModule,
   ],
   controllers: [HealthController],
 })

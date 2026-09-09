@@ -8,8 +8,9 @@ logging on every mutating/security-relevant auth action, centralized
 document numbering (`allocateNumber()`), RBAC enforcement
 (`PermissionsGuard` + `@RequirePermission`), tenant memberships (add /
 role / disable), and the first masters — Customers, Warehouses and their
-location hierarchy, and Product/SKU (with UOMs and categories). Remaining
-masters, operations, and billing modules are not built yet (see
+location hierarchy, Product/SKU (with UOMs and categories), and the
+Transport master (Transporters, Vehicles, Drivers). Remaining masters,
+operations, and billing modules are not built yet (see
 `docs/architecture/dev-phases.md`).
 
 ## Stack
@@ -79,6 +80,13 @@ exist.
   literal `shared` (products with `customer_id is null`), or is omitted
   for no filter. `volume_cbm` is always server-computed from the product's
   dimensions and cannot be set directly.
+- `POST/GET/PATCH /transporters[/:id]`, `POST/GET/PATCH /vehicles[/:id]`,
+  `POST/GET/PATCH /drivers[/:id]` — one permission set for all three
+  (`create`/`view`/`edit_transport_master`). `vehicleNumber` is normalised
+  to uppercase with spaces stripped before storage and search, so `hr 26
+  dk 1234` and `HR26DK1234` are the same vehicle. `GET /vehicles?transporterId=`
+  and `GET /drivers?transporterId=` filter to one transporter's fleet;
+  `transporterId` is optional on both (an owned fleet has no transporter).
 
 No entitlement-gated endpoint exists yet (nothing generates a document
 yet) — `EntitlementService` (`src/entitlement/`) is complete and tested
@@ -134,3 +142,10 @@ All against the real local database (`DATABASE_URL`), not mocks:
   uom/category/customer reference validation, search/filter/pagination,
   tenant isolation (including each tenant's independent UOM and SKU
   namespace), and operator 403.
+- `transport/transport.spec.ts` — transporter duplicate-name 409, vehicle
+  number normalization (a mixed-case/spaced input colliding with its
+  already-normalized duplicate), an owned-fleet vehicle/driver with no
+  transporter, an unknown `transporterId` 404 on both, duplicate driver
+  names being allowed, transporter-scoped filtering, tenant isolation with
+  an independently reusable transporter name and vehicle number, and
+  operator 403.

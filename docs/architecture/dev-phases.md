@@ -131,10 +131,23 @@ filter at all; because that's a three-state filter (unlike the plain
 `ILIKE` search pattern), the query passes a real SQL `null`/uuid parameter
 plus a separate `NOT $active OR ...` flag rather than trying to overload
 `null` as "no filter" — postgres.js rejects a bound JS `undefined`
-outright, so that path was checked deliberately, not by accident. Not yet:
+outright, so that path was checked deliberately, not by accident.
+**Transport master landed** (`apps/api/src/transport/`): Transporters,
+Vehicles and Drivers, all sharing one permission set
+(`view`/`create`/`edit_transport_master` — the matrix has no separate row
+per sub-resource). `vehicles.vehicle_number` is normalised to uppercase
+with spaces stripped before every insert/update/search
+(`schema/10_masters.sql`'s own comment: "normalised uppercase, no spaces:
+'HR26DK1234'"), so `hr 26 dk 1234` and `HR26DK1234` collide on the same
+`unique (tenant_id, vehicle_number)` row — proven with a real duplicate
+in `transport.spec.ts`, not just assumed from the transform existing.
+`vehicles.transporter_id` and `drivers.transporter_id` are both nullable
+(an owned fleet has no transporter) and validated against the tenant's
+own transporters when present; `drivers` carries no unique constraint at
+all in the schema, so duplicate names/mobiles are accepted deliberately,
+unlike transporters (`unique (tenant_id, name)`) and vehicles. Not yet:
 customer addresses/contacts/KYC documents, location QR label rendering
-(document engine, Phase 3), Transporter/Vehicle/Driver, Rate Card, and the
-onboarding wizard below.
+(document engine, Phase 3), Rate Card, and the onboarding wizard below.
 
 - Schema: `schema/10_masters.sql`.
 - Docs: `numbering.md` (customer codes, warehouse codes if numbered),
