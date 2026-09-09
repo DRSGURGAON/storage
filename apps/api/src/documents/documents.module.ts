@@ -8,6 +8,7 @@ import { DocumentEngineService } from './documents.service';
 import { PdfRendererService } from './pdf-renderer.service';
 import { QrService } from './qr.service';
 import { AgreementDocumentTemplate } from './templates/agreement-document.template';
+import { GateEntryDocumentTemplate } from './templates/gate-entry-document.template';
 import { QuotationDocumentTemplate } from './templates/quotation-document.template';
 import { VerifyController, VerifyService } from './verify.controller';
 
@@ -21,6 +22,7 @@ import { VerifyController, VerifyService } from './verify.controller';
     QrService,
     QuotationDocumentTemplate,
     AgreementDocumentTemplate,
+    GateEntryDocumentTemplate,
     VerifyService,
   ],
   exports: [DocumentEngineService],

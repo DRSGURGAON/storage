@@ -51,24 +51,29 @@ audit-logged reason (§49, §51).
 > `AttachmentStorage` interface with `LocalFilesystemAttachmentStorage` as
 > the only implementation so far — `DECISIONS.md` §24 records the gap
 > against this repo's own S3-signed-URL note and the proxy-endpoint
-> fallback `tenancy-and-security.md` already sanctions. Two templates are
-> registered, `QuotationDocumentTemplate` (`documentType: 'quotation'`,
-> `featureCode: 'QUOTATION_GENERATION'`) and `AgreementDocumentTemplate`
-> (`documentType: 'agreement'`, `featureCode: 'AGREEMENT_GENERATION'`) —
-> the latter renders each of an agreement's already-resolved
-> `rendered_clauses` as its own titled section rather than a separate
-> party card, since (unlike Quotation) there is no frozen
-> `customer_snapshot` to summarise and the clause text itself already
-> carries the resolved customer/company identity. Adding the next
-> `documentType` from §2's list means one more `DocumentTemplate`
-> implementation plus one more constructor argument to
-> `DocumentTemplateRegistry`, not a new pipeline — proven twice over now,
-> not just asserted. Proven end-to-end in `documents.spec.ts`: preview vs.
-> commit, idempotent retry, regenerate producing a new version with the
-> old one's QR resolving `revoked` through the public verify endpoint
-> (§4, below), cross-tenant isolation, permission gating, the FREE-plan
-> 2-copy paywall on both preview and commit, and
-> `QUOTATION_GENERATION`/`AGREEMENT_GENERATION` metering independently
+> fallback `tenancy-and-security.md` already sanctions. Three templates
+> are registered so far: `QuotationDocumentTemplate` (`documentType:
+> 'quotation'`, `featureCode: 'QUOTATION_GENERATION'`),
+> `AgreementDocumentTemplate` (`documentType: 'agreement'`, `featureCode:
+> 'AGREEMENT_GENERATION'`) — which renders each of an agreement's
+> already-resolved `rendered_clauses` as its own titled section rather
+> than a separate party card, since (unlike Quotation) there is no
+> frozen `customer_snapshot` to summarise and the clause text itself
+> already carries the resolved customer/company identity — and
+> `GateEntryDocumentTemplate` (`documentType: 'gate_entry'`,
+> `featureCode: 'GATE_ENTRY'`), the first with no line items or clauses
+> at all, just two summary blocks (proving the shared design system
+> degrades gracefully to a genuinely simple document, not only ones with
+> tables or long text). Adding the next `documentType` from §2's list
+> means one more `DocumentTemplate` implementation plus one more
+> constructor argument to `DocumentTemplateRegistry`, not a new pipeline
+> — proven three times over now, not just asserted. Proven end-to-end in
+> `documents.spec.ts`: preview vs. commit, idempotent retry, regenerate
+> producing a new version with the old one's QR resolving `revoked`
+> through the public verify endpoint (§4, below), cross-tenant isolation,
+> permission gating, the FREE-plan 2-copy paywall on both preview and
+> commit, and `QUOTATION_GENERATION`/`AGREEMENT_GENERATION`/`GATE_ENTRY`
+> metering independently
 > through the HTTP layer.
 
 ## 2. Supported `documentType` values

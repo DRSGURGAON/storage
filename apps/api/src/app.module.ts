@@ -7,6 +7,7 @@ import { CustomersModule } from './customers/customers.module';
 import { DbModule } from './db/db.module';
 import { DocumentsModule } from './documents/documents.module';
 import { EntitlementModule } from './entitlement/entitlement.module';
+import { GateEntriesModule } from './gate-entries/gate-entries.module';
 import { HealthController } from './health/health.controller';
 import { NumberingModule } from './numbering/numbering.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
@@ -35,6 +36,7 @@ import { WarehousesModule } from './warehouses/warehouses.module';
     QuotationsModule,
     AgreementsModule,
     DocumentsModule,
+    GateEntriesModule,
   ],
   controllers: [HealthController],
 })

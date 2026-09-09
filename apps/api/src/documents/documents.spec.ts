@@ -53,6 +53,15 @@ describe('Document engine', () => {
     return res.body.id as string;
   };
 
+  const createGateEntry = async (token: string, whId: string) => {
+    const res = await api()
+      .post('/gate-entries')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ warehouseId: whId, direction: 'in', purpose: 'inward' })
+      .expect(201);
+    return res.body.id as string;
+  };
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
@@ -410,5 +419,63 @@ describe('Document engine', () => {
       .set('Authorization', `Bearer ${owner}`)
       .expect(201);
     expect(Buffer.from(preview.body).subarray(0, 4).toString()).toBe('%PDF');
+  });
+
+  it('generates a real Gate Entry document (the third registered template)', async () => {
+    const gateEntryId = await createGateEntry(owner, warehouseId);
+
+    const preview = await api()
+      .post(`/gate-entries/${gateEntryId}/document/preview`)
+      .set('Authorization', `Bearer ${owner}`)
+      .expect(201);
+    expect(Buffer.from(preview.body).subarray(0, 4).toString()).toBe('%PDF');
+
+    const committed = await api()
+      .post(`/gate-entries/${gateEntryId}/document`)
+      .set('Authorization', `Bearer ${owner}`)
+      .send({})
+      .expect(201);
+    expect(committed.body.documentType).toBe('gate_entry');
+    expect(committed.body.documentNumber).toMatch(/^GE\//);
+
+    const regenerated = await api()
+      .post(`/gate-entries/${gateEntryId}/document`)
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ regenerate: true })
+      .expect(201);
+    expect(regenerated.body.versionNo).toBe(2);
+
+    const revoked = await api().get(`/verify/${committed.body.qrToken}`).expect(200);
+    expect(revoked.body.result).toBe('revoked');
+  });
+
+  it('GATE_ENTRY meters independently of QUOTATION_GENERATION/AGREEMENT_GENERATION too', async () => {
+    const slug = `doc-indep-ge-${suffix}`;
+    const indepOwner = await signup(slug, `owner-indep-ge-${suffix}@test.local`);
+    const indepWarehouse = (
+      await api()
+        .post('/warehouses')
+        .set('Authorization', `Bearer ${indepOwner}`)
+        .send({ code: 'WH01', name: 'Godown', capacityValue: 100, capacityUom: 'pallet' })
+        .expect(201)
+    ).body.id;
+    const indepCustomer = (
+      await api().post('/customers').set('Authorization', `Bearer ${indepOwner}`).send({ name: 'Epsilon Co' }).expect(201)
+    ).body.id;
+    const chargeTypes = await api().get('/charge-types').set('Authorization', `Bearer ${indepOwner}`).expect(200);
+    const chargeTypeId = chargeTypes.body.find((c: { code: string }) => c.code === 'STORAGE').id;
+
+    for (let i = 0; i < 2; i++) {
+      const quotationId = await createQuotation(indepOwner, indepCustomer, chargeTypeId);
+      await api().post(`/quotations/${quotationId}/document`).set('Authorization', `Bearer ${indepOwner}`).send({}).expect(201);
+    }
+    const thirdQuotationId = await createQuotation(indepOwner, indepCustomer, chargeTypeId);
+    await api()
+      .post(`/quotations/${thirdQuotationId}/document/preview`)
+      .set('Authorization', `Bearer ${indepOwner}`)
+      .expect(402);
+
+    const gateEntryId = await createGateEntry(indepOwner, indepWarehouse);
+    await api().post(`/gate-entries/${gateEntryId}/document`).set('Authorization', `Bearer ${indepOwner}`).send({}).expect(201);
   });
 });

@@ -353,6 +353,45 @@ document engine's existing mechanics unchanged.
 
 ## Phase 4 — Gate Entry, Inward, GRN, Discrepancy, Inspection, Put-away, Warehouse Receipt
 
+**Status: Gate Entry record landed** (`apps/api/src/gate-entries/`):
+`gate_entries`, `GE/{fy}/{seq:6}` numbering, and the
+Open → Closed/Cancelled workflow from blueprint §16 (`'linked'` — an
+Inward referencing this gate entry — is set by Inward's own increment,
+not this one; there's nothing to link to yet). Editability lives on
+`status = 'open'`, the same "draft-like" shape as Quotation/Agreement
+even though the column's own value is `'open'`, not literally `'draft'`.
+"Selecting vehicle must auto-fill transporter" (§16) is resolved
+server-side, not left to a frontend convention: `vehicleId` pulls the
+vehicle's own `transporter_id`/name unless the request already set one
+explicitly, and `driverId` similarly snapshots the driver's name/mobile
+onto the row — proven directly (a vehicle-only request correctly fills
+in its linked transporter's name) rather than merely documented.
+`GateEntryDocumentTemplate` is the third template registered on the
+document engine (`documentType: 'gate_entry'`, `featureCode:
+'GATE_ENTRY'`) — a single-block slip with no line items, proving the
+engine handles a document type simpler than Quotation/Agreement just as
+well as one with line items or clauses. permissions-matrix.md's
+Operations module seeds only `create_gate_entry`, no separate view/edit
+code (unlike Masters/Commercial) — every route here, reads included,
+rides that one permission, the same "no dedicated code exists" pattern
+already used for rate-card lines and customer addresses/contacts.
+
+Building this surfaced one real bug, DECISIONS.md §27:
+`db/client.ts`'s `createDbConnection()` wraps the shared connection with
+`drizzle(sql)` even though this codebase never uses Drizzle's own query
+builder — and that wrapping silently registers a `timestamptz`
+parser/serializer on the *shared* connection, so every raw
+`postgres.js` query in the app reads timestamp columns back as plain
+strings, not `Date` objects, and a raw `new Date()` bound as a query
+parameter fails outright. Latent everywhere else in the codebase
+(every other timestamp column is either server-stamped and never read
+back, or a `date`-only column already carried as a string) but real
+here, since `entry_at` is the first client-settable `timestamptz` that
+gets read back and reused (editing a gate entry without changing its
+entry time re-sends the value `update()` just selected). Fixed in
+`gate-entries.service.ts` only, with the reasoning for not chasing the
+same mistyping across every other module recorded in §27 itself.
+
 - Schema: `schema/30_inbound.sql`.
 - Docs: `workflow-and-statuses.md` (GRN status machine, auto-fill chain
   Gate Entry→Inward→GRN), `document-engine.md` (six new document types).

@@ -16,8 +16,9 @@ status endpoint. Phases 2 and 3 are complete: Quotation and Agreement
 records, each with its own workflow, plus a real document engine —
 server-rendered PDF generation (headless Chromium via `puppeteer-core`),
 QR-code verification, versioning, and FREE-plan entitlement gating —
-proven end-to-end against both registered templates, Quotation and
-Agreement. Operations and billing-run modules are not built yet.
+proven end-to-end against three registered templates, Quotation,
+Agreement, and (Phase 4's first slice) Gate Entry. The rest of
+Operations and the billing-run modules are not built yet.
 
 ## Stack
 
@@ -165,6 +166,18 @@ exist.
   a scanner can tell "used to be valid" from "never existed"), or
   `not_found`. Never returns line items, amounts, or anything else from
   the document's `render_data_snapshot`.
+- `POST/GET/PATCH /gate-entries[/:id]` plus `POST /gate-entries/:id/close`
+  (sets `exitAt`) and `/cancel`, and the same `document/preview` /
+  `document` pair as Quotation/Agreement (`documentType: 'gate_entry'`,
+  `featureCode: 'GATE_ENTRY'`). Every route rides `create_gate_entry` —
+  permissions-matrix.md's Operations module seeds no separate view/edit
+  code for this entity (unlike Masters/Commercial). Editable only while
+  `status = 'open'`; `close` is allowed from `'open'` or `'linked'`,
+  `cancel` only from `'open'`. Selecting a `vehicleId` auto-fills its
+  linked transporter's id/name (blueprint §16) unless the request already
+  set one; selecting a `driverId` similarly snapshots the driver's own
+  name/mobile onto the row — both resolved server-side, not left as a
+  frontend convention.
 
 `EntitlementService` (`src/entitlement/`) is wired into the document
 engine's `commitDocument()`/`previewDocument()` split — the first real
@@ -297,7 +310,23 @@ All against the real local database (`DATABASE_URL`), not mocks:
   `QUOTATION_GENERATION` and `AGREEMENT_GENERATION` metering as fully
   independent FREE-plan budgets through the HTTP layer, not just directly
   against `EntitlementService` as `entitlement.spec.ts` already proves.
+  And the third registered template, Gate Entry: a real PDF for the
+  simplest document type yet (no line items or clauses, just two summary
+  blocks), the same commit/regenerate/verify chain, and
+  `GATE_ENTRY` metering independently of the other two features as well.
   Running this suite needs `NODE_OPTIONS=--experimental-vm-modules`
   (already set in the `test`/`test:watch` scripts) — `puppeteer-core`
   ships ESM-only, and Jest's own module loader needs that flag to service
   the dynamic `import()` that loads it; see `DECISIONS.md` §26.
+- `gate-entries/gate-entries.spec.ts` — an allocated `GE` number;
+  selecting a vehicle auto-filling its linked transporter's id/name
+  (and an explicitly-passed `transporterId` overriding that auto-fill);
+  selecting a driver snapshotting its own name/mobile; 404s on an
+  unknown warehouse/customer/vehicle/driver/transporter reference; 400s
+  on an invalid `direction`/`purpose`; the full open → closed workflow
+  with edit/cancel/re-close all rejected once closed; cancelling an open
+  entry; list filtering by status and free-text search across number,
+  vehicle number, and reference; tenant isolation with an independently
+  reusable `GE0001`; and a Billing Executive (a role the seeded
+  permissions matrix grants no gate-entry access at all) 403'd on both
+  create and list.

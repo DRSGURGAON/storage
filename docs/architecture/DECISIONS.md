@@ -646,3 +646,79 @@ workaround: it stops relying on Node 22's specific require(-esm) interop
 at all, so the same production code would keep working under an older
 Node major that lacks it — Jest is the only piece that needed the extra
 flag.
+
+## §27 — `db/client.ts` wraps the shared connection with `drizzle(sql)`, which silently turns `timestamptz` columns into strings, not `Date` objects, on every raw `postgres.js` query in the app
+
+Building Gate Entry (blueprint §16), a curl smoke test against a
+freshly built `PATCH /gate-entries/:id` (editing an already-created
+entry, no `entryAt` in the request body) returned `500`, with the
+server log showing `before.entry_at.toISOString is not a function`.
+The `create()` path that had "worked" moments earlier, on closer look,
+had the same bug in the opposite direction: `POST /gate-entries`
+without an explicit `entryAt` hit `TypeError [ERR_INVALID_ARG_TYPE]:
+... Received an instance of Date` from deep inside postgres.js's own
+parameter-binding code, on `${dto.entryAt ?? new Date()}`.
+
+Both stemmed from the same wrong assumption: that a `timestamptz`
+column comes back from a raw `postgres.js` tagged-template query
+(`` tx`select entry_at from gate_entries...` ``) as a native JS `Date`
+— the everywhere-else-in-this-codebase row interfaces all type
+`created_at`/`sent_at`/`approved_at`/etc. as `Date`, and nothing had
+ever contradicted that, because every other timestamp column in this
+codebase is either server-stamped with `now()` and never read back
+into a new query, or (for actual editable dates like
+`quotation_date`/`agreement_date`) a plain `date` column carried as a
+`.toISOString().slice(0, 10)` string from day one — never a full
+timestamp that gets round-tripped. Gate Entry's `entry_at`/`exit_at`
+are the first `timestamptz` columns in this codebase that are both
+client-settable *and* read back and reused (editing a gate entry
+without changing its `entryAt` re-sends the value `update()` just
+selected).
+
+Root-caused, not guessed at: a one-off script confirmed `entry_at`
+comes back as the *string* `"2026-09-09 13:52:55.329+00"`
+(`typeof === 'string'`, `instanceof Date === false`) when queried
+through `createDbConnection()`'s `sql` — but as a genuine `Date` object
+when queried through a bare `postgres(DATABASE_URL)` client with no
+other change. The only difference between the two is
+`db/client.ts` also calling `drizzle(sql)` on the same instance before
+returning it:
+```ts
+export function createDbConnection(databaseUrl: string) {
+  const sql = postgres(databaseUrl, { max: 10 });
+  const db = drizzle(sql);   // <- mutates sql's own type parser registry
+  return { sql, db };
+}
+```
+`drizzle-orm/postgres-js` registers its own parser for `timestamptz`
+(and, symmetrically, its own serializer for binding values back out) on
+the underlying `postgres.js` instance it's handed — a side effect on
+the *shared* connection object, not something scoped to Drizzle's own
+query builder. This project deliberately never uses that query builder
+(`db/client.ts`'s own comment: "there is deliberately no Drizzle schema
+module yet"), but the raw `sql` tagged-template calls every service
+in this codebase uses are the *same* object Drizzle mutated, so they
+inherit its parser/serializer choices regardless. The serializer side
+expects a string-shaped value, which is what turned a plain `new
+Date()` into a wire-encoding crash instead of silently doing the wrong
+thing.
+
+Fixed in `gate-entries.service.ts` only (the only place this had a real
+consequence): `GateEntryRow`'s `entry_at`/`exit_at`/`created_at`/
+`updated_at` fields are typed `string`/`string | null`, matching what
+the connection actually returns, with a comment recording why; `create()`
+and `close()` already passed `new Date().toISOString()` rather than a
+raw `Date` (matching `quotations`/`agreements`' own `.toISOString()`
+pattern for their `date` columns), so those needed no change beyond
+being *understood* correctly; `update()`'s `before.entry_at.toISOString()`
+— wrong in the other direction, since `before.entry_at` was already a
+string — is now just `before.entry_at`. Not fixed everywhere else in
+the codebase: every other `Date`-typed timestamp field remains
+technically mistyped by the same measure, but genuinely inert (never
+re-serialized), so relabeling ~15 unrelated row interfaces across every
+existing module for a distinction that changes no behavior there would
+be exactly the unrequested, unrelated cleanup this project's own
+discipline argues against — flagged here instead, so the next module
+that round-trips a `timestamptz` (Inward's `inward_at`, most likely)
+starts from a correct mental model rather than rediscovering this by a
+second crash.

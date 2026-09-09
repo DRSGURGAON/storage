@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DocumentTemplate } from './document-template';
 import { AgreementDocumentTemplate } from './templates/agreement-document.template';
+import { GateEntryDocumentTemplate } from './templates/gate-entry-document.template';
 import { QuotationDocumentTemplate } from './templates/quotation-document.template';
 
 /**
@@ -13,9 +14,14 @@ import { QuotationDocumentTemplate } from './templates/quotation-document.templa
 export class DocumentTemplateRegistry {
   private readonly templates = new Map<string, DocumentTemplate>();
 
-  constructor(quotationTemplate: QuotationDocumentTemplate, agreementTemplate: AgreementDocumentTemplate) {
+  constructor(
+    quotationTemplate: QuotationDocumentTemplate,
+    agreementTemplate: AgreementDocumentTemplate,
+    gateEntryTemplate: GateEntryDocumentTemplate,
+  ) {
     this.templates.set(quotationTemplate.documentType, quotationTemplate);
     this.templates.set(agreementTemplate.documentType, agreementTemplate);
+    this.templates.set(gateEntryTemplate.documentType, gateEntryTemplate);
   }
 
   get(documentType: string): DocumentTemplate {
