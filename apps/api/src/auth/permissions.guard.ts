@@ -11,6 +11,7 @@ import type postgres from 'postgres';
 import { AuditService } from '../audit/audit.service';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
+import { hasPermission } from './has-permission';
 import { AuthenticatedUser } from './jwt-payload';
 import { REQUIRED_PERMISSION_KEY } from './require-permission.decorator';
 
@@ -49,20 +50,11 @@ export class PermissionsGuard implements CanActivate {
     const user: AuthenticatedUser | undefined = request.user;
     if (!user) throw new UnauthorizedException();
 
-    const [grant] = await withTenant(this.sql, user.tenantId, (tx) => tx<
-      { ok: boolean }[]
-    >`
-      select true as ok
-      from tenant_users tu
-      join role_permissions rp on rp.role_id = tu.role_id
-      where tu.id = ${user.tenantUserId}
-        and tu.tenant_id = ${user.tenantId}
-        and tu.status = 'active'
-        and rp.permission_code = ${required}
-      limit 1
-    `);
+    // Shared with the service-layer checks that a route decorator cannot
+    // express (see has-permission.ts) -- one lookup, one place to change.
+    const granted = await withTenant(this.sql, user.tenantId, (tx) => hasPermission(tx, user, required));
 
-    if (!grant) {
+    if (!granted) {
       await this.audit.record({
         tenantId: user.tenantId,
         userId: user.userId,

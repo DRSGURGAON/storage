@@ -1,8 +1,9 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { AttachmentsService } from '../attachments/attachments.service';
 import { AuditService } from '../audit/audit.service';
+import { hasPermission } from '../auth/has-permission';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
@@ -12,6 +13,7 @@ import { DocumentTemplateRegistry } from './document-template.registry';
 import { PaywallException } from './paywall.exception';
 import { PdfRendererService } from './pdf-renderer.service';
 import { QrService } from './qr.service';
+import { elevatedPermissionForRegeneration } from './regeneration-policy';
 
 interface DocumentRow {
   id: string;
@@ -129,6 +131,10 @@ export class DocumentEngineService {
 
       const data = await template.loadData(tx, actor.tenantId, sourceId);
       if (!data) throw new NotFoundException('Source record not found');
+
+      if (opts.regenerate) {
+        await this.assertMayRegenerate(tx, actor, documentType, sourceId, data.statusAtGeneration, ipAddress);
+      }
 
       if (!existing) {
         // First-ever commit for this source is the only time entitlement is consumed --
@@ -249,6 +255,57 @@ export class DocumentEngineService {
     if (!row) throw new NotFoundException('Document not found');
     const { bytes } = await this.attachments.readBytes(actor.tenantId, row.file_attachment_id);
     return { fileName: `${row.document_number.replace(/\//g, '-')}.pdf`, bytes };
+  }
+
+  /**
+   * document-engine.md §2's regeneration rule, which until now was
+   * documented and seeded but never enforced -- `regenerate: true` was
+   * honoured for anyone holding the source record's own create
+   * permission. That mattered: a Warehouse Operator holds `create_grn`
+   * and neither regenerate code, and could supersede an approved GRN's
+   * document, which flips the copy the customer is already holding to
+   * `revoked` on the public verify page. Unmetered, too, since
+   * regeneration deliberately does not consume a second entitlement unit.
+   *
+   * Checked here rather than with `@RequirePermission` because the answer
+   * depends on the *body* (`regenerate`) and on the source record's
+   * current status -- neither of which a route decorator can see.
+   * Denials are audited exactly as `PermissionsGuard` audits its own, so
+   * a refused regeneration looks the same in the audit log however it was
+   * refused.
+   */
+  private async assertMayRegenerate(
+    tx: postgres.TransactionSql,
+    actor: AuthenticatedUser,
+    documentType: string,
+    sourceId: string,
+    sourceStatus: string,
+    ipAddress?: string,
+  ) {
+    const required = ['regenerate_document'];
+    const elevated = elevatedPermissionForRegeneration(documentType, sourceStatus);
+    if (elevated) required.push(elevated);
+
+    for (const permissionCode of required) {
+      if (await hasPermission(tx, actor, permissionCode)) continue;
+
+      await this.audit.record({
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        userRoleCode: actor.roleCode,
+        action: 'permission_denied',
+        entityType: documentType,
+        entityId: sourceId,
+        newValue: { required: permissionCode, reason: 'regenerate', sourceStatus },
+        ipAddress,
+      });
+      throw new ForbiddenException(
+        elevated && permissionCode === elevated
+          ? `Missing permission: ${permissionCode} -- this ${documentType.replace(/_/g, ' ')} is '${sourceStatus}', ` +
+            `so regenerating it would supersede a document that has already been issued`
+          : `Missing permission: ${permissionCode}`,
+      );
+    }
   }
 
   private async featureName(tx: postgres.TransactionSql, featureCode: string): Promise<string> {

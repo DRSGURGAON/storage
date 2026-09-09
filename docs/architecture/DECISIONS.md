@@ -911,3 +911,79 @@ schema for something the existing column can express, and a per-row
 instant is not a lie: each movement really did happen at a distinct
 moment inside the transaction. Atomicity is unaffected either way; the
 rows still commit together.
+
+## §33 — `regenerate: true` was specified, seeded and granted, but enforced by nothing
+
+Found by the full audit at the end of Phase 5, and reproduced against a
+running server before anything was changed.
+
+`document-engine.md` §2 says regeneration "is only permitted when the
+source record's status still allows edits, or by a user holding a
+specific `regenerate_after_approval` permission."
+`permissions-matrix.md` grants `regenerate_document` to Owner, Admin,
+Warehouse Manager and Billing Executive, and `regenerate_after_approval`
+to Owner and Admin alone. Both codes are seeded, and both were granted to
+roles. **Neither appeared in a single `@RequirePermission` anywhere.**
+
+So `commitDocument()` honoured `regenerate: true` for anyone who could
+reach the route, and the route's own permission is the source record's
+*create* code. A Warehouse Operator holds `create_grn` and neither
+regenerate code. The reproduction, against a real server:
+
+```
+Customer holds a printed GRN copy, QR token 715f593d v3  ->  verifies "valid"
+Operator POSTs {"regenerate": true} on the approved GRN  ->  HTTP 201, v4
+The customer's printed copy now verifies                 ->  "revoked"
+Entitlement units consumed                               ->  0
+```
+
+That is the whole severity of it. Regeneration is deliberately unmetered
+(§7: it "does not call consumeEntitlement again"), so the act was free
+and repeatable, and its visible effect landed on the *customer's* copy
+through the public, unauthenticated verify endpoint — the one surface the
+warehouse does not control.
+
+Two things made it invisible for four phases. The permission existed, was
+seeded, and showed up correctly in the matrix, so every review that
+checked "is this permission defined and granted?" passed. And
+`PermissionsGuard` fails closed on a route that declares *no*
+permission — a genuinely good property that turns out to say nothing
+about a route that declares the *wrong* one. Nothing in the codebase
+could have noticed: an unused permission code is not an error.
+
+### The fix, and why it is not a decorator
+
+`@RequirePermission` takes one static code per route. The code needed
+here depends on the request body (`regenerate`) and on the source
+record's live status, so the check has to happen after `loadData` and
+inside the same transaction. `assertMayRegenerate()` does it there, and
+audits a `permission_denied` row in the same shape the guard does, so a
+refused regeneration reads identically in the audit log however it was
+refused.
+
+Which statuses count as "still allows edits" is a table
+(`regeneration-policy.ts`) rather than a per-template flag, because the
+answer already exists: it is exactly the set of statuses in which each
+module accepts a `PATCH`. Deriving it from the edit guards means the
+table cannot drift from the workflow. Two entries are deliberately not
+edit guards, and are commented as such — a put-away has no `PATCH` at all
+yet is provisional until `complete`, and a warehouse receipt has no
+provisional state at all, because §22 makes it the document a customer
+keeps and the one that must never be quietly reissued.
+
+The lookup itself moved to a plain function, `auth/has-permission.ts`,
+which `PermissionsGuard` now calls too. A second copy of the RBAC query
+was the alternative, and two copies of an authorization check is how the
+next gap gets written. It is a function rather than an injectable
+because making it a provider would mean adding a dependency to all
+twenty-odd modules that use the guard, to share four lines of SQL.
+
+### What this suggests about the other seeded-but-unused codes
+
+`regenerate_document` was not the only permission the seed defines and no
+route references; the same audit found `manage_company_settings` in that
+state (no company-settings endpoint exists yet). The difference is that
+the missing endpoint is *visibly* missing, while a missing check on an
+endpoint that does exist looks exactly like a working one. Worth a
+periodic diff of seeded codes against `@RequirePermission` usage —
+"unused" is the interesting direction, not "undefined".

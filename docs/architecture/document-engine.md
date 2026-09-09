@@ -33,6 +33,32 @@ still allows edits, or by a user holding a specific
 document does not silently replace history, it creates a new version with an
 audit-logged reason (§49, §51).
 
+**Implemented** in `regeneration-policy.ts` +
+`DocumentEngineService.assertMayRegenerate()`. Every regeneration needs
+`regenerate_document`; one on a source past its provisional state needs
+`regenerate_after_approval` as well. `PROVISIONAL_SOURCE_STATUSES` is the
+table that decides which, and it is drawn from each module's own edit
+guard — the same statuses in which `PATCH` is accepted — so it cannot
+drift from what the workflow already treats as open. Two entries are not
+edit guards and say so: a put-away has no `PATCH` at all but is a working
+instruction until `complete` confirms it (`pending`/`in_progress` are
+open), and a warehouse receipt has no open state by design — §22 makes it
+the document that must never be quietly reissued, so every regeneration
+of one is an Owner/Admin act. An unknown document type is treated as
+final, so a template that forgets to declare itself gets the stricter
+rule rather than the looser one.
+
+This is checked in the service, not with `@RequirePermission`, because
+the answer depends on the request body (`regenerate`) and on the source
+record's current status — neither of which a route decorator can see. It
+was specified and seeded from the start but not enforced until the Phase
+5 audit found it: `regenerate` had been honoured for anyone holding the
+source record's own create permission, so a Warehouse Operator (who holds
+`create_grn` and neither regenerate code) could supersede an approved
+GRN's document — flipping the copy already in the customer's hands to
+`revoked` on the public verify page, unmetered, since regeneration
+deliberately consumes no second entitlement unit. See `DECISIONS.md` §33.
+
 > **Implemented** (`apps/api/src/documents/`, `apps/api/src/attachments/`,
 > Phase 3): `DocumentEngineService.previewDocument()` /
 > `.commitDocument()` is this section's function split into its two halves

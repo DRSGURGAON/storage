@@ -348,6 +348,97 @@ describe('Document engine', () => {
     await api().get('/documents').set('Authorization', `Bearer ${permOperator}`).expect(200);
   });
 
+  it('gates regeneration on regenerate_document, and on regenerate_after_approval once the source is final', async () => {
+    // permissions-matrix.md's documents module: `regenerate_document` goes to
+    // Owner/Admin/Warehouse Manager/Billing Exec, `regenerate_after_approval`
+    // to Owner and Admin alone, and a Warehouse Operator gets neither. Until
+    // this was wired up, neither code was referenced by any route: `regenerate`
+    // was honoured for anyone holding the source's own create permission, so an
+    // Operator could supersede an approved GRN's document and flip the copy the
+    // customer was holding to `revoked` on the public verify page.
+    const tenant = `regen-${suffix}`;
+    const admin = await signup(tenant, `regen-owner-${suffix}@test.local`);
+    const custId = (await api().post('/customers').set('Authorization', `Bearer ${admin}`).send({ name: 'Regen Co' }).expect(201)).body.id;
+    const whId = (
+      await api().post('/warehouses').set('Authorization', `Bearer ${admin}`).send({ code: 'WH01', name: 'Main' }).expect(201)
+    ).body.id;
+    const prodId = (
+      await api().post('/products').set('Authorization', `Bearer ${admin}`).send({ sku: 'SKU1', name: 'Widget', uomCode: 'NOS' }).expect(201)
+    ).body.id;
+
+    const member = async (roleCode: string) => {
+      const email = `${roleCode}-${suffix}@regen.local`;
+      await api().post('/users').set('Authorization', `Bearer ${admin}`).send({ email, fullName: roleCode, password, roleCode }).expect(201);
+      return (await api().post('/auth/login').send({ email, password }).expect(201)).body.accessToken as string;
+    };
+    const manager = await member('warehouse_manager');
+    const operator = await member('warehouse_operator');
+
+    // A gate entry sits in 'open' -- still provisional, nothing issued.
+    const gateEntryId = await createGateEntry(admin, whId);
+    await api().post(`/gate-entries/${gateEntryId}/document`).set('Authorization', `Bearer ${admin}`).send({}).expect(201);
+
+    // The Operator holds create_gate_entry, and that is exactly what used to be
+    // enough. It no longer is, even on a provisional source.
+    await api()
+      .post(`/gate-entries/${gateEntryId}/document`)
+      .set('Authorization', `Bearer ${operator}`)
+      .send({ regenerate: true })
+      .expect(403);
+    // The Manager holds regenerate_document, and a provisional source needs no more.
+    const managerRegen = await api()
+      .post(`/gate-entries/${gateEntryId}/document`)
+      .set('Authorization', `Bearer ${manager}`)
+      .send({ regenerate: true })
+      .expect(201);
+    expect(managerRegen.body.versionNo).toBe(2);
+
+    // An approved GRN is final: superseding its document retracts something.
+    const grnId = await createGrn(admin, whId, custId, prodId);
+    for (const step of ['submit', 'check', 'approve']) {
+      await api().post(`/grns/${grnId}/${step}`).set('Authorization', `Bearer ${admin}`).expect(201);
+    }
+    const issued = await api().post(`/grns/${grnId}/document`).set('Authorization', `Bearer ${admin}`).send({}).expect(201);
+    expect((await api().get(`/verify/${issued.body.qrToken}`).expect(200)).body.result).toBe('valid');
+
+    const denied = await api()
+      .post(`/grns/${grnId}/document`)
+      .set('Authorization', `Bearer ${manager}`)
+      .send({ regenerate: true })
+      .expect(403);
+    expect(denied.body.message).toContain('regenerate_after_approval');
+    // The refusal is the point: the copy already in the customer's hands is
+    // still the current one.
+    expect((await api().get(`/verify/${issued.body.qrToken}`).expect(200)).body.result).toBe('valid');
+
+    // Owner holds both, so the deliberate act is still possible.
+    const ownerRegen = await api()
+      .post(`/grns/${grnId}/document`)
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ regenerate: true })
+      .expect(201);
+    expect(ownerRegen.body.versionNo).toBe(2);
+    expect((await api().get(`/verify/${issued.body.qrToken}`).expect(200)).body.result).toBe('revoked');
+
+    // A warehouse receipt has no provisional state at all (blueprint §22 makes
+    // it the one document that must never be quietly reissued), so even the
+    // Manager's regenerate_document is not enough for its first version.
+    const wrId = (
+      await api().post('/warehouse-receipts').set('Authorization', `Bearer ${admin}`).send({ grnId }).expect(201)
+    ).body.id;
+    await api().post(`/warehouse-receipts/${wrId}/document`).set('Authorization', `Bearer ${admin}`).send({}).expect(201);
+    await api()
+      .post(`/warehouse-receipts/${wrId}/document`)
+      .set('Authorization', `Bearer ${manager}`)
+      .send({ regenerate: true })
+      .expect(403);
+
+    // A plain first commit is untouched by any of this -- it is gated on the
+    // source's own create permission, exactly as before.
+    const operatorGateEntry = await createGateEntry(operator, whId);
+    await api().post(`/gate-entries/${operatorGateEntry}/document`).set('Authorization', `Bearer ${operator}`).send({}).expect(201);
+  });
+
   it('404s a preview/generate/get against a nonexistent source or document id', async () => {
     await api()
       .post(`/quotations/${randomUUID()}/document/preview`)

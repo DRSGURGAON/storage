@@ -165,6 +165,14 @@ rows with no error at all.
   budgets) and writes a `documents` row; a plain retry is an idempotent
   no-op returning the same row; `regenerate: true` creates a new version
   (old one's `isLatest` flips to `false`) without consuming another unit.
+  Regeneration additionally requires `regenerate_document`, and
+  `regenerate_after_approval` on top of that once the source record is past
+  its provisional state (`regeneration-policy.ts` holds the per-type table,
+  drawn from each module's own edit guard). Checked in the service rather
+  than by a route decorator, because which code is needed depends on the
+  request body and on the source's live status. A warehouse receipt has no
+  provisional state at all — blueprint §22 makes it the one document that
+  must never be quietly reissued.
   Blocked with `402 { paywall: true, ... }` once the FREE plan's 2 free
   copies are used up, on both preview and commit. The agreement template
   renders each of its `renderedClauses` as its own titled section rather
