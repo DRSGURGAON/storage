@@ -38,11 +38,16 @@ real `audit_logs` rows, not just that the call didn't throw.
 lazy per-tenant series creation from the canonical prefix list, FY and
 reset-policy computation, and `FOR UPDATE` row-lock serialization proven
 under a genuine concurrent-allocation test (10 simultaneous calls, zero
-duplicates, zero gaps). The RBAC *enforcement* guard is still deliberately
-deferred to Phase 2, alongside the first real permission-gated endpoint,
-rather than built against no caller (the seed data it will enforce —
-`roles`/`permissions`/`role_permissions` — is already live). See
-`apps/api/README.md` for setup.
+duplicates, zero gaps). The RBAC *enforcement* guard
+(`apps/api/src/auth/permissions.guard.ts`, `@RequirePermission`) landed
+with Phase 2's first endpoint rather than ahead of it: it resolves the
+caller's grants live through `tenant_users → role_permissions` on every
+request (a role change or disabled membership bites immediately, not at
+token expiry), fails closed on an endpoint that declares no permission,
+and records `permission_denied` in `audit_logs`. Still open from this
+phase's deliverable: inviting users / assigning roles has no endpoint yet
+(tests create the extra membership directly). See `apps/api/README.md`
+for setup.
 
 - Schema: `schema/00_core.sql` in full, plus `schema/80_subscription.sql`
   (the entitlement/subscription domain belongs here, not in Phase 8, because
@@ -73,6 +78,18 @@ rather than built against no caller (the seed data it will enforce —
   database, before any document-generating module exists to call it.
 
 ## Phase 2 — Customer, Warehouse, Location, Product/SKU, Transporter, Vehicle, Driver, Rate Card
+
+**Status: Customer master landed** (`apps/api/src/customers/`): create /
+list / get / update, `CUST0001`-style codes from `allocateNumberIn()`
+inside the same transaction as the insert (numbering.md §4), name/code/
+GSTIN/mobile search with server-side pagination (§74), GSTIN/PAN format
+validation at the boundary, and `create`/`update` audit rows carrying
+previous and new values. This is also where tenant isolation was first
+proven *through HTTP* (tenant B listing, fetching, and patching tenant A's
+customer: empty, 404, 404) and where an operator's `create_customer`
+denial is asserted as both a 403 and a `permission_denied` audit row.
+Not yet: customer addresses/contacts/KYC documents, and the remaining
+masters below.
 
 - Schema: `schema/10_masters.sql`.
 - Docs: `numbering.md` (customer codes, warehouse codes if numbered),

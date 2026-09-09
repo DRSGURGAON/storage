@@ -4,11 +4,11 @@ Backend for the product specified in `../../docs/`. So far: project
 scaffolding, tenant/user auth with JWT, row-level tenant isolation, the
 seeded RBAC role/permission catalog, a fully working entitlement/
 subscription engine (2-free-copies enforcement, seeded and tested), audit
-logging on every mutating/security-relevant auth action, and centralized
-document numbering (`allocateNumber()`). No masters, operations, or
-billing modules yet, and no RBAC *enforcement* guard — that's deferred to
-Phase 2, built alongside the first real permission-gated endpoint rather
-than against no caller (see `docs/architecture/dev-phases.md` Phase 1).
+logging on every mutating/security-relevant auth action, centralized
+document numbering (`allocateNumber()`), RBAC enforcement
+(`PermissionsGuard` + `@RequirePermission`), and the first master —
+Customers. No other masters, operations, or billing modules yet (see
+`docs/architecture/dev-phases.md`).
 
 ## Stack
 
@@ -52,12 +52,16 @@ exist.
   authenticated user's tenant/role, read through `withTenant()`
   (`src/db/tenant-context.ts`) so every response is proven, not assumed,
   to be RLS-scoped to the caller's own tenant.
+- `POST /customers` (`create_customer`), `GET /customers?q=&limit=&offset=`
+  and `GET /customers/:id` (`view_customer`), `PATCH /customers/:id`
+  (`edit_customer`). Every route is behind `JwtAuthGuard` + `PermissionsGuard`;
+  the permission codes are the seeded ones from `permissions-matrix.md`.
 
-No entitlement-gated or numbered HTTP endpoint exists yet (nothing
-generates a document yet) — `EntitlementService` (`src/entitlement/`) and
-`NumberingService` (`src/numbering/`) are both complete and tested
-directly; Phase 3 wires `checkEntitlement`/`consumeEntitlement` and
-`allocateNumber()` into the first real `generateDocument()` call.
+No entitlement-gated endpoint exists yet (nothing generates a document
+yet) — `EntitlementService` (`src/entitlement/`) is complete and tested
+directly; Phase 3 wires `checkEntitlement`/`consumeEntitlement` into the
+first real `generateDocument()` call. `NumberingService` already has a
+real caller: customer codes.
 
 ## Tests
 
@@ -84,3 +88,8 @@ All against the real local database (`DATABASE_URL`), not mocks:
   increasing sequences, per-warehouse and per-tenant independence, and a
   genuine concurrent-allocation race (10 simultaneous calls against one
   series resolve to exactly the numbers 1–10, no duplicates, no gaps).
+- `customers/customers.spec.ts` — the masters CRUD through HTTP, and with
+  it the first API-level proofs of tenant isolation (tenant B sees none
+  of tenant A's customers, 404s on fetch/patch, gets its own `CUST0001`)
+  and RBAC (a Warehouse Operator can list but gets 403 + a
+  `permission_denied` audit row on create).

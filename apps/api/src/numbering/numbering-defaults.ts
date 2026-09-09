@@ -35,4 +35,19 @@ export const DOCUMENT_TYPE_PREFIXES: Record<string, string> = {
   // Distinct from Dispatch Note's 'DN' -- numbering.md §6 flags this collision explicitly.
   DEBIT_NOTE: 'DN2',
   PAYMENT_RECEIPT: 'RCPT',
+  // Masters with running codes (blueprint §10 'CUST0001'). Not documents,
+  // but the same engine: one series row per tenant, one allocator.
+  CUSTOMER: 'CUST',
+};
+
+export interface SeriesDefaults {
+  format: string;
+  fyStyle: 'YY-YY' | 'YYYY-YY' | 'YYYY' | 'NONE';
+  resetPolicy: 'never' | 'yearly' | 'monthly';
+  padding: number;
+}
+
+/** Only types whose first-use series should differ from the table defaults ('{prefix}/{fy}/{seq:6}', YY-YY, yearly). */
+export const SERIES_DEFAULT_OVERRIDES: Record<string, SeriesDefaults> = {
+  CUSTOMER: { format: '{prefix}{seq:4}', fyStyle: 'NONE', resetPolicy: 'never', padding: 4 },
 };

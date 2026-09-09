@@ -2,7 +2,19 @@ import { Inject, Injectable } from '@nestjs/common';
 import type postgres from 'postgres';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
-import { DOCUMENT_TYPE_PREFIXES } from './numbering-defaults';
+import {
+  DOCUMENT_TYPE_PREFIXES,
+  SERIES_DEFAULT_OVERRIDES,
+  SeriesDefaults,
+} from './numbering-defaults';
+
+/** Mirrors number_series' column defaults in schema/00_core.sql. */
+const TABLE_DEFAULTS: SeriesDefaults = {
+  format: '{prefix}/{fy}/{seq:6}',
+  fyStyle: 'YY-YY',
+  resetPolicy: 'yearly',
+  padding: 6,
+};
 
 interface SeriesRow {
   id: string;
@@ -34,6 +46,23 @@ export class NumberingService {
     documentType: string,
     warehouseId?: string,
   ): Promise<string> {
+    return withTenant(this.sql, tenantId, (tx) =>
+      this.allocateNumberIn(tx, tenantId, documentType, warehouseId),
+    );
+  }
+
+  /**
+   * numbering.md §4: the caller inserts its row in the *same* transaction
+   * that reserved the number, so a later rollback leaves a gap in the
+   * sequence rather than a duplicate. Callers already inside withTenant()
+   * use this; allocateNumber() is the convenience wrapper.
+   */
+  async allocateNumberIn(
+    tx: postgres.TransactionSql,
+    tenantId: string,
+    documentType: string,
+    warehouseId?: string,
+  ): Promise<string> {
     const defaultPrefix = DOCUMENT_TYPE_PREFIXES[documentType];
     if (!defaultPrefix) {
       throw new Error(
@@ -41,7 +70,7 @@ export class NumberingService {
       );
     }
 
-    return withTenant(this.sql, tenantId, async (tx) => {
+    {
       // Lazy series creation: the first allocation for a (tenant,
       // document_type[, warehouse]) creates its series with the canonical
       // default prefix. ON CONFLICT DO NOTHING makes two concurrent first
@@ -49,16 +78,23 @@ export class NumberingService {
       // to create two competing series (schema/93_number_series_null_warehouse_fix.sql
       // is what makes the null-warehouse case -- the common one -- actually
       // enforce that).
+      const d = SERIES_DEFAULT_OVERRIDES[documentType] ?? TABLE_DEFAULTS;
       if (warehouseId) {
         await tx`
-          insert into number_series (id, tenant_id, document_type, warehouse_id, prefix)
-          values (gen_random_uuid(), ${tenantId}, ${documentType}, ${warehouseId}, ${defaultPrefix})
+          insert into number_series
+            (id, tenant_id, document_type, warehouse_id, prefix, format, fy_style, reset_policy, padding)
+          values
+            (gen_random_uuid(), ${tenantId}, ${documentType}, ${warehouseId}, ${defaultPrefix},
+             ${d.format}, ${d.fyStyle}, ${d.resetPolicy}, ${d.padding})
           on conflict (tenant_id, document_type, warehouse_id) do nothing
         `;
       } else {
         await tx`
-          insert into number_series (id, tenant_id, document_type, warehouse_id, prefix)
-          values (gen_random_uuid(), ${tenantId}, ${documentType}, null, ${defaultPrefix})
+          insert into number_series
+            (id, tenant_id, document_type, warehouse_id, prefix, format, fy_style, reset_policy, padding)
+          values
+            (gen_random_uuid(), ${tenantId}, ${documentType}, null, ${defaultPrefix},
+             ${d.format}, ${d.fyStyle}, ${d.resetPolicy}, ${d.padding})
           on conflict (tenant_id, document_type) where warehouse_id is null do nothing
         `;
       }
@@ -101,7 +137,7 @@ export class NumberingService {
       `;
 
       return formatted;
-    });
+    }
   }
 }
 
