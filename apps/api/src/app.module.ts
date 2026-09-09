@@ -7,6 +7,7 @@ import { EntitlementModule } from './entitlement/entitlement.module';
 import { HealthController } from './health/health.controller';
 import { NumberingModule } from './numbering/numbering.module';
 import { UsersModule } from './users/users.module';
+import { WarehousesModule } from './warehouses/warehouses.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { UsersModule } from './users/users.module';
     NumberingModule,
     CustomersModule,
     UsersModule,
+    WarehousesModule,
   ],
   controllers: [HealthController],
 })

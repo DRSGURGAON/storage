@@ -7,8 +7,9 @@ subscription engine (2-free-copies enforcement, seeded and tested), audit
 logging on every mutating/security-relevant auth action, centralized
 document numbering (`allocateNumber()`), RBAC enforcement
 (`PermissionsGuard` + `@RequirePermission`), tenant memberships (add /
-role / disable), and the first master — Customers. No other masters,
-operations, or billing modules yet (see `docs/architecture/dev-phases.md`).
+role / disable), and the first masters — Customers, Warehouses and their
+location hierarchy. Remaining masters, operations, and billing modules are
+not built yet (see `docs/architecture/dev-phases.md`).
 
 ## Stack
 
@@ -63,6 +64,12 @@ exist.
   your own membership, and the last active Owner cannot be demoted or
   disabled. The `customer` role is rejected here — that's the portal
   (V1.1).
+- `POST/GET/PATCH /warehouses[/:id]` (`create_warehouse` / `view_warehouse`
+  / `edit_warehouse`; `code` is immutable) and
+  `POST/GET/PATCH /warehouses/:id/locations[/:locationId]` (locations use
+  the warehouse permissions). `GET .../locations?level=&parentId=<id|root>&q=`.
+  A location's level/segment/parent are immutable — they're baked into
+  every descendant's `fullCode`.
 
 No entitlement-gated endpoint exists yet (nothing generates a document
 yet) — `EntitlementService` (`src/entitlement/`) is complete and tested
@@ -104,3 +111,8 @@ All against the real local database (`DATABASE_URL`), not mocks:
   member, an existing account joining a second tenant (login then demands
   `tenantSlug`), a role change / disablement taking effect on the member's
   existing token, both lockout guards, and cross-tenant 404.
+- `warehouses/warehouses.spec.ts` — warehouse CRUD, the full
+  Zone→Rack→Bin→Pallet chain with materialised codes (Row skipped, as in
+  the blueprint), every invalid placement rejected, list filters, immutable
+  structural fields, operator 403s, and cross-tenant 404s with an
+  independently reusable `WH01`.

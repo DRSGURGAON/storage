@@ -96,8 +96,19 @@ previous and new values. This is also where tenant isolation was first
 proven *through HTTP* (tenant B listing, fetching, and patching tenant A's
 customer: empty, 404, 404) and where an operator's `create_customer`
 denial is asserted as both a 403 and a `permission_denied` audit row.
-Not yet: customer addresses/contacts/KYC documents, and the remaining
-masters below.
+**Warehouse + Locations landed** (`apps/api/src/warehouses/`): warehouse
+CRUD with a tenant-unique, immutable code (it is the first segment of
+every location code), and the §9 hierarchy under
+`/warehouses/:id/locations` — `full_code` materialised from the parent
+chain (`WH01-A-R04-B15-P003`), `barcode_value` defaulting to it, and the
+placement rule "deeper than the parent, levels may be skipped" (the
+blueprint's own example has no Row). Level/segment/parent are immutable
+because they're baked into every descendant's code; a move is a new
+location plus deactivating the old one. Locations ride on the warehouse
+permissions (`view_warehouse` / `edit_warehouse`) rather than needing
+their own. Not yet: customer addresses/contacts/KYC documents, location
+QR label rendering (document engine, Phase 3), and the remaining masters
+below.
 
 - Schema: `schema/10_masters.sql`.
 - Docs: `numbering.md` (customer codes, warehouse codes if numbered),
