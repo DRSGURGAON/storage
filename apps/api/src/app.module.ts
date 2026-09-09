@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AgreementsModule } from './agreements/agreements.module';
 import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
 import { CustomersModule } from './customers/customers.module';
@@ -31,6 +32,7 @@ import { WarehousesModule } from './warehouses/warehouses.module';
     BillingModule,
     OnboardingModule,
     QuotationsModule,
+    AgreementsModule,
   ],
   controllers: [HealthController],
 })

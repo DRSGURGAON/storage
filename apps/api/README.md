@@ -12,12 +12,11 @@ contacts), Warehouses and their location hierarchy, Product/SKU (with
 UOMs and categories), the Transport master (Transporters, Vehicles,
 Drivers), and Rate Cards (with Charge Types, Tax Rates, and the full
 billing-engine.md §3 resolution priority) — and the onboarding wizard
-status endpoint. Phase 2 is complete. Phase 3 has its first slice: the
-Quotation record and its Draft/Sent/Accepted/Rejected/Cancelled workflow
-(not yet the PDF document engine — see `docs/architecture/dev-phases.md`
-for why that's a deliberately separate increment). Agreement, the
-document engine itself, operations, and billing-run modules are not
-built yet.
+status endpoint. Phase 2 is complete. Phase 3 has its Quotation and
+Agreement records, each with its own workflow (not yet the PDF document
+engine — see `docs/architecture/dev-phases.md` for why that's a
+deliberately separate increment). The document engine itself,
+operations, and billing-run modules are not built yet.
 
 ## Stack
 
@@ -44,10 +43,10 @@ npm run start:dev              # http://localhost:3000
 `../../docs/architecture/schema/*.sql` directly — that directory is the
 single source of truth for the data model (see its own `README.md` for
 conventions). This app does not keep a second, duplicated copy of the
-schema; adding a new domain means adding a file there, not here. Five of
-those files (`85`–`93`) are fixes for real bugs found only by building and
+schema; adding a new domain means adding a file there, not here. Six of
+those files (`85`–`94`) are fixes for real bugs found only by building and
 load-testing this app against the schema, not by review — see
-`docs/architecture/DECISIONS.md` §16–§21 if you're wondering why they
+`docs/architecture/DECISIONS.md` §16–§22 if you're wondering why they
 exist.
 
 ## Endpoints so far
@@ -127,6 +126,17 @@ exist.
   `/cancel`. `customerSnapshot` is captured once at creation and never
   recomputed. `subtotal`/`taxTotal`/`grandTotal` are always server-computed
   from the line items, never accepted from the client.
+- `GET /agreements/templates` and `POST/GET/PATCH /agreements[/:id]`
+  (`create`/`view`/`edit_agreement`) plus workflow actions
+  `POST /agreements/:id/submit`, `/approve` (`approve_agreement` —
+  **Owner-only**, distinct from `edit_agreement`), `/sign`,
+  `/terminate` (body: `{ reason }`), `/cancel`. Passing `quotationId`
+  requires that quotation to be `accepted` and pre-fills
+  `customerId`/`warehouseId` from it when the request omits them.
+  `renderedClauses` are computed server-side from the resolved template's
+  clauses with `{{dotted.path}}` tokens filled in from company/customer/
+  warehouse/agreement data — never accepted from the client, and
+  recomputed on every `draft` edit.
 
 No entitlement-gated endpoint exists yet (nothing generates a document
 yet) — `EntitlementService` (`src/entitlement/`) is complete and tested
@@ -224,3 +234,15 @@ All against the real local database (`DATABASE_URL`), not mocks:
   filtering/search, tenant isolation, and Owner/Admin-only enforcement
   (a Warehouse Operator gets 403 even on `GET`, matching
   `permissions-matrix.md`'s all-➖ row for every other role).
+- `agreements/agreements.spec.ts` — the seeded system template, an
+  agreement created from an accepted quotation with pre-filled
+  customer/warehouse and placeholder-resolved clauses asserted by
+  content (customer name/GSTIN, warehouse name/code, notice period all
+  present in the rendered text), a quotation still in `draft` refused
+  with 400, `customerId` required directly or via the quotation, the
+  full draft → pending_approval → approved → active workflow with
+  skip-ahead rejected, `approve_agreement`'s Owner-only enforcement
+  proven against an Admin who *does* hold `edit_agreement` (403 anyway),
+  terminate requiring a reason, tenant isolation, and the
+  Warehouse-Manager-can-view-but-not-create /
+  Warehouse-Operator-can't-even-view split from `permissions-matrix.md`.

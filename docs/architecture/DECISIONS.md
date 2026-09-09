@@ -391,3 +391,64 @@ implicit. Worth remembering for any other `bigint` column read through
 postgres.js in this codebase — the type declaration has to say `string`,
 or a future `+ 1` will pass TypeScript and silently misbehave exactly
 like this one did.
+
+## §22 — `agreement_templates` had the same nullable-tenant_id gap as §16, caught before it bit
+
+Same root cause as §16 (roles/charge_types/tax_rates/notification_rules):
+`agreement_templates.tenant_id` is nullable ("null = system default
+template") with a comment implying system-wide rows should be unique
+among themselves, but the table has *no* uniqueness constraint on it at
+all — not even the composite one §16's tables had. This one wasn't found
+by a failing test; it was caught while writing `seed.ts`'s insert for the
+one system default template required for Phase 3's Agreement feature,
+before the code that would have exposed it (repeated `npm run seed` runs
+silently duplicating the row) ever ran. Fixed the same way as §16:
+`schema/94_agreement_template_system_uq.sql` adds
+`agreement_templates_system_name_uq`, a partial unique index on `(name)
+where tenant_id is null`, so `on conflict (name) where tenant_id is null`
+has a real target and the seed is idempotent — verified by running `npm
+run seed` twice and confirming exactly one system-default row exists
+afterward, not by inspection alone.
+
+## §23 — `db/seed.ts` used its own bare postgres.js connection, not `createDbConnection()` — jsonb columns came back double-encoded
+
+Found while seeding the system default agreement template (§22):
+`agreement_templates.clauses` round-tripped as a jsonb *string* holding
+escaped JSON text (`jsonb_typeof` = `'string'`), not a jsonb array, even
+though the insert used the same `${JSON.stringify(value)}::jsonb` pattern
+`AuditService.record()` already used successfully everywhere else in the
+app. Isolated with a series of throwaway repro scripts (see the session
+transcript for the full trail) down to one variable: `db/seed.ts` created
+its own connection with a bare `postgres(databaseUrl, { max: 1 })`, while
+every other write path goes through `db/client.ts`'s `createDbConnection()`,
+which additionally wraps that same connection with `drizzle(sql)`.
+`drizzle()`'s wrapping changes how postgres.js resolves a jsonb-cast
+parameter — with it, `JSON.stringify(x)::jsonb` round-trips correctly (an
+object stored as a real jsonb object); without it, the same code
+double-encodes. (Other combinations were tried and are *not* the fix:
+passing the raw object without `JSON.stringify` breaks the
+`drizzle()`-wrapped path when a query has more than one jsonb parameter,
+as `AuditService.record()`'s insert does — reverting AuditService's
+pattern to match my first, drizzle-unaware hypothesis would have broken
+its two-jsonb-column insert instead of fixing anything. postgres.js's own
+`sql.json()` helper fails outright under the `drizzle()`-wrapped
+connection, single param or not.)
+
+Given that fragility, the fix is not a different serialization idiom —
+it's removing the divergence that caused it. `db/seed.ts` now calls the
+same `createDbConnection()` factory as the running app instead of
+instantiating its own connection, so every write path shares one proven
+jsonb behavior instead of two silently different ones. Verified by
+re-running `npm run seed` and confirming `jsonb_typeof(clauses) = 'array'`
+with the expected element count, not by re-reasoning about the driver.
+
+Lesson for this codebase: any script that binds a value to a jsonb column
+must go through `db/client.ts`'s `createDbConnection()`, not a bare
+`postgres(...)` connection of its own — the two are not equivalent for
+jsonb parameters, and the difference is invisible from the query code,
+only from what actually comes back. `db/migrate.ts` keeps its own bare
+connection deliberately (it needs an `onnotice` override
+`createDbConnection()` doesn't expose, and it only ever runs raw DDL from
+the schema files — no jsonb parameter binding, so it isn't exposed to
+this bug); anything that starts binding jsonb parameters would need to
+move onto the shared factory or gain the same wrapping some other way.

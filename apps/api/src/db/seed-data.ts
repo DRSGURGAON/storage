@@ -333,3 +333,63 @@ export const SYSTEM_TAX_RATES = [
   { code: 'EXEMPT', name: 'Exempt', ratePct: 0 },
   { code: 'NIL', name: 'Nil-rated', ratePct: 0 },
 ] as const;
+
+/**
+ * Blueprint §15's configurable-template requirement: "Legal wording must
+ * remain editable/configurable and should be treated as a template
+ * requiring appropriate legal review" -- so V1 ships exactly one system
+ * default (tenant_id null, schema/94_agreement_template_system_uq.sql is
+ * what makes seeding it idempotent), covering the wizard's legal-content
+ * steps in plain, generic language. A tenant that needs its own reviewed
+ * wording adds a custom template later (not built yet -- see
+ * dev-phases.md); this is a usable starting point, not the only option.
+ * {{dotted.path}} tokens are resolved by AgreementsService against a
+ * company/customer/warehouse/agreement context assembled at render time.
+ */
+export const SYSTEM_AGREEMENT_TEMPLATE = {
+  name: 'Standard Warehousing Agreement',
+  clauses: [
+    {
+      id: 'parties',
+      title: 'Parties',
+      editable: true,
+      body: "This Warehousing Agreement (\"Agreement\") is entered into between {{company.legalName}}, having its registered office at {{company.addressLine1}}, {{company.city}}, {{company.state}} - {{company.pincode}} (GSTIN {{company.gstin}}) (\"Service Provider\"), and {{customer.legalName}} (GSTIN {{customer.gstin}}) (\"Customer\").",
+    },
+    {
+      id: 'warehouse_services',
+      title: 'Warehouse & Services',
+      editable: true,
+      body: 'The Service Provider shall provide warehousing, storage, and related handling services to the Customer at {{warehouse.name}} ({{warehouse.code}}), located at {{warehouse.addressLine1}}, {{warehouse.city}}, {{warehouse.state}}.',
+    },
+    {
+      id: 'term',
+      title: 'Term',
+      editable: true,
+      body: 'This Agreement shall commence on {{agreement.startDate}} and continue until {{agreement.endDate}}, unless terminated earlier in accordance with this Agreement.',
+    },
+    {
+      id: 'commercial_terms',
+      title: 'Commercial Terms & Payment',
+      editable: true,
+      body: "Rates, charges, and payment terms for the services under this Agreement shall be as set out in the Customer's applicable rate card, which forms part of this Agreement by reference and may be revised by the Service Provider with prior written notice.",
+    },
+    {
+      id: 'liability_insurance',
+      title: 'Liability & Insurance',
+      editable: true,
+      body: "The Service Provider's liability for loss of or damage to goods stored under this Agreement shall be as mutually agreed between the parties in writing. The Customer is advised to maintain adequate insurance coverage for goods held in storage.",
+    },
+    {
+      id: 'termination',
+      title: 'Termination',
+      editable: true,
+      body: "Either party may terminate this Agreement by providing not less than {{agreement.noticePeriodDays}} days' prior written notice to the other party, without prejudice to any accrued rights or obligations.",
+    },
+    {
+      id: 'signatories',
+      title: 'Signatories',
+      editable: true,
+      body: 'IN WITNESS WHEREOF, the parties have executed this Agreement as of {{agreement.agreementDate}}, through their duly authorised representatives.',
+    },
+  ],
+} as const;

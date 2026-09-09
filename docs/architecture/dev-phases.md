@@ -253,6 +253,40 @@ increment: building a real PDF pipeline is its own technology decision
 (a rendering library, a document-storage strategy) that hasn't been made
 yet, and doesn't belong bundled into the same increment as the source
 record it will eventually render.
+**Agreement record landed** (`apps/api/src/agreements/`): `agreements` +
+`agreement_templates`, `AG/{fy}/{seq:6}` numbering, and Draft → Pending
+Approval → Approved → Active (signed), or Terminated/Cancelled from
+blueprint §15 (`expired` deferred for the same no-scheduler reason as
+Quotation's). `POST /quotations/:id` isn't a thing — instead, creating an
+Agreement with a `quotationId` re-validates that quotation is `accepted`
+(§14: "After acceptance provide Create Agreement, which pre-fills
+agreement information") and pre-fills `customerId`/`warehouseId` from it
+when the request doesn't set them explicitly. Ships exactly one
+system-seeded template (`db/seed-data.ts` `SYSTEM_AGREEMENT_TEMPLATE`,
+7 clauses covering §15's legal-content wizard steps in plain language) —
+§15's "must remain editable/configurable... requiring appropriate legal
+review" is read as V1 shipping a usable, generic starting point rather
+than an empty-or-authoring-required feature; a tenant's own reviewed
+template is not built yet. Clauses use `{{dotted.path}}` tokens resolved
+server-side against a `company`/`customer`/`warehouse`/`agreement`
+context assembled at create/update time — an unresolvable path (no
+warehouse chosen yet, etc.) renders as an empty string rather than
+throwing, so a clause never blocks on optional context. `approve` is
+gated on `approve_agreement`, separate from `edit_agreement`, matching
+permissions-matrix.md's Owner-only row for it (unlike quotations, where
+Admin has full parity with Owner) — proven directly: an Admin holding
+`edit_agreement` still gets a 403 on `/approve`.
+
+While building this, seeding the one system template surfaced two real
+bugs, both in DECISIONS.md: §22 (same nullable-`tenant_id`-without-a-
+unique-index gap as §16, this time in `agreement_templates`, caught
+before a failing test rather than by one) and §23 (`db/seed.ts` used its
+own bare postgres.js connection instead of the shared
+`createDbConnection()` factory, and that divergence silently
+double-encoded jsonb columns — fixed by having `seed.ts` share the same
+connection factory as the running app, not by changing the query
+pattern itself, since the query pattern was already correct for every
+other caller).
 
 - Schema: `schema/20_commercial.sql`, plus `documents` /
   `document_verifications` from `schema/70_documents_governance.sql` (build

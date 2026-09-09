@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import postgres from 'postgres';
+import { createDbConnection } from './client';
 import {
   FEATURE_KEYS,
   FREE_PLAN,
@@ -7,6 +7,7 @@ import {
   METERED_FEATURE_KEYS,
   PERMISSIONS,
   ROLE_PERMISSIONS,
+  SYSTEM_AGREEMENT_TEMPLATE,
   SYSTEM_CHARGE_TYPES,
   SYSTEM_ROLES,
   SYSTEM_TAX_RATES,
@@ -26,7 +27,10 @@ async function main() {
     throw new Error('DATABASE_URL is not set (copy .env.example to .env)');
   }
 
-  const sql = postgres(databaseUrl, { max: 1 });
+  // Goes through the same createDbConnection() factory (and its drizzle()
+  // wrapping) as the running app, rather than a bare postgres() connection
+  // of its own -- see DECISIONS.md §23 for why that divergence mattered.
+  const { sql } = createDbConnection(databaseUrl);
 
   try {
     const roleIds = new Map<string, string>();
@@ -134,6 +138,14 @@ async function main() {
       `;
     }
     console.log(`seeded ${SYSTEM_TAX_RATES.length} system tax rates`);
+
+    await sql`
+      insert into agreement_templates (id, tenant_id, name, version, clauses)
+      values (gen_random_uuid(), null, ${SYSTEM_AGREEMENT_TEMPLATE.name}, 1, ${JSON.stringify(SYSTEM_AGREEMENT_TEMPLATE.clauses)}::jsonb)
+      on conflict (name) where tenant_id is null
+      do update set clauses = excluded.clauses
+    `;
+    console.log('seeded system default agreement template');
 
     console.log('Seed complete.');
   } finally {
