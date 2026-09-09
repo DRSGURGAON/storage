@@ -2,13 +2,17 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { AuthenticatedUser } from '../auth/jwt-payload';
+import { SETTINGS_BY_KEY } from '../company/tenant-settings.registry';
 import { PG_CONNECTION } from '../db/db.module';
 import { loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { ListStockLedgerQuery } from './dto/list-stock-ledger.query';
 import { ListStockQuery } from './dto/list-stock.query';
 
-/** stock-engine.md §2's seven transaction types. */
+/** Declared in the settings registry so the writer and this reader share one key. */
+const ALLOW_NEGATIVE_STOCK = SETTINGS_BY_KEY.get('stock.allow_negative')!;
+
+/** stock-engine.md §2's transaction types (§2's table folds TRANSFER_OUT/TRANSFER_IN into one row). */
 export type StockTxnType =
   | 'INWARD'
   | 'TRANSFER_IN'
@@ -211,13 +215,20 @@ export class StockService {
     }
   }
 
-  /** §61's per-company escape hatch, off unless a tenant turns it on. */
+  /**
+   * §61's per-company escape hatch, off unless a tenant turns it on
+   * through `PUT /company/settings/stock.allow_negative`. The key and its
+   * default are declared once, in `company/tenant-settings.registry.ts`,
+   * so the value this reads and the value that endpoint accepts cannot
+   * drift apart -- and an unknown key is refused there rather than stored
+   * as a setting nothing consults.
+   */
   private async allowsNegativeStock(tx: postgres.TransactionSql, tenantId: string): Promise<boolean> {
     const [row] = await tx<{ value: unknown }[]>`
       select value from tenant_settings
-      where tenant_id = ${tenantId} and key = 'stock.allow_negative'
+      where tenant_id = ${tenantId} and key = ${ALLOW_NEGATIVE_STOCK.key}
     `;
-    return row?.value === true;
+    return row === undefined ? ALLOW_NEGATIVE_STOCK.default === true : row.value === true;
   }
 
   /**

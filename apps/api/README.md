@@ -137,11 +137,39 @@ rows with no error at all.
   runs billing-engine.md §3's resolution priority (customer > warehouse >
   company, product/category line override) and returns the winning line —
   a preview endpoint for the future rate-card UI, since nothing bills yet.
+- `GET /company` and `PATCH /company` (`manage_company_settings` — Owner/
+  Admin only, on the **read** as well as the write: the row carries bank
+  account details and the authorised signatory, `permissions-matrix.md`
+  seeds no separate view code, and nothing else needs it since documents
+  build their letterhead server-side from the same row). This is what every
+  letterhead and the agreement template's `{{company.*}}` tokens resolve
+  against — until it existed, signup captured a legal name and nothing could
+  write the rest, so every document rendered with no GSTIN and no address
+  (`DECISIONS.md` §35). `isDocumentReady` on the response is the same
+  GSTIN-plus-full-address condition the onboarding wizard's company step
+  now uses. `slug`, `status`, the three attachment ids and
+  `financialYearStartMonth` are deliberately not settable — the last
+  because number series are keyed by financial year, so moving it mid-year
+  would re-key every series.
+- `GET /company/settings`, `PUT /company/settings/:key`,
+  `DELETE /company/settings/:key` (same permission) — the `tenant_settings`
+  store, which previously had no writer at all. Keys are **declared**, in
+  `company/tenant-settings.registry.ts`, with a type, a default and a note
+  naming what reads them; an unknown key is a 400 rather than a row nothing
+  will ever consult, and a wrongly-typed value is a 400. The list returns
+  every known key at its effective value with `source: 'tenant' | 'default'`,
+  and DELETE restores the documented default rather than writing null.
+  `stock.allow_negative` is the first live consumer — `StockService` takes
+  the key and default from the same registry, so writer and reader cannot
+  drift.
 - `GET /onboarding/status` — no permission beyond a valid JWT (informational,
   RLS-scoped to the caller's tenant). Reports `done`/`count` for each
   wizard step (`company`/`warehouse`/`customer`/`products`/`rateCard`),
   derived live from each entity's row count rather than a stored flag, plus
-  `nextStep` and `isComplete`. The `rateCard` step checks for at least one
+  `nextStep` and `isComplete`. The `company` step reported `done: true`
+  unconditionally until `PATCH /company` existed to make it achievable; it
+  now checks that the profile carries what a letterhead needs, so a fresh
+  tenant's `nextStep` is `company`. The `rateCard` step checks for at least one
   `rate_card_lines` row, not just a `rate_cards` row — an unpriced card
   isn't a complete step.
 - `POST/GET/PATCH /quotations[/:id]` (`create`/`view`/`edit_quotation` —
@@ -513,6 +541,20 @@ All against the real local database (`DATABASE_URL`), not mocks:
   `overallResult` derived, completion locking further edits, cancellation,
   an explicit assertion that **no document routes exist** for inspections,
   and each record gated on its own seeded permission plus 401s.
+- `company/company.spec.ts` — the profile starting as just the legal name
+  and reporting itself not document-ready; malformed GSTIN/PAN/pincode
+  refused, and `slug`/`status`/`financialYearStartMonth`/`id` refused
+  outright by `forbidNonWhitelisted` (there is no path that writes them);
+  saving it flipping `isDocumentReady` and completing the onboarding step;
+  and the payoff asserted directly — the saved GSTIN, address and pincode
+  appearing in the rendered agreement clauses with no `{{` left, plus a
+  real PDF. Then settings: every known key listed at its default with
+  `source`, an unknown key and three wrongly-typed values all refused *and
+  proven to have stored nothing*, set/read-back/clear, Owner-only
+  enforcement against a Warehouse Manager, and cross-tenant isolation —
+  worth asserting here because `tenants` is keyed by `id` rather than
+  `tenant_id`, so `schema/90`'s generator gives it no RLS policy and the
+  explicit filter is the only thing scoping it.
 - `stock/stock.spec.ts` — the stock engine, tested through the documents
   that actually move stock. GRN approval posting only what was *accepted*
   (90 of 100 received) as one unallocated `INWARD` row; a batch resolved

@@ -1054,3 +1054,80 @@ except in the code path it governs. Both passed every review that asked
 caught them is "what reads this?" A column or permission code that
 nothing references is the signal; it looks like completeness and is the
 opposite.
+
+## §35 — the company profile and `tenant_settings` had no writer, so three "implemented" features rendered blank
+
+Third finding of the Phase 5 audit, and the one with the widest blast
+radius even though it is the least like a security bug.
+
+Signup writes `tenants.legal_name` and nothing else — `SignupDto` has no
+other company field. A repo-wide grep found **no `update tenants`
+anywhere**, and no write to `tenant_settings` at all. So:
+
+- **Every document letterhead was two-thirds empty.**
+  `documents/company-context.ts` selects nine fields (trade name, address,
+  city, state, pincode, GSTIN, phone, email) and all nine were permanently
+  null. `document-engine.md` §5 specifies a letterhead of "Company legal
+  name & GSTIN / Address · Phone · Email"; what actually rendered was the
+  legal name alone, on all eight templates.
+- **Every agreement's Parties clause had holes in it.** The seeded
+  template resolves `{{company.gstin}}`, `{{company.addressLine1}}`,
+  `{{company.city}}`, `{{company.state}}` and `{{company.pincode}}` — five
+  tokens, in the clause that names who the contract is between, all
+  resolving to empty.
+- **`stock.allow_negative` could not be switched on.** Three documents
+  describe it as implemented, `StockService` reads it on every posting,
+  and there was no way to write it — so the branch was not merely
+  untested, it was unreachable.
+- `manage_company_settings` was seeded and granted with no endpoint
+  behind it, exactly like §33's regenerate codes.
+
+None of this failed. It rendered, silently, wrong.
+
+### `GET /company` is Owner/Admin too, not just the write
+
+`permissions-matrix.md` seeds one code for this area,
+`manage_company_settings`, granted to Owner and Admin. There is no
+`view_company_settings`, and inventing one to make reads broader would be
+inventing policy rather than implementing it. The row also carries bank
+account number, IFSC, and the authorised signatory. And nothing else
+needs it: documents build their letterhead server-side from the same row,
+so no client fetches it to render one, and `GET /onboarding/status`
+reports whether the profile is complete without exposing its contents.
+
+### A settings *registry*, not a free-form key/value API
+
+`tenant_settings` is `(tenant_id, key, jsonb)`, which will accept
+anything — including `stock.allow_negatives`, which would save cleanly,
+read back on a settings page, and do nothing forever. That is the same
+failure as §33 and §34 (a value stored and surfaced but never consulted),
+so keys are declared in `tenant-settings.registry.ts` with a type, a
+default, and a note naming what reads them; an unknown key is a 400 and a
+wrongly-typed value is a 400. `GET /company/settings` returns every known
+key with its effective value and a `source` of `tenant` or `default`, so
+a settings page shows real behaviour rather than a list of blanks, and
+`DELETE` restores the documented default rather than writing null.
+
+`StockService` now takes the key and default from that same registry, so
+the writer and the reader cannot drift apart.
+
+### Fields deliberately not settable
+
+`slug` (it is the workspace identity at login — changing it locks people
+out), `status` (suspension is the platform's call, not the tenant's), the
+three `*_attachment_id` fields (they need an upload flow, not a raw id
+from the client), and `financial_year_start_month`. That last one is the
+interesting one: number series are keyed by financial year, so moving the
+FY boundary mid-year would re-key every series and start issuing numbers
+that collide with ones already printed on paper. It stays at its default
+until there is a migration path for it.
+
+### The onboarding wizard's company step now means something
+
+It reported `done: true` unconditionally, with a comment explaining that
+the tenant row exists from signup. True, and useless — it was reporting a
+step complete that nothing could complete, because nothing could fill it
+in. It now checks the same condition `GET /company` exposes as
+`isDocumentReady`: GSTIN plus a full address, the minimum a letterhead
+needs to stop looking unfinished. A fresh tenant's `nextStep` is
+therefore `company` rather than `warehouse`.

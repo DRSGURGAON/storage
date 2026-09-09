@@ -35,21 +35,41 @@ describe('Onboarding status', () => {
     await app.close();
   });
 
-  it('walks a fresh tenant from company-only through every step to isComplete, in order', async () => {
+  it('walks a fresh tenant from nothing through every step to isComplete, in order', async () => {
     const token = await signup(`onb-${suffix}`, `owner-${suffix}@test.local`);
 
+    // The company step used to report `done: true` unconditionally, on the
+    // grounds that signup creates the tenant row. That was never a useful
+    // answer: signup captures only a legal name, and a document rendered
+    // at this point has a letterhead with no GSTIN and no address. Now that
+    // `PATCH /company` exists to fill it in, the step means what it says.
     const fresh = await api().get('/onboarding/status').set('Authorization', `Bearer ${token}`).expect(200);
     expect(fresh.body).toEqual({
       steps: {
-        company: { done: true, count: 1 },
+        company: { done: false, count: 0 },
         warehouse: { done: false, count: 0 },
         customer: { done: false, count: 0 },
         products: { done: false, count: 0 },
         rateCard: { done: false, count: 0 },
       },
       isComplete: false,
-      nextStep: 'warehouse',
+      nextStep: 'company',
     });
+
+    await api()
+      .patch('/company')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        gstin: '06AAACB1234C1ZX',
+        addressLine1: 'Plot 42, Sector 18',
+        city: 'Gurugram',
+        state: 'Haryana',
+        pincode: '122015',
+      })
+      .expect(200);
+    const afterCompany = await api().get('/onboarding/status').set('Authorization', `Bearer ${token}`).expect(200);
+    expect(afterCompany.body.steps.company).toEqual({ done: true, count: 1 });
+    expect(afterCompany.body.nextStep).toBe('warehouse');
 
     await api()
       .post('/warehouses')
@@ -105,7 +125,7 @@ describe('Onboarding status', () => {
     const freshToken = await signup(`onb-fresh-${suffix}`, `owner-fresh-${suffix}@test.local`);
     const status = await api().get('/onboarding/status').set('Authorization', `Bearer ${freshToken}`).expect(200);
     expect(status.body.isComplete).toBe(false);
-    expect(status.body.nextStep).toBe('warehouse');
+    expect(status.body.nextStep).toBe('company');
     expect(status.body.steps.warehouse.count).toBe(0);
   });
 

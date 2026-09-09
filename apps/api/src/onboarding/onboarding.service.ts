@@ -28,9 +28,18 @@ export class OnboardingService {
   async getStatus(tenantId: string) {
     const counts = await withTenant(this.sql, tenantId, async (tx) => {
       const [row] = await tx<
-        { warehouse_count: string; customer_count: string; product_count: string; rate_card_line_count: string }[]
+        {
+          company_count: string;
+          warehouse_count: string;
+          customer_count: string;
+          product_count: string;
+          rate_card_line_count: string;
+        }[]
       >`
         select
+          (select count(*) from tenants t
+            where t.id = ${tenantId} and t.gstin is not null and t.address_line1 is not null
+              and t.city is not null and t.state is not null and t.pincode is not null) as company_count,
           (select count(*) from warehouses where tenant_id = ${tenantId}) as warehouse_count,
           (select count(*) from customers where tenant_id = ${tenantId}) as customer_count,
           (select count(*) from products where tenant_id = ${tenantId}) as product_count,
@@ -40,8 +49,15 @@ export class OnboardingService {
     });
 
     const steps: Record<StepKey, StepStatus> = {
-      // The tenant row itself is created at signup -- always done for an authenticated caller.
-      company: { done: true, count: 1 },
+      // The tenant row exists from signup, but "company set up" has to mean
+      // more than that: signup only captures a legal name, and a document
+      // rendered before the rest is filled in has a letterhead with no
+      // GSTIN and no address on it. So this step is done once the profile
+      // carries what a letterhead actually needs -- the same condition
+      // `GET /company` reports as `isDocumentReady`. It reported `true`
+      // unconditionally until `PATCH /company` existed to make it
+      // achievable (DECISIONS.md §35).
+      company: { done: Number(counts.company_count) > 0, count: Number(counts.company_count) },
       warehouse: { done: Number(counts.warehouse_count) > 0, count: Number(counts.warehouse_count) },
       customer: { done: Number(counts.customer_count) > 0, count: Number(counts.customer_count) },
       products: { done: Number(counts.product_count) > 0, count: Number(counts.product_count) },
