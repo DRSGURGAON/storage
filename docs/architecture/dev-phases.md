@@ -8,15 +8,16 @@ not to bolt monetization onto individual modules after the fact.
 
 ## Phase 1 — Authentication, Multi-tenancy, Company, Users, Roles, Permissions, Entitlement Engine
 
-**Status: tenancy, auth, the entitlement engine, and audit logging have
-landed.**
+**Status: tenancy, auth, the entitlement engine, audit logging, and
+numbering have landed.**
 `apps/api` is a NestJS + TypeScript + Drizzle project (`../../DECISIONS.md`
 §0) whose migration runner applies this directory's schema files as real,
 tracked migrations — now including `85_integrity_fixes.sql`,
-`90_row_level_security.sql`, `91_tenant_users_self_lookup.sql`, and
-`92_rls_empty_string_guard.sql`, four fixes found only by building and
-load-testing real code against the schema, not by review (see
-`DECISIONS.md` §16–§18 for what each closed). Signup, login (including
+`90_row_level_security.sql`, `91_tenant_users_self_lookup.sql`,
+`92_rls_empty_string_guard.sql`, and `93_number_series_null_warehouse_fix.sql`,
+five fixes found only by building and load-testing real code against the
+schema, not by review (see `DECISIONS.md` §16–§21 for what each closed).
+Signup, login (including
 multi-tenant membership selection), JWT issuance, and a protected `/me`
 endpoint are live and covered by integration tests against a real
 database, including the exact connection-reuse scenario that exposed
@@ -32,10 +33,14 @@ yet, and the doc's original "trial" wording below is superseded by this).
 outcomes (`login`/`login_failed`, the latter fanned out across every
 tenant a wrong-password attempt could have reached, looked up before the
 password check so it's available on failure too), each verified against
-real `audit_logs` rows, not just that the call didn't throw. The RBAC
-*enforcement* guard is still deliberately deferred to Phase 2, alongside
-the first real permission-gated endpoint, rather than built against no
-caller (the seed data it will enforce —
+real `audit_logs` rows, not just that the call didn't throw.
+`NumberingService.allocateNumber()` implements `numbering.md` in full —
+lazy per-tenant series creation from the canonical prefix list, FY and
+reset-policy computation, and `FOR UPDATE` row-lock serialization proven
+under a genuine concurrent-allocation test (10 simultaneous calls, zero
+duplicates, zero gaps). The RBAC *enforcement* guard is still deliberately
+deferred to Phase 2, alongside the first real permission-gated endpoint,
+rather than built against no caller (the seed data it will enforce —
 `roles`/`permissions`/`role_permissions` — is already live). See
 `apps/api/README.md` for setup.
 
@@ -181,8 +186,13 @@ caller (the seed data it will enforce —
   login/login\_failed already go through it. Every later phase's
   create/update/approve/reject/cancel endpoints must call it too, not
   write their own `audit_logs` insert.
-- **Numbering** (`numbering.md`) is needed by Phase 3 onward (Quotation is
-  the first numbered document) and must not be reimplemented per phase.
+- **Numbering** (`numbering.md`) is implemented —
+  `apps/api/src/numbering/numbering.service.ts`'s `allocateNumber()` — and
+  tested directly against a real tenant (sequential allocation, per-warehouse
+  independence, and a genuine concurrent-allocation race producing zero
+  duplicates and zero gaps), ahead of Phase 3 needing it for Quotation, the
+  first numbered document. No later phase may compute its own `number`
+  column inline.
 - **Attachments** (`attachments` table) is needed starting Phase 2 (customer
   KYC uploads) and reused by every later phase.
 - **Entitlement checks** (`entitlement-engine.md`) are needed by every

@@ -356,3 +356,38 @@ a successful consumption always reports `allowed: true` for itself;
 one." Caught by asserting the exact response shape of the second of three
 sequential calls, not just the third (blocked) one — a test that only
 checked the final blocked call would have missed this.
+
+## §20 — `number_series` had the same nullable-unique gap as §16
+
+Found implementing `allocateNumber()`. `number_series.warehouse_id` is
+nullable ("optional per-warehouse series" — most document types get one
+tenant-wide series, `warehouse_id` null) and
+`unique (tenant_id, document_type, warehouse_id)` is the composite
+constraint meant to keep each series unique. Same bug as §16: SQL treats
+every `NULL` as distinct for uniqueness, so two rows for the same
+`(tenant, document_type)` with `warehouse_id` null — the common case —
+would not be caught as duplicates. A lazy-init `allocateNumber()` call
+("create this tenant's GE series if it doesn't exist yet") racing itself
+would have silently created two competing series instead of upserting
+into one. Fixed the same way, additively, in
+`schema/93_number_series_null_warehouse_fix.sql`.
+
+## §21 — postgres.js returns `bigint` columns as strings; `number_series.next_seq` arithmetic silently broke
+
+Found by the numbering test suite itself, not by review: the second and
+third sequence numbers for the same series came back as `21` and `211`
+instead of `2` and `3`. `number_series.next_seq` is `bigint` (chosen so a
+tenant can never overflow it at document-numbering volumes), and
+postgres.js deliberately returns `bigint` columns as JavaScript strings
+rather than numbers, to avoid silent precision loss above
+`Number.MAX_SAFE_INTEGER`. `NumberingService`'s own `SeriesRow` interface
+declared `next_seq: number`, so nothing caught it at compile time —
+`seq + 1` was silently doing string concatenation (`"2" + 1 -> "21"`)
+instead of arithmetic. Fixed by declaring the field's real runtime type
+(`next_seq: string`) and converting once with `Number(...)` before any
+arithmetic, with the reasoning for the conversion's safety (fine at this
+column's realistic scale) written down next to it rather than left
+implicit. Worth remembering for any other `bigint` column read through
+postgres.js in this codebase — the type declaration has to say `string`,
+or a future `+ 1` will pass TypeScript and silently misbehave exactly
+like this one did.

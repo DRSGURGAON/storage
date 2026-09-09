@@ -3,12 +3,12 @@
 Backend for the product specified in `../../docs/`. So far: project
 scaffolding, tenant/user auth with JWT, row-level tenant isolation, the
 seeded RBAC role/permission catalog, a fully working entitlement/
-subscription engine (2-free-copies enforcement, seeded and tested), and
-audit logging on every mutating/security-relevant auth action. No masters,
-operations, or billing modules yet, and no RBAC *enforcement* guard —
-that's deferred to Phase 2, built alongside the first real
-permission-gated endpoint rather than against no caller (see
-`docs/architecture/dev-phases.md` Phase 1).
+subscription engine (2-free-copies enforcement, seeded and tested), audit
+logging on every mutating/security-relevant auth action, and centralized
+document numbering (`allocateNumber()`). No masters, operations, or
+billing modules yet, and no RBAC *enforcement* guard — that's deferred to
+Phase 2, built alongside the first real permission-gated endpoint rather
+than against no caller (see `docs/architecture/dev-phases.md` Phase 1).
 
 ## Stack
 
@@ -35,10 +35,10 @@ npm run start:dev              # http://localhost:3000
 `../../docs/architecture/schema/*.sql` directly — that directory is the
 single source of truth for the data model (see its own `README.md` for
 conventions). This app does not keep a second, duplicated copy of the
-schema; adding a new domain means adding a file there, not here. Four of
-those files (`85`–`92`) are fixes for real bugs found only by building and
+schema; adding a new domain means adding a file there, not here. Five of
+those files (`85`–`93`) are fixes for real bugs found only by building and
 load-testing this app against the schema, not by review — see
-`docs/architecture/DECISIONS.md` §16–§18 if you're wondering why they
+`docs/architecture/DECISIONS.md` §16–§21 if you're wondering why they
 exist.
 
 ## Endpoints so far
@@ -53,10 +53,11 @@ exist.
   (`src/db/tenant-context.ts`) so every response is proven, not assumed,
   to be RLS-scoped to the caller's own tenant.
 
-No entitlement-gated HTTP endpoint exists yet (nothing generates a
-document yet) — `EntitlementService` (`src/entitlement/`) is complete and
-tested directly; Phase 3 wires `checkEntitlement`/`consumeEntitlement`
-into the first real `generateDocument()` call.
+No entitlement-gated or numbered HTTP endpoint exists yet (nothing
+generates a document yet) — `EntitlementService` (`src/entitlement/`) and
+`NumberingService` (`src/numbering/`) are both complete and tested
+directly; Phase 3 wires `checkEntitlement`/`consumeEntitlement` and
+`allocateNumber()` into the first real `generateDocument()` call.
 
 ## Tests
 
@@ -79,3 +80,7 @@ All against the real local database (`DATABASE_URL`), not mocks:
   concurrent race (5 simultaneous calls against a 2-copy limit resolve to
   exactly 2 winners), cross-tenant/cross-feature independence, the
   fail-closed default, and `recordFailedAttempt`.
+- `numbering/numbering.spec.ts` — lazy series creation, strictly
+  increasing sequences, per-warehouse and per-tenant independence, and a
+  genuine concurrent-allocation race (10 simultaneous calls against one
+  series resolve to exactly the numbers 1–10, no duplicates, no gaps).
