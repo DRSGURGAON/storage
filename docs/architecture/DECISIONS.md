@@ -847,3 +847,67 @@ reachable the moment a second spec file rendered one — which is to say
 it was latent from §26 onward and surfaced by ordinary growth, not by
 anything the new code did wrong. Verified the way the failure was
 found: the whole suite green, not just the one spec in isolation.
+
+## §31 — `stock_lots`' balance key was unenforced for the commonest lot there is, and the stock engine could not have been built on it
+
+40_stock.sql declares
+
+```sql
+unique (tenant_id, customer_id, warehouse_id, location_id, product_id, batch_id, serial_no)
+```
+
+to make each `stock_lots` row *the* balance for one logical lot. That is
+the entire premise of `stock_lots` being a materialised balance
+(`stock-engine.md` §1), and of the upsert that maintains it.
+
+Three of those seven columns are nullable, and SQL treats every NULL as
+distinct from every other NULL for uniqueness. So the constraint
+enforced nothing at all for the most ordinary lot in the system:
+unallocated (`location_id` null), non-batch-tracked (`batch_id` null),
+non-serial-tracked (`serial_no` null) stock — which is precisely what a
+GRN posts. Verified against the live database before writing anything:
+three inserts of the identical lot key all succeeded, leaving three
+"current stock" rows for one lot.
+
+This is the same class of gap as §16's five (fixed in
+`85_integrity_fixes.sql`), but the consequence is worse. There the
+unenforced half was the system-seeded rows and the failure was a
+duplicate someone would notice. Here it is the ordinary path and the
+failure is silent: an `on conflict` upsert keyed on the constraint would
+never match, every posting would insert a *new* lot instead of adding to
+the existing one, and current stock would fragment into as many rows as
+there were receipts, each holding a partial quantity. No error — just a
+wrong number, in the table the whole product exists to keep right.
+
+Fixed additively in `96_stock_lots_balance_key.sql` with a unique index
+carrying `nulls not distinct` (Postgres 15+), which says what the
+constraint meant. No column, table shape, or existing constraint
+changed. It is also the conflict target the engine's upsert infers on,
+so the invariant and the mechanism that depends on it are now the same
+object — the upsert cannot silently stop deduplicating without the index
+going missing.
+
+Worth recording how it was found: not by reading the schema, but by
+trying to write `on conflict ... do update` against it and asking
+whether the constraint would actually match. The three-insert check took
+a minute and settled it.
+
+## §32 — `stock_ledger.txn_at` is written with `clock_timestamp()`, not left to its `now()` default
+
+The ledger is an append-only *sequence*, and the read endpoint orders by
+`txn_at`. `now()` in Postgres is the transaction's start time, identical
+for every statement in it, so every row of one posting shared a
+timestamp and the only tiebreaker left was a random uuid. A put-away
+posts a `TRANSFER_OUT`/`TRANSFER_IN` pair per line, and the ledger read
+them back in arbitrary order — a transfer's arrival ahead of its own
+departure, and balances that looked like they had been recorded out of
+sequence. Caught by a test asserting the four rows of a two-line
+put-away in order, which failed on the shuffle.
+
+`clock_timestamp()` advances inside a transaction, so rows read back in
+the order they were written. The alternative — adding a `bigserial`
+sequence column — would order them just as well but grows the reference
+schema for something the existing column can express, and a per-row
+instant is not a lie: each movement really did happen at a distinct
+moment inside the transaction. Atomicity is unaffected either way; the
+rows still commit together.

@@ -194,7 +194,7 @@ describe('GRNs', () => {
     expect(res.body.items[0].serialNos).toEqual(['SN-1', 'SN-2']);
   });
 
-  it('walks Draft → Submitted → Checked → Approved, rejecting every skip-ahead, and posts no stock in Phase 4', async () => {
+  it('walks Draft → Submitted → Checked → Approved, rejecting every skip-ahead, and posts stock exactly at approval', async () => {
     const inwardId = await createReceivedInward();
     const created = await api().post('/grns').set('Authorization', `Bearer ${owner}`).send({ inwardId }).expect(201);
     const id = created.body.id;
@@ -213,11 +213,25 @@ describe('GRNs', () => {
     expect(checked.body.status).toBe('checked');
     expect(checked.body.checkedAt).not.toBeNull();
 
+    // Nothing has moved yet: "only approved GRNs post stock" (§18) means
+    // exactly that, so the ledger is still empty one step short of approval.
+    const beforeApproval = await api()
+      .get(`/stock/ledger?sourceId=${id}`)
+      .set('Authorization', `Bearer ${owner}`)
+      .expect(200);
+    expect(beforeApproval.body.total).toBe(0);
+
     const approved = await api().post(`/grns/${id}/approve`).set('Authorization', `Bearer ${owner}`).expect(201);
     expect(approved.body.status).toBe('approved');
     expect(approved.body.approvedAt).not.toBeNull();
-    // "Only approved GRNs post stock" (§18) -- and Phase 4 posts none, so this stays null until Phase 5.
-    expect(approved.body.stockPostedAt).toBeNull();
+    expect(approved.body.stockPostedAt).not.toBeNull();
+
+    const ledger = await api()
+      .get(`/stock/ledger?sourceId=${id}`)
+      .set('Authorization', `Bearer ${owner}`)
+      .expect(200);
+    expect(ledger.body.items).toHaveLength(1);
+    expect(ledger.body.items[0]).toMatchObject({ txnType: 'INWARD', sourceType: 'grn', locationId: null });
 
     await api().post(`/grns/${id}/approve`).set('Authorization', `Bearer ${owner}`).expect(400);
   });

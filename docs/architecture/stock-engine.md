@@ -107,3 +107,51 @@ customer's goods in two warehouses — never share a balance row. A transfer
 between warehouses is two ledger rows (`TRANSFER_OUT` at the source
 warehouse, `TRANSFER_IN` at the destination) inside one `stock_transfers`
 document, not a mutation of a single row's `warehouse_id`.
+
+---
+
+## Implemented (Phase 5, in progress)
+
+`apps/api/src/stock/` — `StockService.postWithin()` is the only code
+path in the repository that writes `stock_lots`. Callers pass their own
+transaction, so §1's two steps and the caller's own status change commit
+together or not at all (§70). The upsert `returning`s the post-write
+balances, and those are what the ledger row records, so
+`balance_physical_qty` is the figure the database actually holds rather
+than one recomputed in application memory. §3's invariants are checked
+against that same returned balance, with `stock.allow_negative` honoured
+as §61's per-tenant escape hatch.
+
+Wired in so far:
+
+| Trigger | Posts | Idempotency key |
+|---|---|---|
+| GRN approval (§18) | one `INWARD` per accepted quantity, `location_id` null | `grn:{id}:approve` |
+| Put-away completion (§20) | `TRANSFER_OUT` (unallocated) + `TRANSFER_IN` (bin) per line | `putaway:{id}:complete` |
+
+Three things the implementation settled that this document left open:
+
+- **Receipts land unallocated.** 40_stock.sql defines `location_id`
+  null as "unallocated / in-transit"; a GRN records what arrived, a
+  put-away decides where it went. Keeping them separate makes "received
+  but not yet put away" a queryable state rather than an invisible gap.
+- **A serial-tracked product is one lot per serial**, of one unit each,
+  because `serial_no` is part of the lot key. A put-away line carries
+  only a quantity, so the specific serials to move are chosen
+  server-side (oldest unallocated first) — both halves of a transfer
+  have to name the same lots.
+- **`txn_at` is written with `clock_timestamp()`**, not left to its
+  `now()` default, so the rows of one posting read back in the order
+  they were written (`DECISIONS.md` §32).
+
+Read side: `GET /stock` (balances; emptied lots hidden unless
+`includeEmpty=true`) and `GET /stock/ledger` (filterable by
+`sourceType`/`sourceId`, so one document's whole stock footprint is one
+query, per §67). Neither writes anything, and no other endpoint writes a
+balance either.
+
+Not yet built: Stock Transfer, Physical Verification, Stock Adjustment,
+the reservation types (`RESERVE`/`UNRESERVE`, which Phase 6's Release
+Order owns), `OUTWARD`, and §3.5's controlled reversal — GRN
+`'reversed'` still has no transition, since undoing a posting after the
+goods have been put away is a design question in its own right.

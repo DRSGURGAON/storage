@@ -22,11 +22,15 @@ entitlement gating — proven end-to-end against **eight** registered
 templates: Quotation, Agreement, Gate Entry, Inward, GRN, Discrepancy
 Report, Put-away Slip, and Warehouse Receipt.
 
-**Phase 4 moves no stock**, deliberately: `grns.stock_posted_at`,
-`putaway_lines.stock_lot_id`, `grn_items.batch_id` and the GRN
-`'reversed'` status are all left unfilled for Phase 5's stock engine
-rather than faked here. The stock engine, Outward, and the billing-run
-modules are not built yet.
+Phase 5 is under way: the **stock engine** is built and wired into the
+inbound chain. `StockService` is the only thing in the codebase that
+writes a stock balance — GRN approval posts real `INWARD` ledger rows
+and resolves batches, put-away completion relocates that stock as a
+`TRANSFER_OUT`/`TRANSFER_IN` pair, and `GET /stock` / `GET /stock/ledger`
+read it back. Stock Transfer, Physical Verification, Stock Adjustment,
+the ageing report, and GRN reversal (`'reversed'` still has no
+transition) are the rest of the phase; Outward and the billing-run
+modules come after it.
 
 ## Stack
 
@@ -53,11 +57,15 @@ npm run start:dev              # http://localhost:3000
 `../../docs/architecture/schema/*.sql` directly — that directory is the
 single source of truth for the data model (see its own `README.md` for
 conventions). This app does not keep a second, duplicated copy of the
-schema; adding a new domain means adding a file there, not here. Seven of
-those files (`85`–`95`) are fixes for real bugs found only by building and
+schema; adding a new domain means adding a file there, not here. Eight of
+those files (`85`–`96`) are fixes for real bugs found only by building and
 load-testing this app against the schema, not by review — see
-`docs/architecture/DECISIONS.md` §16–§25 if you're wondering why they
-exist.
+`docs/architecture/DECISIONS.md` §16–§25 and §31 if you're wondering why
+they exist. The most recent, `96_stock_lots_balance_key.sql`, is the
+sharpest example: `stock_lots`' unique constraint has three nullable
+columns, so it enforced nothing for the commonest lot in the system, and
+every stock posting would have fragmented "current stock" into duplicate
+rows with no error at all.
 
 ## Endpoints so far
 
@@ -219,8 +227,13 @@ exist.
   received, and `hasDiscrepancy` is recomputed from the item rows on
   every write. `accepted + rejected > received` is rejected as a readable
   400 before the table's own check constraint fires, and `serialNos` are
-  refused on a product that isn't `serial_tracked`. `approve` deliberately
-  leaves `stock_posted_at` null — see the Phase 4 note above.
+  refused on a product that isn't `serial_tracked`. **`approve` is where
+  stock comes into existence** (§18): it resolves or creates the batch for
+  each batch-tracked line (filling `grn_items.batch_id`), writes one
+  `INWARD` ledger row per accepted quantity — one row *per serial* for a
+  serial-tracked product — and stamps `stock_posted_at`, all in the same
+  transaction as the status change. The stock lands **unallocated**
+  (`location_id` null); the put-away decides where it goes.
 - `POST/GET/PATCH /inspections[/:id]` plus `POST /inspections/:id/complete`
   and `/cancel` (all on `create_inspection`). The inspector defaults to
   the acting user's own name when the request omits one, and
@@ -249,7 +262,13 @@ exist.
   several locations so long as the per-`grn_item` total never exceeds
   what was accepted; every location must belong to the GRN's own
   warehouse and be active. `complete` stamps `confirmedAt`/`confirmedBy`
-  on every line and leaves `stockLotId` null — again, Phase 5's job.
+  on every line **and moves the stock to match**: each line becomes a
+  `TRANSFER_OUT` from the unallocated lot plus a `TRANSFER_IN` at the bin
+  (two ledger rows, never a mutation of one row's location), and the
+  destination lot's id is written back to `stockLotId`. For a
+  serial-tracked product the specific serials are chosen server-side,
+  oldest unallocated first, since a put-away line carries only a quantity
+  and both halves of a transfer have to name the same lots.
 - `POST/GET /warehouse-receipts[/:id]` plus
   `POST /warehouse-receipts/:id/cancel`, and the same `document/preview` /
   `document` pair (`documentType: 'warehouse_receipt'`, `featureCode:
@@ -264,6 +283,27 @@ exist.
   not a negotiable/WDRA receipt, not a document of title, and may not be
   transferred, endorsed, or pledged — a legal boundary, not a wording
   preference.
+- `GET /stock?customerId=&warehouseId=&productId=&locationId=&includeEmpty=`
+  (`view_stock`) and `GET /stock/ledger?...&txnType=&sourceType=&sourceId=`
+  (`view_stock_ledger`) — current balances and the append-only movement
+  log behind them. These are the broadest permissions in
+  `permissions-matrix.md`: every internal role holds both, including a
+  Billing Executive who cannot touch a GRN. Emptied lots are hidden from
+  `GET /stock` unless `includeEmpty=true` (a lot drained by a put-away is
+  history, not current stock). Filtering the ledger by `sourceId` gives
+  one document's entire stock footprint in one query, which is what §67's
+  traceability requirement means in practice.
+
+  **Both are read-only, and that is the design.** There is no endpoint
+  anywhere that writes a stock balance: `stock_lots` is a materialised
+  view maintained only by `StockService.postWithin()`, called from within
+  the transaction of whichever operational document is moving stock
+  (`stock-engine.md` §1). That is what makes blueprint §23's "no
+  arbitrary editing of current stock" structurally true rather than a
+  rule someone can forget. Postings are idempotent per
+  `stock_ledger.idempotency_key`, and the negative-stock invariant is
+  enforced against the balance the database returns from the upsert, with
+  `stock.allow_negative` honoured as §61's per-tenant escape hatch.
 
 `EntitlementService` (`src/entitlement/`) is wired into the document
 engine's `commitDocument()`/`previewDocument()` split — the first real
@@ -458,6 +498,24 @@ All against the real local database (`DATABASE_URL`), not mocks:
   `overallResult` derived, completion locking further edits, cancellation,
   an explicit assertion that **no document routes exist** for inspections,
   and each record gated on its own seeded permission plus 401s.
+- `stock/stock.spec.ts` — the stock engine, tested through the documents
+  that actually move stock. GRN approval posting only what was *accepted*
+  (90 of 100 received) as one unallocated `INWARD` row; a batch resolved
+  once across two GRNs with `first_received_at` proven not to move on the
+  later receipt; a serial-tracked product landing as three one-unit lots;
+  a serial-tracked line whose serials don't cover every accepted unit
+  refused **with the whole approval rolled back** (still `checked`,
+  nothing posted); a put-away splitting 90 across two bins as four ledger
+  rows in `TRANSFER_OUT`/`TRANSFER_IN` order, with each line's
+  `stockLotId` filled and the drained unallocated lot dropping out of
+  current stock but still visible under `includeEmpty`; a serial-tracked
+  put-away moving two specific serials and leaving the third where it was;
+  and tenant isolation plus the broad-read permission row (a Billing
+  Executive reads both endpoints and is 403'd on a GRN). Two cases go
+  straight at `StockService` rather than through HTTP, and deliberately:
+  idempotency and the negative-stock invariant sit behind transitions that
+  already refuse a second attempt, so pretending they're reachable over
+  HTTP would be testing the transition, not the guard.
 - `putaways/putaways.spec.ts` — a put-away defaulting each line to its
   GRN item's accepted quantity; an unapproved GRN, a location in another
   warehouse, and an over-accepted quantity each refused; one GRN line

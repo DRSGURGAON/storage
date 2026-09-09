@@ -6,6 +6,7 @@ import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
 import { NumberingService } from '../numbering/numbering.service';
+import { StockMovement, StockService } from '../stock/stock.service';
 import { CreateGrnItemDto } from './dto/create-grn-item.dto';
 import { CreateGrnDto } from './dto/create-grn.dto';
 import { ListGrnsQuery } from './dto/list-grns.query';
@@ -51,6 +52,7 @@ interface GrnItemRow {
   inward_item_id: string | null;
   product_id: string;
   product_snapshot: Record<string, unknown>;
+  batch_id: string | null;
   batch_no: string | null;
   mfg_date: string | null;
   expiry_date: string | null;
@@ -75,7 +77,7 @@ const SELECT_COLUMNS = `
   submitted_at, checked_at, approved_at, stock_posted_at, has_discrepancy, created_at, updated_at`;
 
 const ITEM_SELECT_COLUMNS = `
-  id, line_no, inward_item_id, product_id, product_snapshot, batch_no, mfg_date, expiry_date,
+  id, line_no, inward_item_id, product_id, product_snapshot, batch_id, batch_no, mfg_date, expiry_date,
   expected_qty, received_qty, accepted_qty, rejected_qty, damaged_qty, short_qty, excess_qty,
   packages, package_type, gross_weight_kg, condition, remarks`;
 
@@ -119,6 +121,7 @@ function toApi(row: GrnRow, items?: (GrnItemRow & { serial_nos?: string[] })[]) 
         inwardItemId: i.inward_item_id,
         productId: i.product_id,
         productSnapshot: i.product_snapshot,
+        batchId: i.batch_id,
         batchNo: i.batch_no,
         mfgDate: i.mfg_date,
         expiryDate: i.expiry_date,
@@ -181,6 +184,7 @@ export class GrnsService {
     @Inject(PG_CONNECTION) private readonly sql: postgres.Sql,
     private readonly numbering: NumberingService,
     private readonly audit: AuditService,
+    private readonly stock: StockService,
   ) {}
 
   private async resolveTransportRefs(
@@ -662,7 +666,7 @@ export class GrnsService {
     id: string,
     ipAddress: string | undefined,
     allowedFrom: string[],
-    apply: (tx: postgres.TransactionSql) => Promise<void>,
+    apply: (tx: postgres.TransactionSql, before: GrnRow) => Promise<void>,
   ) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
       const [before] = await tx<GrnRow[]>`
@@ -674,7 +678,7 @@ export class GrnsService {
           `Cannot transition a GRN from '${before.status}' (expected one of: ${allowedFrom.join(', ')})`,
         );
       }
-      await apply(tx);
+      await apply(tx, before);
       const after = await this.fetchWithItems(tx, actor.tenantId, id);
       return { before, after: after! };
     });
@@ -713,13 +717,120 @@ export class GrnsService {
     });
   }
 
-  /** "Only approved GRNs post stock" (§18) -- but Phase 4 posts none, so `stock_posted_at` stays null until Phase 5's stock engine fills it. */
+  /**
+   * "Only approved GRNs post stock" (§18), and this is where that
+   * happens: approval writes the `INWARD` ledger rows for every accepted
+   * quantity and stamps `stock_posted_at`, inside the same transaction as
+   * the status change (§70). Approving is therefore the single moment a
+   * receipt becomes stock -- nothing before it moves a balance, and the
+   * put-away that follows only relocates what this posted.
+   *
+   * Stock lands **unallocated** (`location_id` null). That is not a
+   * shortcut: 40_stock.sql spells out null as "unallocated / in-transit",
+   * a GRN records what arrived rather than where it was shelved, and the
+   * put-away slip is the document that decides the latter. Put-away
+   * completion then moves it as a TRANSFER_OUT/TRANSFER_IN pair, which is
+   * also what makes "stock exists but has not been put away yet" a
+   * visible, queryable state rather than an invisible gap.
+   */
   approve(actor: AuthenticatedUser, id: string, ipAddress?: string) {
-    return this.transition(actor, id, ipAddress, ['checked'], async (tx) => {
+    return this.transition(actor, id, ipAddress, ['checked'], async (tx, before) => {
+      await this.postApprovalStock(tx, actor, before);
       await tx`
-        update grns set status = 'approved', approved_at = now(), approved_by = ${actor.userId}
+        update grns
+        set status = 'approved', approved_at = now(), approved_by = ${actor.userId},
+            stock_posted_at = now()
         where id = ${id} and tenant_id = ${actor.tenantId}
       `;
+    });
+  }
+
+  /**
+   * Resolves batches, then posts one `INWARD` movement per accepted unit
+   * of stock. Serial-tracked products post one movement *per serial* with
+   * a quantity of 1, because `stock_lots.serial_no` is part of the lot key
+   * -- a serial-tracked product with ten units is ten lots, not one lot of
+   * ten, and that is what makes §67's "which unit is where" answerable.
+   */
+  private async postApprovalStock(tx: postgres.TransactionSql, actor: AuthenticatedUser, grn: GrnRow) {
+    const items = await tx<
+      {
+        id: string;
+        product_id: string;
+        batch_no: string | null;
+        mfg_date: string | null;
+        expiry_date: string | null;
+        accepted_qty: string;
+        uom_code: string;
+        sku: string;
+        batch_tracked: boolean;
+        serial_tracked: boolean;
+      }[]
+    >`
+      select gi.id, gi.product_id, gi.batch_no, gi.mfg_date, gi.expiry_date, gi.accepted_qty,
+             p.uom_code, p.sku, p.batch_tracked, p.serial_tracked
+      from grn_items gi
+      join products p on p.id = gi.product_id
+      where gi.tenant_id = ${actor.tenantId} and gi.grn_id = ${grn.id} and gi.accepted_qty > 0
+      order by gi.line_no
+    `;
+
+    const movements: StockMovement[] = [];
+    for (const item of items) {
+      const acceptedQty = Number(item.accepted_qty);
+
+      // stock-engine.md §5: `first_received_at` is stamped once from the
+      // GRN that first created the batch and never updated, so a later
+      // receipt into the same batch cannot make its stock look younger.
+      let batchId: string | null = null;
+      if (item.batch_tracked && item.batch_no) {
+        batchId = await this.stock.resolveBatch(tx, actor.tenantId, {
+          customerId: grn.customer_id,
+          productId: item.product_id,
+          batchNo: item.batch_no,
+          mfgDate: item.mfg_date,
+          expiryDate: item.expiry_date,
+          firstReceivedAt: grn.grn_date,
+        });
+        await tx`update grn_items set batch_id = ${batchId} where id = ${item.id} and tenant_id = ${actor.tenantId}`;
+      }
+
+      const base = {
+        txnType: 'INWARD' as const,
+        customerId: grn.customer_id,
+        warehouseId: grn.warehouse_id,
+        locationId: null,
+        productId: item.product_id,
+        batchId,
+        uomCode: item.uom_code,
+        sourceLineId: item.id,
+      };
+
+      if (item.serial_tracked) {
+        const serials = await tx<{ serial_no: string }[]>`
+          select serial_no from grn_item_serials
+          where tenant_id = ${actor.tenantId} and grn_item_id = ${item.id} and accepted
+          order by serial_no
+        `;
+        if (serials.length !== acceptedQty) {
+          throw new BadRequestException(
+            `Cannot post stock for ${item.sku}: it is serial-tracked, so it needs one accepted serial number ` +
+              `per accepted unit (${serials.length} recorded, ${acceptedQty} accepted)`,
+          );
+        }
+        for (const { serial_no } of serials) {
+          movements.push({ ...base, serialNo: serial_no, qtyIn: 1 });
+        }
+      } else {
+        movements.push({ ...base, serialNo: null, qtyIn: acceptedQty });
+      }
+    }
+
+    await this.stock.postWithin(tx, actor, {
+      sourceType: 'grn',
+      sourceId: grn.id,
+      idempotencyKey: `grn:${grn.id}:approve`,
+      movements,
     });
   }
 

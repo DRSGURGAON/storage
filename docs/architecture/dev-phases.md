@@ -476,14 +476,14 @@ the document is titled *Warehouse Receipt (Operational)* and carries a
 disclaimer stating it is **not** a negotiable warehouse receipt, not a
 document of title, and may not be pledged as security.
 
-**Stock still does not move.** Every place Phase 4 could have faked it,
-it does not: GRN `approve()` leaves `stock_posted_at` null,
-`putaway_lines.stock_lot_id` stays null, `grn_items.batch_id` is never
-resolved, and GRN's `'reversed'` status has no transition — a
-controlled reversal (§50) exists to undo a posting, and there is no
-posting to undo yet. Phase 5's stock engine owns all four, and each is
-commented as such at the point where it would otherwise be tempting to
-write a stub.
+**Stock did not move in Phase 4**, deliberately: GRN `approve()` left
+`stock_posted_at` null, `putaway_lines.stock_lot_id` stayed null,
+`grn_items.batch_id` was never resolved, and GRN's `'reversed'` status
+had no transition — a controlled reversal (§50) exists to undo a
+posting, and there was no posting to undo. Each was commented as such
+at the point where it would otherwise have been tempting to write a
+stub. Phase 5 has since filled the first three; `'reversed'` is still
+open (see below).
 
 - Schema: `schema/30_inbound.sql`.
 - Docs: `workflow-and-statuses.md` (GRN status machine, auto-fill chain
@@ -495,6 +495,68 @@ write a stub.
   posting call as a stub until Phase 5 lands.
 
 ## Phase 5 — Stock Engine, Ledger, Customer Stock, Ageing, Verification, Transfer
+
+**Status: in progress — the engine and the inbound half of it are
+built and tested** (`apps/api/src/stock/`).
+
+`StockService` is the only thing in the codebase that writes a stock
+balance, which is what makes stock-engine.md §1 ("`stock_lots` is a
+materialised view maintained only by the stock service") structurally
+true instead of a convention. Every posting goes through one method,
+inside the caller's own transaction, so the `stock_ledger` rows and the
+`stock_lots` balances they imply commit together or not at all (§70).
+The ledger row's `balance_physical_qty` is read back from the upsert
+rather than computed in application memory, so it is the balance the
+database actually holds. `stock.allow_negative` (§61) is honoured as
+the per-tenant escape hatch it is documented to be — off unless a
+tenant turns it on.
+
+**Building on the schema found a real bug in it.** `stock_lots`'
+seven-column unique constraint has three nullable columns, and SQL
+treats every NULL as distinct, so the constraint enforced nothing for
+the commonest lot there is: unallocated, non-batch-tracked,
+non-serial-tracked stock. Left alone, every posting would have inserted
+a *new* lot instead of adding to the existing one and "current stock"
+would have fragmented silently. Verified against the live database,
+then fixed additively in `schema/96_stock_lots_balance_key.sql` — the
+same class of gap as 85's five, one level deeper. See `DECISIONS.md`
+§31.
+
+**GRN approval posts stock** (§18). Approval writes one `INWARD` ledger
+row per accepted quantity and stamps `stock_posted_at`, in the same
+transaction as the status change. Stock lands **unallocated**
+(`location_id` null, which 40_stock.sql defines as exactly that): a GRN
+records what arrived, not where it was shelved. Batches are resolved
+or created at this moment, filling `grn_items.batch_id`, with
+`first_received_at` stamped once from the first GRN and never moved —
+ageing (§26) is computed from it, so a later receipt into the same
+batch must not make the stock look younger. A serial-tracked product
+posts **one lot per serial** of one unit each, because
+`stock_lots.serial_no` is part of the lot key and §67's "which unit is
+where" has to be answerable.
+
+**Put-away completion relocates it** (§20). Each line becomes a
+`TRANSFER_OUT` from the unallocated lot and a `TRANSFER_IN` at the bin
+— two rows, per §7, never a mutation of one row's `location_id` — and
+the destination lot's id is written back to
+`putaway_lines.stock_lot_id`. For serial-tracked goods the specific
+serials are chosen server-side, oldest unallocated first, since a
+put-away line carries only a quantity and both halves of a transfer
+have to name the same lots.
+
+**Read side:** `GET /stock` (current balances, empty lots hidden unless
+asked for) and `GET /stock/ledger` (the movement log, filterable by
+source document so one GRN's whole stock footprint is one query, per
+§67). Both are read-only by design: there is no endpoint anywhere that
+writes a balance.
+
+**Still to build in this phase:** Stock Transfer, Physical Verification
+and Stock Adjustment with their approval chains; the Customer Stock
+Statement and Ageing report; and GRN reversal — `'reversed'` still has
+no transition, because undoing a posting once the goods have been put
+away (or partly dispatched) is a real design question, not a
+transcription of §3.5, and it deserves its own slice rather than a
+half-correct one bolted onto this one.
 
 - Schema: `schema/40_stock.sql`.
 - Docs: `stock-engine.md` in full.

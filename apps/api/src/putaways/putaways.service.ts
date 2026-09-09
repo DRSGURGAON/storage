@@ -6,6 +6,7 @@ import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
 import { NumberingService } from '../numbering/numbering.service';
+import { StockMovement, StockService } from '../stock/stock.service';
 import { CreatePutawayDto } from './dto/create-putaway.dto';
 import { ListPutawaysQuery } from './dto/list-putaways.query';
 
@@ -94,6 +95,7 @@ export class PutawaysService {
     @Inject(PG_CONNECTION) private readonly sql: postgres.Sql,
     private readonly numbering: NumberingService,
     private readonly audit: AuditService,
+    private readonly stock: StockService,
   ) {}
 
   private async fetchWithLines(tx: postgres.TransactionSql, tenantId: string, id: string) {
@@ -251,7 +253,7 @@ export class PutawaysService {
     id: string,
     ipAddress: string | undefined,
     allowedFrom: string[],
-    apply: (tx: postgres.TransactionSql) => Promise<void>,
+    apply: (tx: postgres.TransactionSql, before: PutawayRow) => Promise<void>,
   ) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
       const [before] = await tx<PutawayRow[]>`
@@ -263,7 +265,7 @@ export class PutawaysService {
           `Cannot transition a put-away from '${before.status}' (expected one of: ${allowedFrom.join(', ')})`,
         );
       }
-      await apply(tx);
+      await apply(tx, before);
       const after = await this.fetchWithLines(tx, actor.tenantId, id);
       return { before, after: after! };
     });
@@ -292,9 +294,21 @@ export class PutawaysService {
     });
   }
 
-  /** Confirms every line's placement. `stock_lot_id` stays null: Phase 5's stock engine owns the ledger side of "stock location is updated". */
+  /**
+   * Confirms every line's placement -- and moves the stock to match, which
+   * is what "stock location is updated" (§20) actually means.
+   *
+   * GRN approval posted the goods unallocated (`location_id` null). Each
+   * put-away line is therefore a relocation, and stock-engine.md §7 is
+   * explicit that a move is two ledger rows rather than a mutation of one
+   * row's location: a `TRANSFER_OUT` from the unallocated lot and a
+   * `TRANSFER_IN` at the bin. The destination lot's id is then what
+   * `putaway_lines.stock_lot_id` records, so a line points at the balance
+   * it created rather than merely naming a location.
+   */
   complete(actor: AuthenticatedUser, id: string, ipAddress?: string) {
-    return this.transition(actor, id, ipAddress, ['pending', 'in_progress'], async (tx) => {
+    return this.transition(actor, id, ipAddress, ['pending', 'in_progress'], async (tx, before) => {
+      await this.postPlacementStock(tx, actor, before);
       await tx`
         update putaways set status = 'completed', completed_at = now(), completed_by = ${actor.userId}
         where id = ${id} and tenant_id = ${actor.tenantId}
@@ -304,6 +318,112 @@ export class PutawaysService {
         where putaway_id = ${id} and tenant_id = ${actor.tenantId}
       `;
     });
+  }
+
+  private async postPlacementStock(tx: postgres.TransactionSql, actor: AuthenticatedUser, putaway: PutawayRow) {
+    const lines = await tx<
+      {
+        id: string;
+        grn_item_id: string;
+        product_id: string;
+        quantity: string;
+        to_location_id: string;
+        batch_id: string | null;
+        uom_code: string;
+        sku: string;
+        serial_tracked: boolean;
+      }[]
+    >`
+      select pl.id, pl.grn_item_id, pl.product_id, pl.quantity, pl.to_location_id,
+             gi.batch_id, p.uom_code, p.sku, p.serial_tracked
+      from putaway_lines pl
+      join grn_items gi on gi.id = pl.grn_item_id
+      join products p on p.id = pl.product_id
+      where pl.tenant_id = ${actor.tenantId} and pl.putaway_id = ${putaway.id}
+      order by pl.id
+    `;
+
+    const movements: StockMovement[] = [];
+    /** Positional back-reference: which line each TRANSFER_IN belongs to. */
+    const destinationFor: { lineId: string; movementIndex: number }[] = [];
+
+    for (const line of lines) {
+      const quantity = Number(line.quantity);
+      const base = {
+        customerId: putaway.customer_id,
+        warehouseId: putaway.warehouse_id,
+        productId: line.product_id,
+        batchId: line.batch_id,
+        uomCode: line.uom_code,
+        sourceLineId: line.id,
+      };
+
+      // Serial-tracked stock sits in one lot per serial, but a put-away
+      // line carries only a quantity -- `putaway_lines` has no serial
+      // column. So the serials to move are chosen here, oldest unallocated
+      // first, rather than guessed: taking N specific serial lots is the
+      // only way the two halves of the transfer can name the same lots.
+      const serialNos: (string | null)[] = [];
+      if (line.serial_tracked) {
+        const available = await tx<{ serial_no: string }[]>`
+          select serial_no from stock_lots
+          where tenant_id = ${actor.tenantId} and customer_id = ${putaway.customer_id}
+            and warehouse_id = ${putaway.warehouse_id} and location_id is null
+            and product_id = ${line.product_id} and serial_no is not null
+            and physical_qty > 0
+          order by updated_at, serial_no
+          limit ${quantity}
+        `;
+        if (available.length < quantity) {
+          throw new BadRequestException(
+            `Cannot put away ${quantity} of ${line.sku}: only ${available.length} unallocated serial-tracked ` +
+              `unit(s) are on hand for that product`,
+          );
+        }
+        serialNos.push(...available.map((r) => r.serial_no));
+      } else {
+        serialNos.push(null);
+      }
+
+      for (const serialNo of serialNos) {
+        const qty = line.serial_tracked ? 1 : quantity;
+        movements.push({
+          ...base,
+          txnType: 'TRANSFER_OUT',
+          locationId: null,
+          serialNo,
+          qtyOut: qty,
+        });
+        destinationFor.push({ lineId: line.id, movementIndex: movements.length });
+        movements.push({
+          ...base,
+          txnType: 'TRANSFER_IN',
+          locationId: line.to_location_id,
+          serialNo,
+          qtyIn: qty,
+        });
+      }
+    }
+
+    const result = await this.stock.postWithin(tx, actor, {
+      sourceType: 'putaway',
+      sourceId: putaway.id,
+      idempotencyKey: `putaway:${putaway.id}:complete`,
+      movements,
+    });
+    if (!result.posted) return;
+
+    // One line may hold several serial lots; they all belong to the same
+    // destination bin, so the first is the one worth recording.
+    const recorded = new Set<string>();
+    for (const { lineId, movementIndex } of destinationFor) {
+      if (recorded.has(lineId)) continue;
+      recorded.add(lineId);
+      await tx`
+        update putaway_lines set stock_lot_id = ${result.lotIds[movementIndex]}
+        where id = ${lineId} and tenant_id = ${actor.tenantId}
+      `;
+    }
   }
 
   cancel(actor: AuthenticatedUser, id: string, ipAddress?: string) {
