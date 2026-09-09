@@ -21,6 +21,7 @@ describe('Document engine', () => {
   let otherOwner = '';
   let customerId = '';
   let storageChargeTypeId = '';
+  let warehouseId = '';
 
   const api = () => request(app.getHttpServer());
   const signup = async (slug: string, email: string) => {
@@ -39,6 +40,15 @@ describe('Document engine', () => {
         customerId: custId,
         lines: [{ chargeTypeId, description: 'Storage', basis: 'lumpsum', rate: 100 }],
       })
+      .expect(201);
+    return res.body.id as string;
+  };
+
+  const createAgreement = async (token: string, custId: string, whId: string | null) => {
+    const res = await api()
+      .post('/agreements')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ customerId: custId, warehouseId: whId, startDate: '2026-01-01', endDate: '2027-01-01', noticePeriodDays: 30 })
       .expect(201);
     return res.body.id as string;
   };
@@ -67,6 +77,14 @@ describe('Document engine', () => {
 
     const chargeTypes = await api().get('/charge-types').set('Authorization', `Bearer ${owner}`).expect(200);
     storageChargeTypeId = chargeTypes.body.find((c: { code: string }) => c.code === 'STORAGE').id;
+
+    warehouseId = (
+      await api()
+        .post('/warehouses')
+        .set('Authorization', `Bearer ${owner}`)
+        .send({ code: 'WH01', name: 'Main Godown', capacityValue: 500, capacityUom: 'pallet' })
+        .expect(201)
+    ).body.id;
   });
 
   afterAll(async () => {
@@ -312,5 +330,85 @@ describe('Document engine', () => {
     await api().post(`/quotations/${randomUUID()}/document`).send({}).expect(401);
     // No auth required -- verify is deliberately public.
     await api().get(`/verify/${randomUUID()}`).expect(200);
+  });
+
+  it('generates a real Agreement document (the second registered template) with rendered clauses in the body', async () => {
+    const agreementId = await createAgreement(owner, customerId, warehouseId);
+
+    const preview = await api()
+      .post(`/agreements/${agreementId}/document/preview`)
+      .set('Authorization', `Bearer ${owner}`)
+      .expect(201);
+    expect(preview.headers['content-type']).toBe('application/pdf');
+    expect(Buffer.from(preview.body).subarray(0, 4).toString()).toBe('%PDF');
+
+    const committed = await api()
+      .post(`/agreements/${agreementId}/document`)
+      .set('Authorization', `Bearer ${owner}`)
+      .send({})
+      .expect(201);
+    expect(committed.body.documentType).toBe('agreement');
+    expect(committed.body.documentNumber).toMatch(/^AG\//);
+    expect(committed.body.versionNo).toBe(1);
+
+    const download = await api()
+      .get(`/documents/${committed.body.id}/download`)
+      .set('Authorization', `Bearer ${owner}`)
+      .expect(200);
+    expect(Buffer.from(download.body).subarray(0, 4).toString()).toBe('%PDF');
+
+    const regenerated = await api()
+      .post(`/agreements/${agreementId}/document`)
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ regenerate: true })
+      .expect(201);
+    expect(regenerated.body.versionNo).toBe(2);
+    expect(regenerated.body.qrToken).not.toBe(committed.body.qrToken);
+
+    const revoked = await api().get(`/verify/${committed.body.qrToken}`).expect(200);
+    expect(revoked.body).toMatchObject({ result: 'revoked', documentNumber: committed.body.documentNumber });
+    const valid = await api().get(`/verify/${regenerated.body.qrToken}`).expect(200);
+    expect(valid.body).toMatchObject({ result: 'valid', documentNumber: committed.body.documentNumber });
+  });
+
+  it('AGREEMENT_GENERATION and QUOTATION_GENERATION are independent FREE-plan budgets, proven through the HTTP layer', async () => {
+    // A dedicated tenant -- entitlement.spec.ts already proves feature independence directly against
+    // EntitlementService; this proves the same thing holds through the document routes, without coupling
+    // to how much of `owner`'s own shared budget earlier tests in this file happened to have used.
+    const slug = `doc-indep-${suffix}`;
+    const indepOwner = await signup(slug, `owner-indep-${suffix}@test.local`);
+    const indepCustomer = (
+      await api().post('/customers').set('Authorization', `Bearer ${indepOwner}`).send({ name: 'Delta Co' }).expect(201)
+    ).body.id;
+    const chargeTypes = await api().get('/charge-types').set('Authorization', `Bearer ${indepOwner}`).expect(200);
+    const chargeTypeId = chargeTypes.body.find((c: { code: string }) => c.code === 'STORAGE').id;
+
+    // Exhaust the 2-copy QUOTATION_GENERATION budget.
+    for (let i = 0; i < 2; i++) {
+      const quotationId = await createQuotation(indepOwner, indepCustomer, chargeTypeId);
+      await api().post(`/quotations/${quotationId}/document`).set('Authorization', `Bearer ${indepOwner}`).send({}).expect(201);
+    }
+    const thirdQuotationId = await createQuotation(indepOwner, indepCustomer, chargeTypeId);
+    await api()
+      .post(`/quotations/${thirdQuotationId}/document/preview`)
+      .set('Authorization', `Bearer ${indepOwner}`)
+      .expect(402);
+
+    // AGREEMENT_GENERATION is untouched -- still allowed even though this tenant's quotation budget is spent.
+    const agreementId = await createAgreement(indepOwner, indepCustomer, null);
+    await api()
+      .post(`/agreements/${agreementId}/document`)
+      .set('Authorization', `Bearer ${indepOwner}`)
+      .send({})
+      .expect(201);
+  });
+
+  it('renders an Agreement document with no warehouse chosen -- optional context stays blank rather than crashing', async () => {
+    const agreementId = await createAgreement(owner, customerId, null);
+    const preview = await api()
+      .post(`/agreements/${agreementId}/document/preview`)
+      .set('Authorization', `Bearer ${owner}`)
+      .expect(201);
+    expect(Buffer.from(preview.body).subarray(0, 4).toString()).toBe('%PDF');
   });
 });

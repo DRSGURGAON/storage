@@ -298,26 +298,41 @@ implemented rather than reopened), the shared A4 design system
 (regenerate → new version, old version's QR resolves `revoked`), and the
 `AttachmentStorage` interface with `LocalFilesystemAttachmentStorage` as
 its only implementation so far (`DECISIONS.md` §24 again, against this
-repo's own S3-signed-URL note). Proven against exactly one registered
-template, `QuotationDocumentTemplate` — Agreement's own template is not
-built yet, so `generateDocument()` does not yet work "for Quotation and
-Agreement" as this phase's deliverable below still asks; that is this
-phase's one remaining slice before Phase 3 can be called closed. Two
-real bugs surfaced building this, both in DECISIONS.md: §25 (`documents`
-needed the same self-lookup RLS policy as `tenant_users` — §17 — since
-the public verify endpoint has no tenant context to filter by until the
-row itself is found) and §26 (`puppeteer-core`'s ESM-only build breaks
-under Jest's own module loader even though it runs fine under plain
-Node 22; fixed with a `new Function`-hidden dynamic `import()` that
-TypeScript's `commonjs` downlevel can't rewrite back into a `require()`,
-plus running the test scripts with `NODE_OPTIONS=--experimental-vm-modules`
-so Jest's own VM sandbox actually services that `import()` instead of
-rejecting it).
-The exit check below (FREE-plan paywall on `QUOTATION_GENERATION`) is
-proven in `documents.spec.ts`, including preview and commit both
+repo's own S3-signed-URL note). Two real bugs surfaced building the
+engine itself, both in DECISIONS.md: §25 (`documents` needed the same
+self-lookup RLS policy as `tenant_users` — §17 — since the public verify
+endpoint has no tenant context to filter by until the row itself is
+found) and §26 (`puppeteer-core`'s ESM-only build breaks under Jest's
+own module loader even though it runs fine under plain Node 22; fixed
+with a `new Function`-hidden dynamic `import()` that TypeScript's
+`commonjs` downlevel can't rewrite back into a `require()`, plus running
+the test scripts with `NODE_OPTIONS=--experimental-vm-modules` so Jest's
+own VM sandbox actually services that `import()` instead of rejecting
+it). The exit check below (FREE-plan paywall on `QUOTATION_GENERATION`)
+is proven in `documents.spec.ts`, including preview and commit both
 blocking before any PDF is built, and idempotent-retry-produces-one-
 document is proven directly against the same source record across
 multiple retries.
+
+**Both document types now registered**: `AgreementDocumentTemplate`
+followed the same shape as `QuotationDocumentTemplate` — one more
+constructor argument on `DocumentTemplateRegistry`, no change to
+`DocumentEngineService` itself, exactly as document-engine.md §2
+promises ("adding one template + one data-loader function, not a new
+rendering pipeline"). Unlike Quotation, Agreement has no frozen
+`customer_snapshot` of its own; its already-placeholder-resolved
+`rendered_clauses` (computed by `AgreementsService` on every `draft`
+edit, left untouched once submitted) serve the same "immutable at
+generation time" role, so the template renders each clause as its own
+titled section rather than duplicating customer/company identity into a
+separate party card — a contract's body *is* its clauses. `AGREEMENT_GENERATION`
+is a separate FREE-plan budget from `QUOTATION_GENERATION`
+(`documents.spec.ts` proves this through the HTTP layer, not just
+directly against `EntitlementService` as `entitlement.spec.ts` already
+did). `generateDocument()` now genuinely works "for Quotation and
+Agreement" — Phase 3's deliverable below is met, and the phase is
+closed. No new bugs surfaced building this slice; it reused the
+document engine's existing mechanics unchanged.
 
 - Schema: `schema/20_commercial.sql`, plus `documents` /
   `document_verifications` from `schema/70_documents_governance.sql` (build

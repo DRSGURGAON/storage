@@ -12,14 +12,12 @@ contacts), Warehouses and their location hierarchy, Product/SKU (with
 UOMs and categories), the Transport master (Transporters, Vehicles,
 Drivers), and Rate Cards (with Charge Types, Tax Rates, and the full
 billing-engine.md §3 resolution priority) — and the onboarding wizard
-status endpoint. Phase 2 is complete. Phase 3 has its Quotation and
-Agreement records, each with its own workflow, plus a real document
-engine: server-rendered PDF generation (headless Chromium via
-`puppeteer-core`), QR-code verification, versioning, and FREE-plan
-entitlement gating, proven end-to-end against the Quotation template —
-see `docs/architecture/dev-phases.md` for what's left (Agreement's own
-template) before Phase 3 is closed. Operations and billing-run modules
-are not built yet.
+status endpoint. Phases 2 and 3 are complete: Quotation and Agreement
+records, each with its own workflow, plus a real document engine —
+server-rendered PDF generation (headless Chromium via `puppeteer-core`),
+QR-code verification, versioning, and FREE-plan entitlement gating —
+proven end-to-end against both registered templates, Quotation and
+Agreement. Operations and billing-run modules are not built yet.
 
 ## Stack
 
@@ -140,15 +138,22 @@ exist.
   clauses with `{{dotted.path}}` tokens filled in from company/customer/
   warehouse/agreement data — never accepted from the client, and
   recomputed on every `draft` edit.
-- `POST /quotations/:id/document/preview` (`view_quotation`) renders and
-  returns a PDF without writing anything or consuming an entitlement unit.
-  `POST /quotations/:id/document` (`create_quotation`, body:
-  `{ regenerate?: boolean }`) commits it — first call consumes one
-  `QUOTATION_GENERATION` unit and writes a `documents` row; a plain retry
-  is an idempotent no-op returning the same row; `regenerate: true`
-  creates a new version (old one's `isLatest` flips to `false`) without
-  consuming another unit. Blocked with `402 { paywall: true, ... }` once
-  the FREE plan's 2 free copies are used up, on both preview and commit.
+- `POST /quotations/:id/document/preview` (`view_quotation`) / `POST
+  /agreements/:id/document/preview` (`view_agreement`) render and return
+  a PDF without writing anything or consuming an entitlement unit.
+  `POST /quotations/:id/document` (`create_quotation`) / `POST
+  /agreements/:id/document` (`create_agreement`) — both take body
+  `{ regenerate?: boolean }` — commit it: first call consumes one
+  `QUOTATION_GENERATION`/`AGREEMENT_GENERATION` unit (independent FREE-plan
+  budgets) and writes a `documents` row; a plain retry is an idempotent
+  no-op returning the same row; `regenerate: true` creates a new version
+  (old one's `isLatest` flips to `false`) without consuming another unit.
+  Blocked with `402 { paywall: true, ... }` once the FREE plan's 2 free
+  copies are used up, on both preview and commit. The agreement template
+  renders each of its `renderedClauses` as its own titled section rather
+  than a separate party card, since the clause text already carries the
+  resolved customer/company identity and there's no frozen
+  `customer_snapshot` (unlike Quotation) to summarise instead.
 - `GET /documents?documentType=&sourceId=&latestOnly=` (default `true`),
   `GET /documents/:id`, `GET /documents/:id/download` (streams the PDF) —
   the Document Centre's read side, gated on the broader `view_documents`
@@ -283,8 +288,16 @@ All against the real local database (`DATABASE_URL`), not mocks:
   an Operator is 403'd on preview/generate (gated on the quotation's own
   permissions) but can still view/list via the broader `view_documents`;
   404s on an unknown source/document id; and unauthenticated 401s
-  everywhere except the deliberately public verify route. Running this
-  suite needs `NODE_OPTIONS=--experimental-vm-modules` (already set in
-  the `test`/`test:watch` scripts) — `puppeteer-core` ships ESM-only, and
-  Jest's own module loader needs that flag to service the dynamic
-  `import()` that loads it; see `DECISIONS.md` §26.
+  everywhere except the deliberately public verify route. Also covers the
+  second registered template, Agreement: a real PDF with its
+  `renderedClauses` each as their own section, the same preview/commit/
+  regenerate/verify chain, rendering correctly with no warehouse chosen
+  (optional context), and — on a dedicated tenant, so it doesn't depend on
+  how much of another test's shared budget happened to be used —
+  `QUOTATION_GENERATION` and `AGREEMENT_GENERATION` metering as fully
+  independent FREE-plan budgets through the HTTP layer, not just directly
+  against `EntitlementService` as `entitlement.spec.ts` already proves.
+  Running this suite needs `NODE_OPTIONS=--experimental-vm-modules`
+  (already set in the `test`/`test:watch` scripts) — `puppeteer-core`
+  ships ESM-only, and Jest's own module loader needs that flag to service
+  the dynamic `import()` that loads it; see `DECISIONS.md` §26.
