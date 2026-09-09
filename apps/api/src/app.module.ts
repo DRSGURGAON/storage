@@ -16,9 +16,11 @@ import { InwardsModule } from './inwards/inwards.module';
 import { NumberingModule } from './numbering/numbering.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { ProductsModule } from './products/products.module';
+import { PutawaysModule } from './putaways/putaways.module';
 import { QuotationsModule } from './quotations/quotations.module';
 import { TransportModule } from './transport/transport.module';
 import { UsersModule } from './users/users.module';
+import { WarehouseReceiptsModule } from './warehouse-receipts/warehouse-receipts.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
 
 @Module({
@@ -45,6 +47,8 @@ import { WarehousesModule } from './warehouses/warehouses.module';
     GrnsModule,
     InspectionsModule,
     DiscrepancyReportsModule,
+    PutawaysModule,
+    WarehouseReceiptsModule,
   ],
   controllers: [HealthController],
 })

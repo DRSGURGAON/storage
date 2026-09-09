@@ -10,16 +10,33 @@ import type { Browser } from 'puppeteer-core';
  * fine via Node 22's own require(esm) interop, but which Jest's
  * independent CJS module loader (jest-runtime, not plain Node `require`)
  * cannot: it throws "Cannot use import statement outside a module" the
- * instant any test imports this file's module graph. Routing the load
- * through `new Function(...)` hides the `import()` from TypeScript's
- * commonjs downlevel (which would otherwise rewrite it back into the same
- * problematic `require()`), so it survives to runtime as a literal dynamic
- * `import()` -- something both plain Node and Jest's test VM can execute
- * directly against the real, unmocked package.
+ * instant any test imports this file's module graph. So the load has to
+ * reach runtime as a literal dynamic `import()`, hidden from TypeScript's
+ * commonjs downlevel (which would otherwise rewrite it straight back into
+ * that same `require()`), and it has to be a *direct* `eval` to do it.
+ *
+ * `new Function('return import("puppeteer-core")')` hides it just as well
+ * and was the first thing tried, but it is subtly wrong under Jest. V8
+ * gives a `new Function` body the *default* host-defined options, so Node
+ * resolves its `import()` through the process-wide default callback --
+ * and Jest registers that callback once, from whichever test environment
+ * happened to be created first. Every later spec file therefore imported
+ * against a torn-down environment: the second spec to render a PDF failed
+ * with "Test environment has been torn down", however the function was
+ * constructed (DECISIONS.md §30). A direct `eval` instead inherits the
+ * host-defined options of the script that calls it -- this module, as
+ * compiled by the *live* runtime -- so the import always resolves against
+ * the environment actually running. Plain Node treats both forms alike.
+ *
+ * Two other routes are dead ends worth naming: a static
+ * `await import(...)` is what tsc rewrites, and `createRequire` does not
+ * escape Jest either -- Jest patches `node:module` so the require handle
+ * it hands back is jest-runtime's own, which refuses ESM outright.
  */
-const importPuppeteerCore = new Function('return import("puppeteer-core")') as () => Promise<
-  typeof import('puppeteer-core')
->;
+function loadPuppeteerCore(): Promise<typeof import('puppeteer-core')> {
+  // eslint-disable-next-line no-eval
+  return eval('import("puppeteer-core")') as Promise<typeof import('puppeteer-core')>;
+}
 
 /**
  * DECISIONS.md §0 / §24: headless Chromium via Puppeteer, driven with
@@ -37,7 +54,7 @@ export class PdfRendererService implements OnModuleDestroy {
   private async getBrowser(): Promise<Browser> {
     if (!this.browserPromise) {
       const executablePath = this.config.get<string>('PUPPETEER_CHROMIUM_EXECUTABLE');
-      this.browserPromise = importPuppeteerCore().then(({ default: puppeteer }) =>
+      this.browserPromise = loadPuppeteerCore().then(({ default: puppeteer }) =>
         puppeteer.launch({
           executablePath: executablePath || undefined,
           args: ['--no-sandbox'],

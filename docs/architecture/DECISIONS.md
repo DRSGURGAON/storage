@@ -785,3 +785,65 @@ same spirit as §24's `LocalFilesystemAttachmentStorage` gap, so a real
 Supplier master — if one turns out to be needed — is a deliberate future
 decision, not something rediscovered as "why does this column go
 nowhere."
+
+## §30 — §26's `new Function` import shim resolved `import()` through Node's *process-wide* default callback, so every spec after the first to render a PDF failed
+
+Phase 4's last increment pushed the number of spec files that render a
+real PDF from two to five, and the full suite started failing two
+`putaways.spec.ts` tests with `500`s whose server log read
+`Error: Test environment has been torn down`, thrown from inside
+§26's dynamic `import("puppeteer-core")`. Run on its own,
+`putaways.spec.ts` passed every time — only the whole-suite run failed,
+and only for the specs that happened to render *after* the first one.
+
+The cause is in §26's own shim, not in anything Phase 4 added:
+
+```ts
+const importPuppeteerCore = new Function('return import("puppeteer-core")') as ...;
+```
+
+V8 gives a `new Function` body the **default** host-defined options, so
+Node resolves its `import()` through the process-wide default dynamic
+import callback rather than through the calling script's own. Jest
+registers that default callback once, from whichever test environment
+happens to be created first, and then gives **each test file** its own
+environment which it tears down when that file finishes. So the first
+spec to render a PDF fixed the callback to its own environment, and
+every later spec's import resolved against an environment Jest had
+since destroyed.
+
+The first fix attempted was to move the `new Function` construction
+inside the call, on the theory that the stale binding came from
+*hoisting*. It does not: the identical failure reproduced with the
+function built fresh per call, because the default host-defined options
+are a property of how `new Function` compiles, not of when. Worth
+recording, because the hoisting explanation is the plausible one and it
+is wrong.
+
+`createRequire` is the other obvious escape and is also a dead end: Jest
+patches `node:module`, so the require handle it hands back is
+jest-runtime's own, which refuses ESM outright
+(`Must use import to load ES Module`).
+
+What works is a **direct** `eval`:
+
+```ts
+function loadPuppeteerCore(): Promise<typeof import('puppeteer-core')> {
+  return eval('import("puppeteer-core")') as Promise<typeof import('puppeteer-core')>;
+}
+```
+
+A direct `eval` inherits the host-defined options of the script that
+calls it — this module, as compiled by the runtime that is *live* — so
+the import always resolves against the environment actually running.
+It still hides the `import()` from TypeScript's commonjs downlevel,
+which is what §26 needed in the first place, and plain Node treats the
+two forms alike, so the running server is unaffected either way.
+
+Before this increment the bug was invisible for a reason worth
+recording: with only `documents.spec.ts` rendering PDFs, there was
+never a *second* consumer to hit the stale callback. It became
+reachable the moment a second spec file rendered one — which is to say
+it was latent from §26 onward and surfaced by ordinary growth, not by
+anything the new code did wrong. Verified the way the failure was
+found: the whole suite green, not just the one spec in isolation.

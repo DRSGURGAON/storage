@@ -5,7 +5,9 @@ import { DiscrepancyDocumentTemplate } from './templates/discrepancy-document.te
 import { GateEntryDocumentTemplate } from './templates/gate-entry-document.template';
 import { GrnDocumentTemplate } from './templates/grn-document.template';
 import { InwardDocumentTemplate } from './templates/inward-document.template';
+import { PutawayDocumentTemplate } from './templates/putaway-document.template';
 import { QuotationDocumentTemplate } from './templates/quotation-document.template';
+import { WarehouseReceiptDocumentTemplate } from './templates/warehouse-receipt-document.template';
 
 /**
  * document-engine.md §2: "Adding a new document type later means adding
@@ -24,6 +26,8 @@ export class DocumentTemplateRegistry {
     inwardTemplate: InwardDocumentTemplate,
     grnTemplate: GrnDocumentTemplate,
     discrepancyTemplate: DiscrepancyDocumentTemplate,
+    putawayTemplate: PutawayDocumentTemplate,
+    warehouseReceiptTemplate: WarehouseReceiptDocumentTemplate,
   ) {
     this.templates.set(quotationTemplate.documentType, quotationTemplate);
     this.templates.set(agreementTemplate.documentType, agreementTemplate);
@@ -31,6 +35,8 @@ export class DocumentTemplateRegistry {
     this.templates.set(inwardTemplate.documentType, inwardTemplate);
     this.templates.set(grnTemplate.documentType, grnTemplate);
     this.templates.set(discrepancyTemplate.documentType, discrepancyTemplate);
+    this.templates.set(putawayTemplate.documentType, putawayTemplate);
+    this.templates.set(warehouseReceiptTemplate.documentType, warehouseReceiptTemplate);
   }
 
   get(documentType: string): DocumentTemplate {

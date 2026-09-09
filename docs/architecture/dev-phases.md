@@ -426,6 +426,65 @@ lines below it in the same file — caught by curling the documented
 gate-entry-only use case before writing the automated test for it, the
 same discipline that has caught every prior DTO/service mismatch here.
 
+**GRN landed** (`apps/api/src/grns/`): `grns` + `grn_items` +
+`grn_item_serials`, `GRN/{fy}/{seq:6}` numbering, and §18's
+Draft → Submitted → Checked → Approved (or Rejected) machine. §50's
+approval engine names the split explicitly — "GRN: Operator → Manager" —
+so create/edit/submit/cancel ride `create_grn` while check/approve/
+reject ride `approve_grn`, which permissions-matrix.md withholds from
+Warehouse Operator. "Auto-fill from Inward" covers header *and* items:
+an `inwardId` copies the transport/LR/invoice/e-way/PO block and turns
+each `inward_item` into a `grn_item` (keeping `inward_item_id` as the
+trace back), requires the inward to be `'received'`, and flips it to
+`'grn_created'`. `short_qty`/`excess_qty` are the schema's own generated
+columns and `has_discrepancy` is derived from them plus `damaged_qty`
+after the lines land — never client-supplied — which is what §19's
+"Create Discrepancy Report" triggers on.
+
+**Inspection and Discrepancy Report landed**
+(`apps/api/src/inspections/`, `apps/api/src/discrepancy-reports/`).
+Inspection (§20) is deliberately "basic inspection support... not a
+specialized pharma/food QA system in V1": one flat record, per-line
+packaging/seal condition and accept/reject, `overall_result` derived
+(all accepted → `accepted`, none → `rejected`, a mix →
+`partially_accepted`), inspector defaulted to the acting user. It is
+the one Phase 4 record with **no document type** — `INSPECTION` is in
+neither the metered feature catalogue nor `document-engine.md` §2's
+list, so it is an internal record, not something a customer is handed;
+it still gets an `INS/{fy}/{seq:6}` number, since numbering keys off its
+own prefix table rather than the entitlement catalogue. Discrepancy
+Report (§19) copies exactly a GRN's *discrepant* lines (short, excess,
+or damaged), refuses a GRN with nothing wrong rather than producing an
+empty report, can also be raised standalone for damage found later, and
+records §19's two acknowledgements — warehouse side as the acting user,
+driver side as a typed name, since a driver has no login.
+
+**Put-away and Warehouse Receipt landed** (`apps/api/src/putaways/`,
+`apps/api/src/warehouse-receipts/`), closing the phase. A put-away
+(§21) requires an approved GRN, defaults each line's quantity to that
+GRN line's accepted quantity, validates the chosen location belongs to
+the GRN's own warehouse and is active, and allows one receipt line to
+be split across several locations — but never more than was accepted.
+`putaways.grn_id` is unique, so a second slip for the same GRN is a
+409. Completion confirms every line and records who and when.
+A warehouse receipt (§22) issues from an approved GRN, folds in the
+put-away's confirmed locations when one exists, and freezes both
+`customer_snapshot` and `lines` as jsonb at issue time — the same
+"never changes retroactively" discipline as Quotation's own snapshot.
+§22's labelling requirement is treated as the legal boundary it is:
+the document is titled *Warehouse Receipt (Operational)* and carries a
+disclaimer stating it is **not** a negotiable warehouse receipt, not a
+document of title, and may not be pledged as security.
+
+**Stock still does not move.** Every place Phase 4 could have faked it,
+it does not: GRN `approve()` leaves `stock_posted_at` null,
+`putaway_lines.stock_lot_id` stays null, `grn_items.batch_id` is never
+resolved, and GRN's `'reversed'` status has no transition — a
+controlled reversal (§50) exists to undo a posting, and there is no
+posting to undo yet. Phase 5's stock engine owns all four, and each is
+commented as such at the point where it would otherwise be tempting to
+write a stub.
+
 - Schema: `schema/30_inbound.sql`.
 - Docs: `workflow-and-statuses.md` (GRN status machine, auto-fill chain
   Gate Entry→Inward→GRN), `document-engine.md` (six new document types).

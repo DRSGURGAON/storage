@@ -12,14 +12,21 @@ contacts), Warehouses and their location hierarchy, Product/SKU (with
 UOMs and categories), the Transport master (Transporters, Vehicles,
 Drivers), and Rate Cards (with Charge Types, Tax Rates, and the full
 billing-engine.md §3 resolution priority) — and the onboarding wizard
-status endpoint. Phases 2 and 3 are complete: Quotation and Agreement
-records, each with its own workflow, plus a real document engine —
-server-rendered PDF generation (headless Chromium via `puppeteer-core`),
-QR-code verification, versioning, and FREE-plan entitlement gating —
-proven end-to-end against four registered templates, Quotation,
-Agreement, and (Phase 4, in progress) Gate Entry and Inward, the latter
-with server-side auto-fill from a linked Gate Entry. The rest of
-Operations and the billing-run modules are not built yet.
+status endpoint. Phases 2, 3 and 4 are complete: Quotation and Agreement
+records, each with its own workflow; the whole inbound chain — Gate
+Entry → Inward → GRN (with §50's Operator → Manager approval split) →
+Inspection / Discrepancy Report → Put-away → Warehouse Receipt; and a
+real document engine — server-rendered PDF generation (headless Chromium
+via `puppeteer-core`), QR-code verification, versioning, and FREE-plan
+entitlement gating — proven end-to-end against **eight** registered
+templates: Quotation, Agreement, Gate Entry, Inward, GRN, Discrepancy
+Report, Put-away Slip, and Warehouse Receipt.
+
+**Phase 4 moves no stock**, deliberately: `grns.stock_posted_at`,
+`putaway_lines.stock_lot_id`, `grn_items.batch_id` and the GRN
+`'reversed'` status are all left unfilled for Phase 5's stock engine
+rather than faked here. The stock engine, Outward, and the billing-run
+modules are not built yet.
 
 ## Stack
 
@@ -197,6 +204,66 @@ exist.
   §29. Editable only while `status = 'draft'`; `receive` locks it in as
   the basis a GRN will be raised from, `cancel` works from either
   `'draft'` or `'received'` but not once a GRN exists.
+- `POST/GET/PATCH /grns[/:id]` plus the workflow actions
+  `POST /grns/:id/submit`, `/check`, `/approve`, `/reject` (body:
+  `{ reason }`), `/cancel`, and the same `document/preview` / `document`
+  pair (`documentType: 'grn'`, `featureCode: 'GRN'`). Creation, edit,
+  submit and cancel ride `create_grn`; **check, approve and reject ride
+  `approve_grn`** — that split is blueprint §50's "GRN: Operator →
+  Manager" approval rule, and it is the reason a Warehouse Operator can
+  raise and submit a GRN but not sign it off. Passing `inwardId` requires
+  that inward to be `'received'`, copies its header and maps every
+  `inward_items` row into a GRN item (each carrying `inwardItemId` back
+  to its origin), and flips the inward to `'grn_created'`.
+  `shortQty`/`excessQty` are derived server-side from expected vs.
+  received, and `hasDiscrepancy` is recomputed from the item rows on
+  every write. `accepted + rejected > received` is rejected as a readable
+  400 before the table's own check constraint fires, and `serialNos` are
+  refused on a product that isn't `serial_tracked`. `approve` deliberately
+  leaves `stock_posted_at` null — see the Phase 4 note above.
+- `POST/GET/PATCH /inspections[/:id]` plus `POST /inspections/:id/complete`
+  and `/cancel` (all on `create_inspection`). The inspector defaults to
+  the acting user's own name when the request omits one, and
+  `overallResult` is always derived from the line results
+  (`accepted` / `rejected` / `partially_accepted`), never accepted from
+  the client. This is the one Phase 4 record with **no document type** —
+  there are no `document` routes, by design.
+- `POST/GET/PATCH /discrepancy-reports[/:id]` plus
+  `POST /discrepancy-reports/:id/submit`, `/acknowledge` (body:
+  `{ driverAckName }`), `/close`, `/cancel`, and the same
+  `document/preview` / `document` pair (`documentType:
+  'discrepancy_report'`, `featureCode: 'DISCREPANCY_REPORT'`). All on
+  `create_discrepancy_report`. Passing `grnId` copies **only** the GRN's
+  discrepant lines (those with a short, excess, or damaged quantity) and
+  auto-fills customer/supplier from it; a GRN with `hasDiscrepancy: false`
+  is refused with a 400 rather than producing an empty report. `acknowledge`
+  stamps the warehouse acknowledgement (`warehouseAckBy`/`At`) server-side
+  from the acting user and takes only the driver's name from the body.
+- `POST/GET /putaways[/:id]` plus `POST /putaways/:id/start`, `/complete`
+  (`complete_putaway`, distinct from `create_putaway` which every other
+  route rides) and `/cancel`, and the same `document/preview` / `document`
+  pair (`documentType: 'putaway'`, `featureCode: 'PUTAWAY'`). Requires an
+  **approved** GRN, of which there can be exactly one put-away (a second
+  attempt 409s off the unique index, not a read-then-write race). Each
+  line defaults to its GRN item's `acceptedQty`, and may be split across
+  several locations so long as the per-`grn_item` total never exceeds
+  what was accepted; every location must belong to the GRN's own
+  warehouse and be active. `complete` stamps `confirmedAt`/`confirmedBy`
+  on every line and leaves `stockLotId` null — again, Phase 5's job.
+- `POST/GET /warehouse-receipts[/:id]` plus
+  `POST /warehouse-receipts/:id/cancel`, and the same `document/preview` /
+  `document` pair (`documentType: 'warehouse_receipt'`, `featureCode:
+  'WAREHOUSE_RECEIPT'`). All on `issue_warehouse_receipt` — the one
+  Operations permission a Warehouse Operator does not hold. Issued off an
+  approved GRN (one per GRN, 409 on a second), refused when no line
+  accepted anything, and freezes both `customerSnapshot` and a `lines`
+  jsonb built server-side — folding in the confirmed put-away locations
+  when a non-cancelled put-away exists, and issuing fine without one.
+  Per blueprint §22 the document is titled **"Warehouse Receipt
+  (Operational)"** and carries an explicit on-page disclaimer that it is
+  not a negotiable/WDRA receipt, not a document of title, and may not be
+  transferred, endorsed, or pledged — a legal boundary, not a wording
+  preference.
 
 `EntitlementService` (`src/entitlement/`) is wired into the document
 engine's `commitDocument()`/`previewDocument()` split — the first real
@@ -336,10 +403,16 @@ All against the real local database (`DATABASE_URL`), not mocks:
   And the fourth, Inward: a real PDF with a genuine product/batch/
   quantity line-item table, the same commit/regenerate/verify chain, and
   `INWARD` metering independently of all three other document features.
+  And the fifth, GRN: a real PDF whose face carries the full
+  expected/received/accepted/rejected/damaged/short/excess grid and the
+  discrepancy note, with the same commit/regenerate/verify chain.
   Running this suite needs `NODE_OPTIONS=--experimental-vm-modules`
   (already set in the `test`/`test:watch` scripts) — `puppeteer-core`
   ships ESM-only, and Jest's own module loader needs that flag to service
-  the dynamic `import()` that loads it; see `DECISIONS.md` §26.
+  the dynamic `import()` that loads it; see `DECISIONS.md` §26, and §30
+  for why that import has to be a *direct* `eval` rather than the
+  `new Function` shim §26 originally used (it silently bound every spec
+  after the first to a torn-down test environment).
 - `gate-entries/gate-entries.spec.ts` — an allocated `GE` number;
   selecting a vehicle auto-filling its linked transporter's id/name
   (and an explicitly-passed `transporterId` overriding that auto-fill);
@@ -364,3 +437,37 @@ All against the real local database (`DATABASE_URL`), not mocks:
   filtering by status/customer and free-text search across number and LR
   number; tenant isolation with an independently reusable `IN0001`; and
   a Billing Executive 403'd on both create and list.
+- `grns/grns.spec.ts` — auto-fill from a received inward with derived
+  short/excess and `hasDiscrepancy` (and the inward flipped to
+  `grn_created`), the no-discrepancy case, an inward that isn't received
+  refused, `accepted + rejected > received` rejected as a readable 400
+  *before* the check constraint fires, serial numbers refused on a
+  non-serial-tracked product and recorded on a tracked one, the full
+  Draft → Submitted → Checked → Approved walk with every skip-ahead
+  rejected **and `stockPostedAt` asserted still null**, reject/cancel,
+  §50's Operator → Manager split proven directly (an Operator creates and
+  submits, then gets 403 on check/approve/reject), list filter/search,
+  tenant isolation with an independent `GRN0001`, and 401s.
+- `discrepancy-reports/discrepancy-reports.spec.ts` — covers both records
+  that share the slice: a report copying **only** a GRN's discrepant
+  lines, a clean GRN refused, a standalone report with no GRN at all, the
+  draft → submitted → acknowledged → closed walk with both
+  acknowledgements recorded, cancel/filter/isolation, and the sixth
+  registered template rendered as a real PDF. Then inspections: created
+  off a GRN with the inspector defaulting to the acting user and
+  `overallResult` derived, completion locking further edits, cancellation,
+  an explicit assertion that **no document routes exist** for inspections,
+  and each record gated on its own seeded permission plus 401s.
+- `putaways/putaways.spec.ts` — a put-away defaulting each line to its
+  GRN item's accepted quantity; an unapproved GRN, a location in another
+  warehouse, and an over-accepted quantity each refused; one GRN line
+  split across several locations while a second put-away for the same GRN
+  409s; the pending → in_progress → completed walk with `complete` gated
+  on its own `complete_putaway` permission; and the seventh registered
+  template as a real PDF. Then warehouse receipts: issued off an approved
+  GRN with frozen customer/line snapshots that fold in the confirmed
+  put-away locations, issued fine with no put-away at all, an unapproved
+  GRN and a GRN that accepted nothing both refused, the eighth registered
+  template plus cancellation, an Operator able to run a put-away
+  end-to-end but 403'd on `issue_warehouse_receipt`, and tenant isolation
+  with 401s.

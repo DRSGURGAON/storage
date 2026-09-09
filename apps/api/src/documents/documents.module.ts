@@ -12,7 +12,9 @@ import { DiscrepancyDocumentTemplate } from './templates/discrepancy-document.te
 import { GateEntryDocumentTemplate } from './templates/gate-entry-document.template';
 import { GrnDocumentTemplate } from './templates/grn-document.template';
 import { InwardDocumentTemplate } from './templates/inward-document.template';
+import { PutawayDocumentTemplate } from './templates/putaway-document.template';
 import { QuotationDocumentTemplate } from './templates/quotation-document.template';
+import { WarehouseReceiptDocumentTemplate } from './templates/warehouse-receipt-document.template';
 import { VerifyController, VerifyService } from './verify.controller';
 
 @Module({
@@ -29,6 +31,8 @@ import { VerifyController, VerifyService } from './verify.controller';
     InwardDocumentTemplate,
     GrnDocumentTemplate,
     DiscrepancyDocumentTemplate,
+    PutawayDocumentTemplate,
+    WarehouseReceiptDocumentTemplate,
     VerifyService,
   ],
   exports: [DocumentEngineService],

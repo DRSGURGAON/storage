@@ -51,35 +51,39 @@ audit-logged reason (§49, §51).
 > `AttachmentStorage` interface with `LocalFilesystemAttachmentStorage` as
 > the only implementation so far — `DECISIONS.md` §24 records the gap
 > against this repo's own S3-signed-URL note and the proxy-endpoint
-> fallback `tenancy-and-security.md` already sanctions. Four templates
-> are registered so far: `QuotationDocumentTemplate` (`documentType:
-> 'quotation'`, `featureCode: 'QUOTATION_GENERATION'`),
-> `AgreementDocumentTemplate` (`documentType: 'agreement'`, `featureCode:
-> 'AGREEMENT_GENERATION'`) — which renders each of an agreement's
-> already-resolved `rendered_clauses` as its own titled section rather
-> than a separate party card, since (unlike Quotation) there is no
-> frozen `customer_snapshot` to summarise and the clause text itself
-> already carries the resolved customer/company identity —
-> `GateEntryDocumentTemplate` (`documentType: 'gate_entry'`,
-> `featureCode: 'GATE_ENTRY'`), the first with no line items or clauses
-> at all, just two summary blocks (proving the shared design system
-> degrades gracefully to a genuinely simple document, not only ones with
-> tables or long text) — and `InwardDocumentTemplate` (`documentType:
-> 'inward'`, `featureCode: 'INWARD'`), the first goods-receipt-shaped
-> document: a real product/batch/quantity line-item table with no money
-> anywhere on the page, proving §3's shared table primitive isn't
-> Quotation-specific. Adding the next `documentType` from §2's list
-> means one more `DocumentTemplate` implementation plus one more
-> constructor argument to `DocumentTemplateRegistry`, not a new pipeline
-> — proven four times over now, not just asserted. Proven end-to-end in
+> fallback `tenancy-and-security.md` already sanctions. Eight templates
+> are registered so far — Quotation, Agreement, and Phase 4's whole
+> inbound chain (Gate Entry, Inward, GRN, Discrepancy Report, Put-away,
+> Warehouse Receipt):
+>
+> | `documentType` | `featureCode` | Shape |
+> |---|---|---|
+> | `quotation` | `QUOTATION_GENERATION` | Party block, priced line items, totals |
+> | `agreement` | `AGREEMENT_GENERATION` | Each already-resolved `rendered_clause` as its own titled section — no party card, since (unlike Quotation) there is no frozen `customer_snapshot` and the clause text already carries the resolved identity |
+> | `gate_entry` | `GATE_ENTRY` | No line items or clauses at all, just two summary blocks |
+> | `inward` | `INWARD` | Product/batch/quantity table, no money anywhere |
+> | `grn` | `GRN_GENERATION` | Expected/received/accepted/rejected/short/excess columns, plus a discrepancy note on its face when the receipt does not tally |
+> | `discrepancy_report` | `DISCREPANCY_REPORT` | Discrepant lines with both §19 acknowledgement lines |
+> | `putaway` | `PUTAWAY` | Location codes with a confirmation checkbox — a sheet an operator carries |
+> | `warehouse_receipt` | `WAREHOUSE_RECEIPT` | Frozen jsonb lines with locations, plus §22's mandatory "operational, not negotiable" disclaimer |
+>
+> Between them these cover every §3 primitive: the party block, the
+> line-item table, totals, and the plain-prose section — and the two
+> extremes (Gate Entry with no table at all, Quotation with a priced
+> one) prove the shared design system degrades and scales without a
+> per-document bespoke layout. Adding the next `documentType` from §2's
+> list means one more `DocumentTemplate` implementation plus one more
+> constructor argument to `DocumentTemplateRegistry`, not a new
+> pipeline — proven eight times over now, not just asserted. Proven end-to-end in
 > `documents.spec.ts`: preview vs. commit, idempotent retry, regenerate
 > producing a new version with the old one's QR resolving `revoked`
 > through the public verify endpoint (§4, below), cross-tenant isolation,
 > permission gating, the FREE-plan 2-copy paywall on both preview and
-> commit, and `QUOTATION_GENERATION`/`AGREEMENT_GENERATION`/`GATE_ENTRY`/
-> `INWARD`
-> metering independently
-> through the HTTP layer.
+> commit, and per-feature metering independence through the HTTP layer
+> (proven on separate tenants for `QUOTATION_GENERATION`,
+> `AGREEMENT_GENERATION`, `GATE_ENTRY` and `INWARD`; templates
+> registered after that assert their own rendering and versioning
+> rather than repeating the same proof).
 
 ## 2. Supported `documentType` values
 
