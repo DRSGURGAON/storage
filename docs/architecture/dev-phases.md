@@ -392,6 +392,40 @@ entry time re-sends the value `update()` just selected). Fixed in
 `gate-entries.service.ts` only, with the reasoning for not chasing the
 same mistyping across every other module recorded in §27 itself.
 
+**Inward record landed** (`apps/api/src/inwards/`): `inwards` +
+`inward_items`, `IN/{fy}/{seq:6}` numbering, and the
+Draft → Received/Cancelled workflow from blueprint §17
+(`'grn_created'` is set by GRN's own increment, not this one — the same
+deferral shape as Gate Entry's `'linked'`). "If a Gate Entry already
+exists, selecting it must auto-fill its available data" is resolved
+server-side: passing `gateEntryId` auto-fills `customerId` and the
+vehicle/driver/transporter fields from that gate entry (an explicit
+value on the request still wins), validates the gate entry is `'open'`
+before allowing the link, and flips it to `'linked'` as a side effect
+in the same transaction — proven directly (a gate-entry-only Inward
+correctly inherits the vehicle's own transporter, and the gate entry
+really does read back as `'linked'` afterward), not merely implemented
+per the blueprint's prose. Each line's `product_snapshot` is built
+server-side from the product master at creation time (sku/name/hsn/uom/
+weight), the same "freeze at creation" discipline as Quotation's
+`customer_snapshot`. `InwardDocumentTemplate` is the fourth template
+registered on the document engine (`documentType: 'inward'`,
+`featureCode: 'INWARD'`) — the first with a genuine product/batch/
+quantity table, proving the shared design system's line-item table
+isn't Quotation-specific. `supplierId`/`supplierName` are deliberately
+optional-and-independent rather than backed by a real Supplier master —
+DECISIONS.md §29 records why building one now would mean inventing
+permission codes `permissions-matrix.md` never specifies, which this
+project's discipline treats as out of bounds for a single increment to
+decide unilaterally.
+
+One real bug, DECISIONS.md §28: `CreateInwardDto.customerId` was still
+declared required, contradicting `InwardsService.create()`'s own
+"required directly, or via a gate entry that has one" fallback three
+lines below it in the same file — caught by curling the documented
+gate-entry-only use case before writing the automated test for it, the
+same discipline that has caught every prior DTO/service mismatch here.
+
 - Schema: `schema/30_inbound.sql`.
 - Docs: `workflow-and-statuses.md` (GRN status machine, auto-fill chain
   Gate Entry→Inward→GRN), `document-engine.md` (six new document types).

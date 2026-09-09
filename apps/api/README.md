@@ -16,8 +16,9 @@ status endpoint. Phases 2 and 3 are complete: Quotation and Agreement
 records, each with its own workflow, plus a real document engine —
 server-rendered PDF generation (headless Chromium via `puppeteer-core`),
 QR-code verification, versioning, and FREE-plan entitlement gating —
-proven end-to-end against three registered templates, Quotation,
-Agreement, and (Phase 4's first slice) Gate Entry. The rest of
+proven end-to-end against four registered templates, Quotation,
+Agreement, and (Phase 4, in progress) Gate Entry and Inward, the latter
+with server-side auto-fill from a linked Gate Entry. The rest of
 Operations and the billing-run modules are not built yet.
 
 ## Stack
@@ -178,6 +179,24 @@ exist.
   set one; selecting a `driverId` similarly snapshots the driver's own
   name/mobile onto the row — both resolved server-side, not left as a
   frontend convention.
+- `POST/GET/PATCH /inwards[/:id]` plus `POST /inwards/:id/receive` and
+  `/cancel`, and the same `document/preview` / `document` pair
+  (`documentType: 'inward'`, `featureCode: 'INWARD'`). Every route rides
+  `create_inward` (paired with `create_gate_entry` in the same
+  permissions-matrix.md row). `customerId` is required directly, or via
+  `gateEntryId` — passing a `gateEntryId` auto-fills `customerId` and the
+  vehicle/driver/transporter fields from that gate entry (an explicit
+  value on the request still wins), requires the gate entry to be
+  `'open'`, and flips it to `'linked'` as a side effect. Each item's
+  `productSnapshot` (sku/name/hsn/uom/weight) is captured server-side
+  from the product master at creation time, the same freeze-at-creation
+  discipline as Quotation's `customerSnapshot`. `supplierId` is optional
+  and validated if given, but no Supplier master exists yet
+  (`permissions-matrix.md` seeds no permission for one) — `supplierName`
+  is a plain, always-usable free-text field instead; see `DECISIONS.md`
+  §29. Editable only while `status = 'draft'`; `receive` locks it in as
+  the basis a GRN will be raised from, `cancel` works from either
+  `'draft'` or `'received'` but not once a GRN exists.
 
 `EntitlementService` (`src/entitlement/`) is wired into the document
 engine's `commitDocument()`/`previewDocument()` split — the first real
@@ -314,6 +333,9 @@ All against the real local database (`DATABASE_URL`), not mocks:
   simplest document type yet (no line items or clauses, just two summary
   blocks), the same commit/regenerate/verify chain, and
   `GATE_ENTRY` metering independently of the other two features as well.
+  And the fourth, Inward: a real PDF with a genuine product/batch/
+  quantity line-item table, the same commit/regenerate/verify chain, and
+  `INWARD` metering independently of all three other document features.
   Running this suite needs `NODE_OPTIONS=--experimental-vm-modules`
   (already set in the `test`/`test:watch` scripts) — `puppeteer-core`
   ships ESM-only, and Jest's own module loader needs that flag to service
@@ -330,3 +352,15 @@ All against the real local database (`DATABASE_URL`), not mocks:
   reusable `GE0001`; and a Billing Executive (a role the seeded
   permissions matrix grants no gate-entry access at all) 403'd on both
   create and list.
+- `inwards/inwards.spec.ts` — an allocated `IN` number with a server-built
+  product snapshot; empty-item-array and reference-validation rejections;
+  `customerId` required directly or via a gate entry; linking an open
+  gate entry auto-filling customer/vehicle/transporter (asserted by
+  value, including the vehicle's own linked transporter) and flipping
+  that gate entry to `'linked'`; an explicit `vehicleId` overriding the
+  gate-entry-derived one; refusing to link a non-`'open'` gate entry; the
+  full draft → received workflow with edit/re-receive rejected once
+  received; cancel working from either `'draft'` or `'received'`; list
+  filtering by status/customer and free-text search across number and LR
+  number; tenant isolation with an independently reusable `IN0001`; and
+  a Billing Executive 403'd on both create and list.

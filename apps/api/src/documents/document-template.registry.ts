@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { DocumentTemplate } from './document-template';
 import { AgreementDocumentTemplate } from './templates/agreement-document.template';
 import { GateEntryDocumentTemplate } from './templates/gate-entry-document.template';
+import { InwardDocumentTemplate } from './templates/inward-document.template';
 import { QuotationDocumentTemplate } from './templates/quotation-document.template';
 
 /**
@@ -18,10 +19,12 @@ export class DocumentTemplateRegistry {
     quotationTemplate: QuotationDocumentTemplate,
     agreementTemplate: AgreementDocumentTemplate,
     gateEntryTemplate: GateEntryDocumentTemplate,
+    inwardTemplate: InwardDocumentTemplate,
   ) {
     this.templates.set(quotationTemplate.documentType, quotationTemplate);
     this.templates.set(agreementTemplate.documentType, agreementTemplate);
     this.templates.set(gateEntryTemplate.documentType, gateEntryTemplate);
+    this.templates.set(inwardTemplate.documentType, inwardTemplate);
   }
 
   get(documentType: string): DocumentTemplate {

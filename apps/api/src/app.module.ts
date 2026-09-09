@@ -9,6 +9,7 @@ import { DocumentsModule } from './documents/documents.module';
 import { EntitlementModule } from './entitlement/entitlement.module';
 import { GateEntriesModule } from './gate-entries/gate-entries.module';
 import { HealthController } from './health/health.controller';
+import { InwardsModule } from './inwards/inwards.module';
 import { NumberingModule } from './numbering/numbering.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { ProductsModule } from './products/products.module';
@@ -37,6 +38,7 @@ import { WarehousesModule } from './warehouses/warehouses.module';
     AgreementsModule,
     DocumentsModule,
     GateEntriesModule,
+    InwardsModule,
   ],
   controllers: [HealthController],
 })

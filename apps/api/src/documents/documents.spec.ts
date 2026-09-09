@@ -22,6 +22,7 @@ describe('Document engine', () => {
   let customerId = '';
   let storageChargeTypeId = '';
   let warehouseId = '';
+  let productId = '';
 
   const api = () => request(app.getHttpServer());
   const signup = async (slug: string, email: string) => {
@@ -62,6 +63,15 @@ describe('Document engine', () => {
     return res.body.id as string;
   };
 
+  const createInward = async (token: string, whId: string, custId: string, prodId: string) => {
+    const res = await api()
+      .post('/inwards')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ warehouseId: whId, customerId: custId, items: [{ productId: prodId, expectedQty: 10, receivedQty: 10, acceptedQty: 10 }] })
+      .expect(201);
+    return res.body.id as string;
+  };
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
@@ -92,6 +102,14 @@ describe('Document engine', () => {
         .post('/warehouses')
         .set('Authorization', `Bearer ${owner}`)
         .send({ code: 'WH01', name: 'Main Godown', capacityValue: 500, capacityUom: 'pallet' })
+        .expect(201)
+    ).body.id;
+
+    productId = (
+      await api()
+        .post('/products')
+        .set('Authorization', `Bearer ${owner}`)
+        .send({ sku: 'SKU001', name: 'Widget', uomCode: 'NOS' })
         .expect(201)
     ).body.id;
   });
@@ -477,5 +495,68 @@ describe('Document engine', () => {
 
     const gateEntryId = await createGateEntry(indepOwner, indepWarehouse);
     await api().post(`/gate-entries/${gateEntryId}/document`).set('Authorization', `Bearer ${indepOwner}`).send({}).expect(201);
+  });
+
+  it('generates a real Inward document (the fourth registered template) with a product/batch/quantity line-item table', async () => {
+    const inwardId = await createInward(owner, warehouseId, customerId, productId);
+
+    const preview = await api()
+      .post(`/inwards/${inwardId}/document/preview`)
+      .set('Authorization', `Bearer ${owner}`)
+      .expect(201);
+    expect(Buffer.from(preview.body).subarray(0, 4).toString()).toBe('%PDF');
+
+    const committed = await api()
+      .post(`/inwards/${inwardId}/document`)
+      .set('Authorization', `Bearer ${owner}`)
+      .send({})
+      .expect(201);
+    expect(committed.body.documentType).toBe('inward');
+    expect(committed.body.documentNumber).toMatch(/^IN\//);
+
+    const regenerated = await api()
+      .post(`/inwards/${inwardId}/document`)
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ regenerate: true })
+      .expect(201);
+    expect(regenerated.body.versionNo).toBe(2);
+
+    const revoked = await api().get(`/verify/${committed.body.qrToken}`).expect(200);
+    expect(revoked.body.result).toBe('revoked');
+  });
+
+  it('INWARD meters independently of the other three document features too', async () => {
+    const slug = `doc-indep-in-${suffix}`;
+    const indepOwner = await signup(slug, `owner-indep-in-${suffix}@test.local`);
+    const indepWarehouse = (
+      await api()
+        .post('/warehouses')
+        .set('Authorization', `Bearer ${indepOwner}`)
+        .send({ code: 'WH01', name: 'Godown', capacityValue: 100, capacityUom: 'pallet' })
+        .expect(201)
+    ).body.id;
+    const indepCustomer = (
+      await api().post('/customers').set('Authorization', `Bearer ${indepOwner}`).send({ name: 'Zeta Co' }).expect(201)
+    ).body.id;
+    const indepProduct = (
+      await api()
+        .post('/products')
+        .set('Authorization', `Bearer ${indepOwner}`)
+        .send({ sku: 'SKU001', name: 'Widget', uomCode: 'NOS' })
+        .expect(201)
+    ).body.id;
+
+    for (let i = 0; i < 2; i++) {
+      const gateEntryId = await createGateEntry(indepOwner, indepWarehouse);
+      await api().post(`/gate-entries/${gateEntryId}/document`).set('Authorization', `Bearer ${indepOwner}`).send({}).expect(201);
+    }
+    const thirdGateEntryId = await createGateEntry(indepOwner, indepWarehouse);
+    await api()
+      .post(`/gate-entries/${thirdGateEntryId}/document/preview`)
+      .set('Authorization', `Bearer ${indepOwner}`)
+      .expect(402);
+
+    const inwardId = await createInward(indepOwner, indepWarehouse, indepCustomer, indepProduct);
+    await api().post(`/inwards/${inwardId}/document`).set('Authorization', `Bearer ${indepOwner}`).send({}).expect(201);
   });
 });

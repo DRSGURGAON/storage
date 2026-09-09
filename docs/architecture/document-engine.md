@@ -51,7 +51,7 @@ audit-logged reason (§49, §51).
 > `AttachmentStorage` interface with `LocalFilesystemAttachmentStorage` as
 > the only implementation so far — `DECISIONS.md` §24 records the gap
 > against this repo's own S3-signed-URL note and the proxy-endpoint
-> fallback `tenancy-and-security.md` already sanctions. Three templates
+> fallback `tenancy-and-security.md` already sanctions. Four templates
 > are registered so far: `QuotationDocumentTemplate` (`documentType:
 > 'quotation'`, `featureCode: 'QUOTATION_GENERATION'`),
 > `AgreementDocumentTemplate` (`documentType: 'agreement'`, `featureCode:
@@ -59,20 +59,25 @@ audit-logged reason (§49, §51).
 > already-resolved `rendered_clauses` as its own titled section rather
 > than a separate party card, since (unlike Quotation) there is no
 > frozen `customer_snapshot` to summarise and the clause text itself
-> already carries the resolved customer/company identity — and
+> already carries the resolved customer/company identity —
 > `GateEntryDocumentTemplate` (`documentType: 'gate_entry'`,
 > `featureCode: 'GATE_ENTRY'`), the first with no line items or clauses
 > at all, just two summary blocks (proving the shared design system
 > degrades gracefully to a genuinely simple document, not only ones with
-> tables or long text). Adding the next `documentType` from §2's list
+> tables or long text) — and `InwardDocumentTemplate` (`documentType:
+> 'inward'`, `featureCode: 'INWARD'`), the first goods-receipt-shaped
+> document: a real product/batch/quantity line-item table with no money
+> anywhere on the page, proving §3's shared table primitive isn't
+> Quotation-specific. Adding the next `documentType` from §2's list
 > means one more `DocumentTemplate` implementation plus one more
 > constructor argument to `DocumentTemplateRegistry`, not a new pipeline
-> — proven three times over now, not just asserted. Proven end-to-end in
+> — proven four times over now, not just asserted. Proven end-to-end in
 > `documents.spec.ts`: preview vs. commit, idempotent retry, regenerate
 > producing a new version with the old one's QR resolving `revoked`
 > through the public verify endpoint (§4, below), cross-tenant isolation,
 > permission gating, the FREE-plan 2-copy paywall on both preview and
-> commit, and `QUOTATION_GENERATION`/`AGREEMENT_GENERATION`/`GATE_ENTRY`
+> commit, and `QUOTATION_GENERATION`/`AGREEMENT_GENERATION`/`GATE_ENTRY`/
+> `INWARD`
 > metering independently
 > through the HTTP layer.
 

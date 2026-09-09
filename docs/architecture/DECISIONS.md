@@ -722,3 +722,66 @@ discipline argues against — flagged here instead, so the next module
 that round-trips a `timestamptz` (Inward's `inward_at`, most likely)
 starts from a correct mental model rather than rediscovering this by a
 second crash.
+
+(Predicted correctly: Inward's own increment, immediately after this
+one, does round-trip `inward_at` the same way in `update()` — written
+correctly the first time, `${dto.inwardAt ?? before.inward_at}` with no
+`.toISOString()`, because this entry existed to check against.)
+
+## §28 — Inward's `customerId` was declared required in the DTO, contradicting the service's own "required directly, or via a gate entry" logic three lines below it
+
+Building Inward (blueprint §17), a curl smoke test of the very first
+documented use case — creating an Inward from an already-open Gate
+Entry, supplying no `customerId` because the gate entry already has one
+— failed with `400 { message: ["customerId must be a UUID"] }` before
+`InwardsService.create()` ever ran. `class-validator`'s `ValidationPipe`
+rejects a missing required field before the request reaches the
+controller at all, so the service's own fallback logic
+(`customerId = dto.customerId ?? gateEntry.customer_id`, and only then
+a "customerId is required (directly, or via a gate entry that has one)"
+check) was correct and never even got exercised — `create-inward.dto.ts`
+still had `@IsUUID() customerId!: string` (required) from an earlier
+draft, unchanged when the "or via a gate entry" fallback was written
+into the service. The exact same shape as `AgreementsService`'s
+`customerId` (required directly, or via an accepted `quotationId`) —
+copied correctly at the service layer, not at the DTO layer.
+
+Fixed by making the field `@IsOptional() @IsUUID() customerId?: string`
+in `create-inward.dto.ts`, matching what the service already assumed.
+Caught by curling the documented use case before writing the automated
+test for it, not by reading the code back — the same discipline that
+has caught every other DTO/service mismatch in this project so far.
+
+## §29 — No Supplier master exists yet; Inward's `supplierId` stays optional-and-unenforced by design, not by oversight
+
+`schema/10_masters.sql` has a full `suppliers` table (id, tenant_id,
+customer_id, name, gstin, address, contact info, an
+`(tenant_id, name, customer_id)` uniqueness constraint) — shaped exactly
+like every other master in this codebase. But no blueprint section ever
+numbers it (`01-master-data.md` never mentions "supplier"; the only
+blueprint mentions are as a bare field on Inward's and GRN's own forms),
+`permissions-matrix.md`'s Masters module seeds no `create_supplier` /
+`view_supplier` / `edit_supplier` row the way it does for every other
+master, and no prior phase built a `SuppliersModule`. Building one now,
+as a side effect of Inward needing somewhere to point `supplierId`,
+would mean inventing permission codes `permissions-matrix.md` — "the
+seed data specification... source of truth" per its own header — never
+specifies, which is exactly the kind of unilateral, undocumented
+expansion of the locked architecture this project's discipline exists
+to prevent.
+
+`CreateInwardDto.supplierId` is optional and validated against the
+`suppliers` table *if supplied* (so nothing here is broken — a caller
+that already knows a real supplier row's id can use it, and a future
+`SuppliersModule` would slot in as a drop-in, no `inwards` schema or
+code change needed), while `supplierName` is a plain, always-usable
+free-text field — the same "id optional + name optional, both usable
+independently" shape already established for
+`transporterId`/`transporterName` on Gate Entry and Inward's own
+transport fields. A tenant can record a supplier by name today; nothing
+about `supplierId` being effectively unreachable through this API right
+now blocks Inward from being genuinely usable. Flagged here, in the
+same spirit as §24's `LocalFilesystemAttachmentStorage` gap, so a real
+Supplier master — if one turns out to be needed — is a deliberate future
+decision, not something rediscovered as "why does this column go
+nowhere."
