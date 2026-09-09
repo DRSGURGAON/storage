@@ -5,11 +5,13 @@ import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
 import { CustomersModule } from './customers/customers.module';
 import { DbModule } from './db/db.module';
+import { DiscrepancyReportsModule } from './discrepancy-reports/discrepancy-reports.module';
 import { DocumentsModule } from './documents/documents.module';
 import { EntitlementModule } from './entitlement/entitlement.module';
 import { GateEntriesModule } from './gate-entries/gate-entries.module';
 import { GrnsModule } from './grns/grns.module';
 import { HealthController } from './health/health.controller';
+import { InspectionsModule } from './inspections/inspections.module';
 import { InwardsModule } from './inwards/inwards.module';
 import { NumberingModule } from './numbering/numbering.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
@@ -41,6 +43,8 @@ import { WarehousesModule } from './warehouses/warehouses.module';
     GateEntriesModule,
     InwardsModule,
     GrnsModule,
+    InspectionsModule,
+    DiscrepancyReportsModule,
   ],
   controllers: [HealthController],
 })

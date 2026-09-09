@@ -8,6 +8,7 @@ import { DocumentEngineService } from './documents.service';
 import { PdfRendererService } from './pdf-renderer.service';
 import { QrService } from './qr.service';
 import { AgreementDocumentTemplate } from './templates/agreement-document.template';
+import { DiscrepancyDocumentTemplate } from './templates/discrepancy-document.template';
 import { GateEntryDocumentTemplate } from './templates/gate-entry-document.template';
 import { GrnDocumentTemplate } from './templates/grn-document.template';
 import { InwardDocumentTemplate } from './templates/inward-document.template';
@@ -27,6 +28,7 @@ import { VerifyController, VerifyService } from './verify.controller';
     GateEntryDocumentTemplate,
     InwardDocumentTemplate,
     GrnDocumentTemplate,
+    DiscrepancyDocumentTemplate,
     VerifyService,
   ],
   exports: [DocumentEngineService],
