@@ -41,6 +41,14 @@ export interface CompanyContext {
   gstin: string | null;
   phone: string | null;
   email: string | null;
+  /**
+   * `entitlement-engine.md` §10 / saas-layer §46: a demo workspace's
+   * paperwork must be unmistakable. A demo Tax Invoice that looks exactly
+   * like a real one is the hazard -- it carries a real-looking number, a
+   * real-looking GSTIN and a QR code that verifies, and nothing on its face
+   * says it is a sample.
+   */
+  isDemo: boolean;
 }
 
 /** §3's header band: "[Logo] Company legal name & GSTIN / Address · Phone · Email". No logo image yet -- attachments.logo_attachment_id has no upload path built (dev-phases.md). */
@@ -150,6 +158,20 @@ const SHARED_STYLE = `
   .qr-block { text-align: center; font-size: 8.5px; color: #666; }
   .qr-block img { width: 70px; height: 70px; }
   .footer { margin-top: 20px; padding-top: 6px; border-top: 1px solid #ccc; font-size: 8.5px; color: #888; text-align: center; }
+  /* Demo marking: a diagonal watermark behind the content, plus a banner
+     above it. Two markings rather than one because either alone survives a
+     bad photocopy or a screenshot cropped to the header. */
+  .demo-watermark {
+    position: fixed; top: 42%; left: 0; right: 0; text-align: center;
+    font-size: 84px; font-weight: 700; color: rgba(200, 0, 0, 0.12);
+    transform: rotate(-24deg); letter-spacing: 12px; z-index: 0;
+  }
+  .demo-banner {
+    border: 1.5px solid #c00; color: #c00; background: #fff5f5;
+    padding: 5px 8px; margin-bottom: 10px; text-align: center;
+    font-size: 10px; font-weight: 700; letter-spacing: 1px;
+  }
+  .page { position: relative; }
 `;
 
 export interface DocumentShellParams {
@@ -173,6 +195,8 @@ export function renderDocumentShell(params: DocumentShellParams): string {
 </head>
 <body>
   <div class="page">
+    ${params.company.isDemo ? '<div class="demo-watermark">DEMO</div>' : ''}
+    ${params.company.isDemo ? '<div class="demo-banner">DEMO / SAMPLE — not a valid commercial document</div>' : ''}
     ${renderCompanyHeader(params.company)}
     ${renderTitleBand(params.title, params.documentNumber, params.dateLabel, params.date)}
     ${params.bodyHtml}

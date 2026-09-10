@@ -760,4 +760,60 @@ describe('Document engine', () => {
     const foreignTenant = links.sign({ documentId: committed.body.id, tenantId: randomUUID(), customerId: null });
     await api().get(`/document-links/${foreignTenant.token}`).expect(404);
   });
+  /**
+   * `entitlement-engine.md` §10 / saas-layer §46. `tenants.is_demo` was
+   * written by the demo seed and read by nothing, which meant a demo
+   * workspace produced Tax Invoices indistinguishable from real ones --
+   * real-looking number, real-looking GSTIN, a QR code that verifies.
+   */
+  it('marks every document a demo workspace generates, and says so on the session', async () => {
+    const demoSuffix = randomUUID().slice(0, 8);
+    const demoOwner = await signup(`dm-${demoSuffix}`, `dm-${demoSuffix}@test.local`);
+    const tenantId = JSON.parse(Buffer.from(demoOwner.split('.')[1], 'base64url').toString()).tenantId;
+    const bearer = { Authorization: `Bearer ${demoOwner}` };
+
+    // Before the flag: an ordinary workspace, and an ordinary document.
+    expect((await api().get('/auth/me').set(bearer).expect(200)).body.tenant.isDemo).toBe(false);
+    expect((await api().get('/company').set(bearer).expect(200)).body.isDemo).toBe(false);
+
+    const sql = app.get<import('postgres').Sql>((await import('../db/db.module')).PG_CONNECTION);
+    await sql`update tenants set is_demo = true where id = ${tenantId}`;
+
+    expect((await api().get('/auth/me').set(bearer).expect(200)).body.tenant.isDemo).toBe(true);
+    expect((await api().get('/company').set(bearer).expect(200)).body.isDemo).toBe(true);
+    // ...and it is not something a workspace can switch off about itself.
+    await api().patch('/company').set(bearer).send({ isDemo: false }).expect(400);
+
+    const custId = (
+      await api().post('/customers').set(bearer).send({ name: 'Demo Customer' }).expect(201)
+    ).body.id;
+    const chargeTypes = await api().get('/charge-types').set(bearer).expect(200);
+    const chargeTypeId = chargeTypes.body.find((c: { code: string }) => c.code === 'STORAGE').id;
+    const quotationId = await createQuotation(demoOwner, custId, chargeTypeId);
+
+    // The letterhead context every template renders from now carries the
+    // flag, so the marking is in the shared shell rather than in any one of
+    // the 24 templates -- which is the only way it could be relied on.
+    const { loadCompanyContext } = await import('./company-context');
+    const { withTenant } = await import('../db/tenant-context');
+    const context = await withTenant(sql, tenantId, (tx) => loadCompanyContext(tx, tenantId));
+    expect(context.isDemo).toBe(true);
+
+    const { renderDocumentShell } = await import('./html/layout');
+    const shell = (isDemo: boolean) =>
+      renderDocumentShell({
+        title: 'TAX INVOICE', documentNumber: 'INV/26-27/000001', dateLabel: 'Date', date: '2026-09-10',
+        company: { ...context, isDemo }, bodyHtml: '<p>body</p>', qrDataUri: '', qrToken: 'x',
+      });
+    expect(shell(true)).toContain('DEMO / SAMPLE');
+    expect(shell(true)).toContain('demo-watermark');
+    // And an ordinary workspace's document carries neither.
+    expect(shell(false)).not.toContain('DEMO');
+
+    // End to end, the demo workspace still renders a real PDF -- the marking
+    // is added to the document, not substituted for it.
+    const committed = await api().post(`/quotations/${quotationId}/document`).set(bearer).send({}).expect(201);
+    const download = await api().get(`/documents/${committed.body.id}/download`).set(bearer).expect(200);
+    expect(Buffer.from(download.body).subarray(0, 4).toString()).toBe('%PDF');
+  });
 });

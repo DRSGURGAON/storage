@@ -15,9 +15,10 @@ export async function loadCompanyContext(tx: postgres.TransactionSql, tenantId: 
       gstin: string | null;
       phone: string | null;
       email: string | null;
+      is_demo: boolean;
     }[]
   >`
-    select legal_name, trade_name, address_line1, address_line2, city, state, pincode, gstin, phone, email
+    select legal_name, trade_name, address_line1, address_line2, city, state, pincode, gstin, phone, email, is_demo
     from tenants where id = ${tenantId}
   `;
   return {
@@ -31,5 +32,6 @@ export async function loadCompanyContext(tx: postgres.TransactionSql, tenantId: 
     gstin: row.gstin,
     phone: row.phone,
     email: row.email,
+    isDemo: row.is_demo,
   };
 }

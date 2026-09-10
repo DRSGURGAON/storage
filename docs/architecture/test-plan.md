@@ -7,7 +7,7 @@ runnable checklist. Every row maps to a real integration test: the
 **Proven by** column names the spec file and the test that covers it. All
 of them run against a live PostgreSQL database — there are no mocked
 repositories in this suite — and the whole set is
-**35 suites, 280 tests, green** (`cd apps/api && npm test`).
+**35 suites, 281 tests, green** (`cd apps/api && npm test`).
 
 Two files carry most of the cross-module rows:
 
@@ -133,7 +133,7 @@ Every row below is covered. "Proven by" names the file and the test.
 | An `entitlement_overrides` row for one tenant does not move another tenant's limit | **Partly.** The resolver reads `entitlement_overrides` ahead of `plan_feature_limits` (`entitlement.service.ts`), and cross-tenant independence is proven for the plan path in `entitlement.spec.ts` *"keeps different features and different tenants fully independent"* — but no test writes an override row. This is the weakest square in the grid |
 | A `past_due` subscription past its grace period is blocked even under the limit | **Partly.** `entitlement.service.ts` treats `past_due`, `cancelled` and `expired` as not-entitled regardless of usage; there is no test that puts a subscription into those states, because nothing in the product writes them yet (no gateway — `DECISIONS.md` §13) |
 | Two tenants' usage never intermixes | `entitlement.spec.ts` *"keeps different features and different tenants fully independent"* |
-| A demo tenant is excluded from billing runs and cross-tenant analytics | **Not implemented.** `tenants.is_demo` is set by `npm run seed:demo` and read by nothing — a demo workspace is billed and counted exactly like a real one. Harmless while demos are hand-seeded locally; it must be closed before demo tenants exist in production |
+| A demo tenant is unmistakable, and excluded from real-usage accounting | **Half done, and the half that matters.** `documents/documents.spec.ts` proves every document a demo workspace generates carries the `DEMO / SAMPLE` banner and watermark (the marking is in the shared shell, so it holds for all 24 templates), and that `isDemo` reaches the session and the company profile read-only. Not done: excluding demo tenants from billing runs and cross-tenant analytics — a demo's billing run is part of the demo, and no cross-tenant analytics surface exists yet to exclude them from |
 | The API cannot be bypassed by skipping the UI | `documents.spec.ts` calls the generation endpoints directly on an exhausted tenant and gets the same 402 the UI would have shown |
 | The public pricing page's limits match `plan_feature_limits` exactly | `console/console.spec.ts` *"reports plan usage from the same check a paywall uses, and serves pricing publicly"* — both pages are pivots over the same rows the engine enforces, so there is no second number to drift (`console/plan.service.ts`) |
 

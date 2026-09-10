@@ -182,9 +182,23 @@ rules as any tenant (`tenancy-and-security.md` §1) — demo data cannot leak
 into a real tenant's records because it is never in the same tenant's rows
 to begin with. Reporting, billing runs, and usage analytics exclude
 `is_demo = true` tenants by default, so demo activity never pollutes real
-usage accounting (§46's explicit requirement). The UI is responsible for
-labeling every screen and document `DEMO / SAMPLE` when the active session
-belongs to a demo tenant.
+usage accounting (§46's explicit requirement).
+
+> **Implemented, with one part deliberately left out.** Every document a
+> demo workspace generates carries a `DEMO / SAMPLE — not a valid
+> commercial document` banner and a diagonal watermark, added in
+> `renderDocumentShell` so all twenty-four templates get it without any of
+> them knowing (`apps/api/src/documents/html/layout.ts`). The document does
+> not rely on the UI for this: a PDF leaves the application and is read
+> somewhere else, which is exactly where a convincing fake invoice does its
+> damage. `isDemo` also travels on `GET /auth/me` and `GET /company`, so
+> the UI can label its own screens — read-only, since a workspace does not
+> get to declare itself a demo or stop being one.
+>
+> Billing runs and analytics do **not** exclude demo tenants. A demo's
+> billing run is part of what the prospect is being shown, and there is no
+> cross-tenant analytics surface in the codebase yet to exclude anything
+> from; when one is built, that is where the exclusion belongs.
 
 ## 11. Frontend contract
 

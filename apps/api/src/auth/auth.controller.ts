@@ -65,10 +65,11 @@ export class AuthController {
           role_name: string;
           tenant_slug: string;
           legal_name: string;
+          is_demo: boolean;
         }[]
       >`
         select u.email, u.full_name, r.code as role_code, r.name as role_name,
-               t.slug as tenant_slug, t.legal_name
+               t.slug as tenant_slug, t.legal_name, t.is_demo
         from tenant_users tu
         join users u on u.id = tu.user_id
         join roles r on r.id = tu.role_id
@@ -80,7 +81,10 @@ export class AuthController {
     return {
       user: { email: row.email, fullName: row.full_name },
       role: { code: row.role_code, name: row.role_name },
-      tenant: { slug: row.tenant_slug, legalName: row.legal_name },
+      // `isDemo` travels with the session because the UI is what labels a
+      // demo workspace on every screen (`entitlement-engine.md` §10); the
+      // documents mark themselves.
+      tenant: { slug: row.tenant_slug, legalName: row.legal_name, isDemo: row.is_demo },
     };
   }
 }

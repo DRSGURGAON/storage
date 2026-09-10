@@ -43,8 +43,9 @@ What that covers, in the order the phases built it:
   pricing page, and a demo workspace seeded by driving the real API.
 - **Phase 9 — proof.** An end-to-end acceptance walkthrough
   (`src/acceptance/`), a from-scratch database proof, and a documentation
-  reconciliation pass. **35 test suites, 280 tests**, all green against a
-  live PostgreSQL database.
+  reconciliation pass. **35 test suites, 281 tests**, all green against a
+  live PostgreSQL database — and against one built from nothing, with all
+  twenty schema files applied in order.
 
 The document engine now carries **all twenty-four** templates of
 `document-engine.md` §2: Quotation, Agreement, Gate Entry, Inward, GRN,
@@ -58,15 +59,17 @@ Account Statement.
   isolation (a restrictive RLS policy, so a query that forgets its customer
   filter still cannot see another customer), signed and expiring document
   links, `getDocumentRelations` (Created From / Related Documents / the §68
-  chain, read off the schema itself), and notification delivery over real
-  SMTP and HTTP.
+  chain, read off the schema itself), notification delivery over real
+  SMTP and HTTP, and the `DEMO / SAMPLE` marking every document a demo
+  workspace generates now carries.
 
 **Known gaps**, listed rather than glossed: no frontend; no object store
 (attachments are on the local filesystem behind an interface — the signed
 links exist, the S3 adapter does not); no payment gateway; `billing_runs`
 is outside the document-relations graph because it has no number; and
-`tenants.is_demo` is set by the demo seed but read by nothing, so a demo
-workspace is billed and counted like a real one.
+`tenants.is_demo` is not excluded from billing runs (a demo's
+billing run is part of the demo, and there is no cross-tenant analytics
+surface to exclude it from yet).
 `../../docs/architecture/test-plan.md` §5 is the full list.
 
 ## Stack
@@ -692,7 +695,7 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-**35 suites, 280 tests**, all against the real local database
+**35 suites, 281 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,

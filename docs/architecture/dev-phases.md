@@ -822,7 +822,9 @@ Phase 8 ended with three named gaps and Phase 9's audit found two more.
 This phase closes them; it exists because "named in a document" is not the
 same as fixed.
 
-**Status: complete.** 35 suites, 280 tests.
+**Status: complete.** 35 suites, 281 tests, re-proved against a database
+built from nothing: all twenty schema files applied in order, both seeds
+run, and the whole suite green against it.
 
 **a. The portal's database-level isolation.**
 `schema/98_portal_row_level_security.sql` adds a **restrictive** policy,
@@ -914,6 +916,28 @@ The tests send over a real SMTP session (a socket server that speaks enough
 of RFC 5321 to accept a message) and a real HTTP POST, then assert the
 retry, the give-up, the recorded provider error, and that draining one
 tenant never sends another's.
+
+**e. `tenants.is_demo`, which was written by the demo seed and read by
+nothing.** A demo workspace produced Tax Invoices indistinguishable from
+real ones: real-looking number, real-looking GSTIN, a QR code that
+verifies, and nothing on their face saying otherwise. Every document a
+demo workspace generates now carries a `DEMO / SAMPLE — not a valid
+commercial document` banner and a diagonal watermark. Two markings rather
+than one, because either alone survives a bad photocopy or a screenshot
+cropped to the header.
+
+The marking lives in `renderDocumentShell`, so all twenty-four templates
+get it without any of them knowing about it — the only way a rule like this
+can be relied on. The flag also travels on `GET /auth/me` and `GET
+/company`, read-only, so the UI can label its screens
+(`entitlement-engine.md` §10); a workspace cannot declare itself a demo or
+stop being one.
+
+What is deliberately *not* done: excluding demo tenants from billing runs
+and cross-tenant analytics. A demo's billing run is part of what a prospect
+is being shown, and there is no cross-tenant analytics surface in the
+codebase to exclude anything from. When one is built, this is where the
+exclusion belongs.
 
 ## Cross-cutting, not a phase
 

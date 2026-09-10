@@ -11,6 +11,7 @@ import { SETTINGS_BY_KEY, TENANT_SETTINGS, validateSettingValue } from './tenant
 interface TenantRow {
   id: string;
   slug: string;
+  is_demo: boolean;
   legal_name: string;
   trade_name: string | null;
   address_line1: string | null;
@@ -43,7 +44,7 @@ const SELECT_COLUMNS = `
   id, slug, legal_name, trade_name, address_line1, address_line2, city, state, state_code,
   pincode, gstin, pan, cin, phone, email, website, bank_name, bank_account_no, bank_ifsc,
   bank_branch, signatory_name, signatory_designation, terms_and_conditions,
-  financial_year_start_month, timezone, currency, status, updated_at`;
+  financial_year_start_month, timezone, currency, status, updated_at, is_demo`;
 
 /** DTO field -> column, and the whole set of columns this endpoint may write. */
 const COLUMN_MAP: Record<keyof UpdateCompanyDto, string> = {
@@ -106,6 +107,10 @@ function toApi(row: TenantRow) {
     // -- surfaced so the onboarding wizard and settings page can say so
     // without re-deriving the rule.
     isDocumentReady: Boolean(row.gstin && row.address_line1 && row.city && row.state && row.pincode),
+    // Read-only here on purpose: a workspace does not get to declare itself a
+    // demo, or stop being one. `npm run seed:demo` sets the flag, and every
+    // document this workspace generates is marked from it.
+    isDemo: row.is_demo,
   };
 }
 
