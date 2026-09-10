@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Alert, Avatar, Dropdown, Layout, Menu, Tag, Typography } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Tag, Typography } from 'antd';
 import {
   ApartmentOutlined,
   BellOutlined,
@@ -7,6 +7,7 @@ import {
   FileTextOutlined,
   InboxOutlined,
   LogoutOutlined,
+  MenuOutlined,
   ProfileOutlined,
   SendOutlined,
   SettingOutlined,
@@ -14,6 +15,7 @@ import {
   SolutionOutlined,
   UserOutlined,
 } from '@ant-design/icons';
+import { Space } from 'antd';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from '../lib/session';
 
@@ -119,6 +121,7 @@ const NAV: NavItem[] = [
     children: [
       { key: '/settings/company', label: 'Company', permissions: ['manage_company_settings'] },
       { key: '/settings/users', label: 'Users', permissions: ['manage_users_and_roles'] },
+      { key: '/settings/notifications', label: 'Notifications', permissions: ['manage_company_settings'] },
       { key: '/settings/plan', label: 'Plan & usage', permissions: ['view_plan_usage'] },
       { key: '/settings/audit', label: 'Audit log', permissions: ['view_audit_log'] },
     ],
@@ -130,6 +133,19 @@ export function AppShell() {
   const { session, signOut, can } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
+  const screens = Grid.useBreakpoint();
+  const [navOpen, setNavOpen] = useState(false);
+  // antd's Sider collapses itself below `lg`, which on a phone means it
+  // disappears entirely -- and with nothing to reopen it, an operator on
+  // the warehouse floor could not navigate at all. Below that breakpoint
+  // the same menu moves into a drawer behind a button.
+  const compact = !screens.lg;
+
+  // Any navigation closes the drawer; otherwise it stays over the screen
+  // the user just asked for.
+  useEffect(() => {
+    setNavOpen(false);
+  }, [location.pathname]);
 
   const items = useMemo(() => {
     const allowed = (permissions?: string[]) => !permissions || permissions.some(can);
@@ -154,26 +170,60 @@ export function AppShell() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        width={232}
-        theme="light"
-        breakpoint="lg"
-        collapsedWidth={0}
-        style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto', height: '100vh', position: 'sticky', top: 0 }}
+      {!compact && (
+        <Sider
+          width={232}
+          theme="light"
+          style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto', height: '100vh', position: 'sticky', top: 0 }}
+        >
+          <div style={{ padding: '18px 20px 12px' }}>
+            <Typography.Text strong style={{ fontSize: 15, display: 'block', lineHeight: 1.3 }}>
+              {session?.tenant.legalName}
+            </Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {session?.role.name}
+            </Typography.Text>
+          </div>
+          <Menu
+            mode="inline"
+            selectedKeys={selected}
+            defaultOpenKeys={['masters', 'inbound', 'stock', 'outbound', 'billing']}
+            items={items}
+            style={{ borderInlineEnd: 'none' }}
+          />
+        </Sider>
+      )}
+      <Drawer
+        open={compact && navOpen}
+        placement="left"
+        width={260}
+        onClose={() => setNavOpen(false)}
+        styles={{ body: { padding: 0 } }}
+        title={
+          <Space direction="vertical" size={0}>
+            <Typography.Text strong style={{ fontSize: 15 }}>
+              {session?.tenant.legalName}
+            </Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {session?.role.name}
+            </Typography.Text>
+          </Space>
+        }
       >
-        <div style={{ padding: '18px 20px 12px' }}>
-          <Typography.Text strong style={{ fontSize: 15, display: 'block', lineHeight: 1.3 }}>
-            {session?.tenant.legalName}
-          </Typography.Text>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {session?.role.name}
-          </Typography.Text>
-        </div>
-        <Menu mode="inline" selectedKeys={selected} defaultOpenKeys={['masters', 'inbound', 'stock', 'outbound', 'billing']} items={items} style={{ borderInlineEnd: 'none' }} />
-      </Sider>
+        <Menu mode="inline" selectedKeys={selected} items={items} style={{ borderInlineEnd: 'none' }} />
+      </Drawer>
       <Layout>
-        <Header style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, paddingInline: 20 }}>
-          {session?.tenant.isDemo && <Tag color="red">DEMO WORKSPACE</Tag>}
+        <Header style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, paddingInline: 16 }}>
+          {compact && (
+            <Button
+              type="text"
+              icon={<MenuOutlined />}
+              aria-label="Open the menu"
+              onClick={() => setNavOpen(true)}
+              style={{ marginRight: 'auto' }}
+            />
+          )}
+          {session?.tenant.isDemo && <Tag color="red">DEMO</Tag>}
           <Dropdown
             menu={{
               items: [
@@ -192,11 +242,12 @@ export function AppShell() {
             }}
           >
             <span style={{ cursor: 'pointer' }}>
-              <Avatar size="small" icon={<UserOutlined />} /> <span style={{ marginLeft: 8 }}>{session?.user.fullName}</span>
+              <Avatar size="small" icon={<UserOutlined />} />
+              {!compact && <span style={{ marginLeft: 8 }}>{session?.user.fullName}</span>}
             </span>
           </Dropdown>
         </Header>
-        <Content style={{ padding: 24, background: '#fafafa' }}>
+        <Content style={{ padding: compact ? 12 : 24, background: '#fafafa' }}>
           {session?.tenant.isDemo && (
             <Alert
               type="warning"

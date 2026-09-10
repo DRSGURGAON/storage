@@ -72,6 +72,10 @@ export function FormDrawer<T>({
       open={open}
       title={title}
       width={width}
+      // A 520-720px drawer on a 390px phone would sit wider than the screen.
+      // The wrapper is what antd sizes, so capping it there keeps the drawer
+      // full-width on a phone and exactly `width` everywhere else.
+      styles={{ wrapper: { maxWidth: '100vw' } }}
       onClose={onClose}
       destroyOnClose
       // Fields are set once the drawer's contents have actually mounted.

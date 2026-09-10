@@ -66,13 +66,19 @@ export function ListPage<T extends { id: string }>({
 
   return (
     <Card
+      // The header wraps rather than squeezing: on a phone the title and the
+      // search box share one row otherwise, and the search shrinks to a slot
+      // too narrow to read what you typed.
+      styles={{ header: { flexWrap: 'wrap', rowGap: 8 } }}
       title={<Typography.Title level={4} style={{ margin: 0 }}>{title}</Typography.Title>}
+      // `wrap` matters on a phone: unwrapped, the create button is pushed
+      // off the right edge of the card and cannot be reached at all.
       extra={
-        <Space>
+        <Space wrap>
           <Input.Search
             allowClear
             placeholder={searchPlaceholder ?? 'Search'}
-            style={{ width: 260 }}
+            style={{ width: 220, maxWidth: '60vw' }}
             onSearch={(value) => {
               setSearch(value);
               setPage(1);
@@ -86,6 +92,11 @@ export function ListPage<T extends { id: string }>({
       {error && <Alert type="error" showIcon message={(error as Error).message} style={{ marginBottom: 16 }} />}
       <Table<T>
         size="small"
+        // The table scrolls inside its card rather than pushing the page
+        // sideways. Found on a 390px phone: without this the whole document
+        // scrolled horizontally, so the navigation and header drifted off
+        // screen while an operator tried to read a column.
+        scroll={{ x: 'max-content' }}
         rowKey={rowKey ?? ((row) => row.id)}
         loading={isFetching}
         columns={columns}

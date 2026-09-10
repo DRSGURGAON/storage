@@ -39,8 +39,10 @@ export function Login() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#f5f5f5', padding: 24 }}>
-      <Card style={{ width: 440, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#f5f5f5', padding: 16 }}>
+      {/* 440 is the shape on a laptop; on a phone the screen is narrower than
+          that, and a fixed width there pushes the whole page sideways. */}
+      <Card style={{ width: '100%', maxWidth: 440, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
         <Typography.Title level={3} style={{ marginTop: 0 }}>
           Warehouse Operations
         </Typography.Title>

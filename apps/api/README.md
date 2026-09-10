@@ -574,8 +574,30 @@ provider said.
   emission runs inside the caller's transaction so a rolled-back action
   leaves no notification claiming otherwise. Emitted today on GRN submit,
   GRN discrepancy, stock-adjustment submit, gate-out (POD outstanding),
-  a portal return request, and an invoice going overdue. Only `in_app` is
-  delivered; a rule listing email/WhatsApp/SMS logs that they were not.
+  a portal return request, and an invoice going overdue. All four of §56's
+  channels are delivered: `in_app` is written `sent` inside the caller's
+  transaction, because the row *is* the notification; email, WhatsApp and
+  SMS are written `pending` and sent after the commit by
+  `NotificationDispatcherService` (a cron loop with `attempt_count`,
+  `last_error` and a retry bound — an SMTP conversation inside a database
+  transaction would hold a connection open for the length of someone
+  else's outage, and a send that succeeded in a transaction that then
+  rolled back cannot be taken back). A channel with no configuration
+  (`SMTP_URL`, `WHATSAPP_WEBHOOK_URL`, `SMS_WEBHOOK_URL`) leaves its
+  notifications `pending` and visible rather than marking them sent.
+- `GET /notification-rules`, `PUT /notification-rules/:code`
+  (`manage_company_settings`, Owner/Admin) — the §56 rules, made editable.
+  The list is the rules **as they apply**: this workspace's row where it
+  has one, the system default otherwise, each saying which. A `PUT`
+  writes the workspace's own row, which *replaces* the default for that
+  code rather than merging with it (merging would make "remove a role
+  from the audience" impossible to express). Refused: a code no rule
+  exists for, an unknown role, and `customer` — a portal login is not
+  staff, and the emitter excludes it, so such a rule would address
+  nobody. There is no DELETE; reverting to the shipped default is
+  "delete my override", which reads as destructive and is left out until
+  it is asked for. `DECISIONS.md` §48 covers the two defects building
+  this found.
 - `GET /audit-logs?entityType=&entityId=&action=&userId=&from=&to=`
   (`view_audit_log`, Owner/Admin) — §57's viewer over `audit_logs`.
 - `GET /plan/usage` (`view_plan_usage`) — §13, one `checkEntitlement` per
@@ -698,7 +720,7 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-**35 suites, 281 tests**, all against the real local database
+**36 suites, 291 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,
@@ -716,6 +738,15 @@ rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
   reservation drawing from the sooner-expiring batch rather than a merged
   pool; and a cancelled receipt netting back to the exact pre-GRN balance
   through an additive reversal.
+- `notifications/notification-rules.spec.ts` — the rule editor: the
+  seeded list, `403` for a role without `manage_company_settings`, an
+  override replacing the default (and the audit row it writes), the
+  emitter then obeying it, switching an event off *staying* off rather
+  than falling through to the system default, the four refusals above,
+  and a direct SQL attempt to write a platform-wide rule bouncing off
+  `schema/99a`'s policy. Plus one test that re-derives the emitted event
+  codes from the source tree, so the screen's "nothing raises this yet"
+  badge cannot go stale.
 - `health.controller.spec.ts` — connectivity.
 - `auth/auth.spec.ts` — signup, login, `/me`, the invalid/duplicate/
   unauthenticated cases, repeated `/me` calls across a reused connection to

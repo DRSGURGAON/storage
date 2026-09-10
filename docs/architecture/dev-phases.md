@@ -989,11 +989,27 @@ That is also how the one API bug of this phase was found: `POST /inwards`
 required a `warehouseId` it could have taken from the gate entry, and never
 checked the two agreed (`DECISIONS.md` §47).
 
+**Phase 11g** closed the two things this list used to name. §64's mobile
+check was run for real, at 390×844 in a browser, across the operator
+screens, the settings screens and a create drawer; it found three defects,
+all fixed and re-verified: below `lg` there was *no way to open the
+navigation at all* (there is now a hamburger and a drawer), the list tables
+pushed the page sideways (they scroll inside their card), and the login
+card's fixed 440px and the form drawers' fixed 520–720px were both wider
+than the screen (both are capped now). Every screen checked reports
+`scrollWidth == clientWidth == 390`.
+
+And notification rules became editable: `GET /notification-rules` and
+`PUT /notification-rules/:code`, behind `manage_company_settings`, with
+Settings → Notifications over them. Building it turned up two more real
+defects — a tenant could have written a `tenant_id is null` rule that
+applied to *every* workspace on the platform (`schema/99a`), and
+deactivating a rule fell through to the still-active system default, so
+switching an event off switched it back on (`DECISIONS.md` §48).
+
 **Still not built**, and named rather than implied: a full reports library
-beyond the stock statement and ageing; notification-rule configuration; the
-Agreement wizard's eleven separate steps; and a pass over the
-operator-facing screens on an actual phone — they are built responsive, but
-§64's mobile check has not been run.
+beyond the stock statement and ageing; the Agreement wizard's eleven
+separate steps; and photo/signature capture.
 
 ## Cross-cutting, not a phase
 

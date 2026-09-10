@@ -42,6 +42,7 @@ import {
   UserSettings,
   PlanSettings,
   AuditSettings,
+  NotificationRuleSettings,
   Notifications,
 } from './screens/settings/Settings';
 import {
@@ -172,6 +173,7 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="settings/company" element={<CompanySettings />} />
                     <Route path="settings/users" element={<UserSettings />} />
                     <Route path="settings/plan" element={<PlanSettings />} />
+                    <Route path="settings/notifications" element={<NotificationRuleSettings />} />
                     <Route path="settings/audit" element={<AuditSettings />} />
                     {/*
                       Everything the navigation offers that has no screen yet.

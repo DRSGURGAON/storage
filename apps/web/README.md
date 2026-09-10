@@ -38,20 +38,24 @@ chain (release order → reserve → pick → dispatch → gate pass → gate-ou
 POD); billing runs, invoices, payments and statements; quotations and
 agreements; stock transfers and verifications; returns; the Document
 Centre with its relationship graph; notifications; settings (company,
-users, plan and usage, audit log); and the **customer portal**, which a
-`customer` login lands in instead of the staff app.
+users, notification rules, plan and usage, audit log); and the **customer
+portal**, which a `customer` login lands in instead of the staff app.
 
 A route the navigation offers but that has no screen yet renders an
 explicit "not built yet" page. The navigation is generated from what the
 API supports, which is still ahead of the UI in a few places, and a blank
 page would look like missing data.
 
+Blueprint §64's phone pass **has** been run — 390×844 in a real browser,
+across the operator screens, the settings screens and a create drawer, with
+every screen reporting `scrollWidth == clientWidth == 390`. It found three
+things worth fixing: there was no way to open the navigation at all below
+`lg`, the list tables pushed the page sideways, and the login card and the
+form drawers were both wider than the screen. All three are fixed.
+
 Still absent, and named rather than implied: a full reports library beyond
-the stock statement and ageing, notification-rule configuration, the
-Agreement wizard's eleven separate steps, and a pass over the
-operator-facing screens on an actual phone (blueprint §64) — they are built
-responsive, but that check has not been run, and photo/signature capture is
-not built.
+the stock statement and ageing, the Agreement wizard's eleven separate
+steps, and photo/signature capture.
 
 ## How it is put together
 

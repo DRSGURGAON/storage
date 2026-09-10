@@ -13,6 +13,7 @@ import {
   Select,
   Space,
   Spin,
+  Switch,
   Table,
   Tag,
   Typography,
@@ -46,6 +47,21 @@ interface Company {
   isDocumentReady: boolean;
   isDemo: boolean;
 }
+
+/**
+ * The six staff roles `permissions-matrix.md` seeds, in the order it lists
+ * them. `customer` is deliberately absent from both places this is used: a
+ * portal login is not a member of staff, it cannot be invited from here,
+ * and the notification emitter excludes it from every audience.
+ */
+const STAFF_ROLES = [
+  { value: 'owner', label: 'Owner — everything, including the last-owner guard' },
+  { value: 'admin', label: 'Admin — everything except owner-only approvals' },
+  { value: 'warehouse_manager', label: 'Warehouse manager — checks and approves receipts' },
+  { value: 'warehouse_operator', label: 'Warehouse operator — raises and submits, never approves' },
+  { value: 'billing_executive', label: 'Billing executive — invoices and payments' },
+  { value: 'accountant', label: 'Accountant — billing plus approvals' },
+];
 
 /**
  * The company profile behind every document. Until it carries a GSTIN and
@@ -259,14 +275,7 @@ export function UserSettings() {
             </Form.Item>
             <Form.Item name="roleCode" label="Role" rules={[{ required: true }]}>
               <Select
-                options={[
-                  { value: 'owner', label: 'Owner — everything, including the last-owner guard' },
-                  { value: 'admin', label: 'Admin — everything except owner-only approvals' },
-                  { value: 'warehouse_manager', label: 'Warehouse manager — checks and approves receipts' },
-                  { value: 'warehouse_operator', label: 'Warehouse operator — raises and submits, never approves' },
-                  { value: 'billing_executive', label: 'Billing executive — invoices and payments' },
-                  { value: 'accountant', label: 'Accountant — billing plus approvals' },
-                ]}
+                options={STAFF_ROLES}
               />
             </Form.Item>
           </>
@@ -465,5 +474,184 @@ export function Notifications() {
         { title: 'When', dataIndex: 'createdAt', width: 190, render: (v) => dateTime(v) },
       ]}
     />
+  );
+}
+
+interface NotificationRule {
+  code: string;
+  channels: string[];
+  audienceRoleCodes: string[];
+  isActive: boolean;
+  isCustomised: boolean;
+  isEmitted: boolean;
+}
+
+/**
+ * Written out rather than derived from the code, because `humanise` turns
+ * `grn_pending_approval` into "Grn pending approval" and `pod_pending`
+ * into "Pod pending" -- two acronyms a warehouse reads every day.
+ */
+const RULE_TITLES: Record<string, string> = {
+  grn_pending_approval: 'GRN waiting for approval',
+  stock_discrepancy: 'Stock discrepancy',
+  stock_adjustment_pending: 'Stock adjustment waiting for approval',
+  pod_pending: 'POD not returned',
+  customer_request_pending: 'Customer request',
+  payment_overdue: 'Payment overdue',
+  payment_due: 'Payment due',
+  agreement_expiring: 'Agreement expiring',
+};
+
+/** What each of §56's event codes actually means, in the words of the thing that raises it. */
+const RULE_DESCRIPTIONS: Record<string, string> = {
+  grn_pending_approval: 'A GRN was submitted and is waiting for someone to approve it.',
+  stock_discrepancy: 'A GRN recorded a shortage, excess or damage against what was declared.',
+  stock_adjustment_pending: 'A stock adjustment was raised and needs approval before it posts.',
+  pod_pending: 'A gate pass left the yard and the proof of delivery has not come back.',
+  customer_request_pending: 'A customer raised a request from the portal.',
+  payment_overdue: 'An invoice passed its due date without being paid in full.',
+  payment_due: 'An invoice is approaching its due date.',
+  agreement_expiring: 'An agreement is approaching its end date.',
+};
+
+const CHANNEL_OPTIONS = [
+  { value: 'in_app', label: 'In app' },
+  { value: 'email', label: 'Email' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'sms', label: 'SMS' },
+];
+
+/**
+ * Blueprint §56's rules, which were always data and are now editable.
+ *
+ * A workspace's row *replaces* the shipped default for that event rather
+ * than adding to it, so the audience box is the whole audience — clearing
+ * it means every staff role, which is also what the shipped rules with no
+ * audience mean. Saving a row is what the emitter reads on the very next
+ * event; there is nothing to deploy.
+ */
+export function NotificationRuleSettings() {
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ['/notification-rules'],
+    queryFn: () => api<NotificationRule[]>('/notification-rules'),
+  });
+  const [drafts, setDrafts] = useState<Record<string, NotificationRule>>({});
+
+  const edit = (rule: NotificationRule, patch: Partial<NotificationRule>) =>
+    setDrafts((current) => ({ ...current, [rule.code]: { ...rule, ...current[rule.code], ...patch } }));
+
+  const save = useMutation({
+    mutationFn: (rule: NotificationRule) =>
+      api<NotificationRule>(`/notification-rules/${rule.code}`, {
+        method: 'PUT',
+        body: { channels: rule.channels, audienceRoleCodes: rule.audienceRoleCodes, isActive: rule.isActive },
+      }),
+    onSuccess: async (_saved, rule) => {
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[rule.code];
+        return next;
+      });
+      await queryClient.invalidateQueries({ queryKey: ['/notification-rules'] });
+      message.success('Saved — the next event uses it');
+    },
+    onError: (error) => message.error(error instanceof ApiError ? error.message : 'Could not save'),
+  });
+
+  const rows = (data ?? []).map((rule) => drafts[rule.code] ?? rule);
+  const isDirty = (rule: NotificationRule) => Boolean(drafts[rule.code]);
+
+  return (
+    <Card
+      loading={isLoading}
+      title={<Typography.Title level={4} style={{ margin: 0 }}>Notifications</Typography.Title>}
+    >
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="In-app delivery always works; the other three need the server configured"
+        description="An in-app notification is the row itself, so it is delivered the moment the event happens. Email, WhatsApp and SMS are handed to the delivery worker, which can only send them once SMTP_URL or the WhatsApp/SMS webhook is set on the server — until then those notifications sit pending and visible rather than being marked sent."
+      />
+      <Table<NotificationRule>
+        rowKey="code"
+        dataSource={rows}
+        pagination={false}
+        size="small"
+        scroll={{ x: 'max-content' }}
+        columns={[
+          {
+            title: 'Event',
+            dataIndex: 'code',
+            render: (code: string, rule) => (
+              <Space direction="vertical" size={0}>
+                <Space size={6} wrap>
+                  <strong>{RULE_TITLES[code] ?? humanise(code)}</strong>
+                  {rule.isCustomised && <Tag color="blue">Yours</Tag>}
+                  {!rule.isEmitted && (
+                    <Tag color="default" title="Seeded for §56, but no part of the system raises it yet">
+                      Not raised yet
+                    </Tag>
+                  )}
+                </Space>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {RULE_DESCRIPTIONS[code] ?? 'No description.'}
+                </Typography.Text>
+              </Space>
+            ),
+          },
+          {
+            title: 'Channels',
+            width: 260,
+            render: (_, rule) => (
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                value={rule.channels}
+                options={CHANNEL_OPTIONS}
+                onChange={(channels) => edit(rule, { channels })}
+              />
+            ),
+          },
+          {
+            title: 'Who hears about it',
+            width: 280,
+            render: (_, rule) => (
+              <Select
+                mode="multiple"
+                allowClear
+                style={{ width: '100%' }}
+                placeholder="Everyone"
+                value={rule.audienceRoleCodes}
+                options={STAFF_ROLES.map((role) => ({ value: role.value, label: humanise(role.value) }))}
+                onChange={(audienceRoleCodes) => edit(rule, { audienceRoleCodes })}
+              />
+            ),
+          },
+          {
+            title: 'On',
+            width: 70,
+            render: (_, rule) => <Switch checked={rule.isActive} onChange={(isActive) => edit(rule, { isActive })} />,
+          },
+          {
+            title: '',
+            width: 90,
+            render: (_, rule) => (
+              <Button
+                type="primary"
+                size="small"
+                disabled={!isDirty(rule) || rule.channels.length === 0}
+                loading={save.isPending && save.variables?.code === rule.code}
+                onClick={() => save.mutate(rule)}
+              >
+                Save
+              </Button>
+            ),
+          },
+        ]}
+      />
+    </Card>
   );
 }

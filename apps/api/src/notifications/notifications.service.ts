@@ -51,12 +51,17 @@ export class NotificationsService {
    */
   async emitWithin(tx: postgres.TransactionSql, tenantId: string, params: EmitNotificationParams): Promise<number> {
     try {
-      const [rule] = await tx<{ channels: string[]; audience_role_codes: string[] | null }[]>`
-        select channels, audience_role_codes from notification_rules
-        where (tenant_id = ${tenantId} or tenant_id is null) and code = ${params.ruleCode} and is_active
+      // `is_active` is checked *after* choosing the rule, not inside the
+      // where clause. A tenant's row replaces the system default; filtering
+      // on is_active here would make a deactivated tenant rule fall through
+      // to the still-active default, so switching an event off for one
+      // workspace would quietly switch it back on again.
+      const [rule] = await tx<{ channels: string[]; audience_role_codes: string[] | null; is_active: boolean }[]>`
+        select channels, audience_role_codes, is_active from notification_rules
+        where (tenant_id = ${tenantId} or tenant_id is null) and code = ${params.ruleCode}
         order by tenant_id nulls last limit 1
       `;
-      if (!rule) return 0;
+      if (!rule || !rule.is_active) return 0;
       const channels = rule.channels.filter((c) => ['in_app', 'email', 'whatsapp', 'sms'].includes(c));
       if (channels.length === 0) return 0;
 

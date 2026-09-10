@@ -1806,3 +1806,48 @@ them is a mistake, and the caller is the only one who knows which.
 `inwards.spec.ts` covers both halves. The general lesson is the one
 `workflow-and-statuses.md` §1 already argues for auto-fill: a value the
 server can derive should not be a field the client is trusted to repeat.
+
+## §48 — the two ways a notification rule was not really configurable
+
+Blueprint §56 always described the rules as data: seeded system-wide with
+`tenant_id is null`, overridable per tenant by a row with the same code,
+so "switching an event off for one workspace is a row, not a deploy".
+Phase 10d made email, WhatsApp and SMS actually deliverable, which turned
+that sentence from a design note into a promise — and building the API
+that finally writes those rows (`GET /notification-rules`,
+`PUT /notification-rules/:code`) found two ways it was not kept.
+
+**A deactivated rule fell through to the active default.**
+`NotificationsService.emitWithin` picked the applicable rule with
+`... and code = $2 and is_active order by tenant_id nulls last limit 1`.
+Set your own rule's `is_active` to false and it stopped matching the
+`where` clause, so the query fell through to the *system* row — which is
+still active. Switching an event off switched it back on, silently, and
+the only visible symptom was notifications that kept arriving. The rule is
+now chosen first (tenant's over system) and `is_active` checked after,
+which is what "a tenant's row replaces the default" has to mean. A test
+that turns a rule off and asserts nothing is emitted is what caught it.
+
+**Any tenant could write a rule for every other tenant.** The five tables
+with a nullable `tenant_id` (`agreement_templates`, `charge_types`,
+`notification_rules`, `roles`, `tax_rates`) get the RLS policy
+`tenant_id = <current> or tenant_id is null` — correct for `USING`, and
+`90`/`92` used the same expression for `WITH CHECK`. That permits
+inserting a row with `tenant_id is null`: a notification rule, role,
+charge type or tax rate applying platform-wide. Nothing in the
+application did that, and that is exactly the point — RLS exists for the
+day something does. `schema/99a_shared_row_write_guard.sql` splits the
+two: shared rows stay readable, and a write must carry the caller's own
+tenant id. The seeder, which legitimately creates shared rows, connects
+with no tenant context at all, so that one case is allowed explicitly
+rather than by leaving the door open for everyone. `role_permissions`,
+scoped through the role it points at, had the same hole and is fixed in
+the same file.
+
+The service layer refuses two more things that would have saved cleanly
+and then done nothing: a code no rule exists for (a rule nothing emits),
+and an audience role that is unknown or is `customer` (the emitter
+excludes portal logins, so it would address nobody). The screen goes
+further and marks the two seeded codes — `payment_due`,
+`agreement_expiring` — that no service raises yet, from a list the spec
+re-derives from the source tree so it cannot quietly go stale.

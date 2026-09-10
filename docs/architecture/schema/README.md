@@ -3,11 +3,13 @@
 Plain PostgreSQL DDL expressing the V1 data model. Split by domain so each
 file stays reviewable; load order matters because of foreign keys.
 
-Files `00`–`80` are the domain model. Files `85`–`98` are fixes and
+Files `00`–`80` are the domain model. Files `85`–`99a` are fixes and
 late additions, each found by building on the schema rather than by reading
 it; every one carries a header explaining what broke.
-`apps/api/src/db/migrate.ts` applies all twenty, in this order, and is the
-only thing that does.
+`apps/api/src/db/migrate.ts` applies all twenty-one, in this order, and is
+the only thing that does. It sorts filenames as strings, which is why the
+file after `99` is `99a` and not `100` — `'100_'` would sort *before*
+`'10_masters.sql'`.
 
 | Order | File | Domain | Blueprint §§ |
 |---|---|---|---|
@@ -31,6 +33,7 @@ only thing that does.
 | 18 | [97_payment_idempotency.sql](97_payment_idempotency.sql) | Adds `payment_receipts.idempotency_key` and its partial unique index, so a retried "Record Payment" click cannot over-credit a customer (§79) | — |
 | 19 | [98_portal_row_level_security.sql](98_portal_row_level_security.sql) | A **restrictive** `portal_customer_isolation` policy on every table with a `customer_id`, driven by `app.actor_kind`/`app.customer_id`, so a portal query that forgets its customer filter still cannot see another customer (`tenancy-and-security.md` §2) | 53 |
 | 20 | [99_notification_delivery.sql](99_notification_delivery.sql) | `attempt_count`, `last_error` and `sent_at` on `notifications`, so the delivery worker can retry with a bound and an operator can read why a send failed | 56 |
+| 21 | [99a_shared_row_write_guard.sql](99a_shared_row_write_guard.sql) | The five nullable-`tenant_id` tables let *any* tenant WRITE a `tenant_id is null` row — a rule, role, charge type or tax rate applying to every workspace on the platform. `USING` keeps them readable, `WITH CHECK` no longer lets them be written (`DECISIONS.md` §48) | — |
 
 ## Conventions
 
