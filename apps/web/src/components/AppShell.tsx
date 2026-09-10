@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Tag, Typography } from 'antd';
 import {
   ApartmentOutlined,
+  BarChartOutlined,
   BellOutlined,
   DashboardOutlined,
   FileTextOutlined,
@@ -112,6 +113,9 @@ const NAV: NavItem[] = [
       { key: '/statements', label: 'Statements', permissions: ['view_customer_statement'] },
     ],
   },
+  // Its own entry rather than a child of Stock: blueprint §55's catalogue
+  // spans operations, stock, billing and documents alike.
+  { key: '/reports', label: 'Reports', icon: <BarChartOutlined />, permissions: ['view_reports'] },
   { key: '/documents', label: 'Documents', icon: <FileTextOutlined />, permissions: ['view_documents'] },
   { key: '/notifications', label: 'Notifications', icon: <BellOutlined /> },
   {

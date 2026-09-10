@@ -1007,9 +1007,9 @@ applied to *every* workspace on the platform (`schema/99a`), and
 deactivating a rule fell through to the still-active system default, so
 switching an event off switched it back on (`DECISIONS.md` §48).
 
-**Still not built**, and named rather than implied: a full reports library
-beyond the stock statement and ageing, and the Agreement wizard's eleven
-separate steps.
+**Still not built at the close of Phase 11**, and named rather than
+implied: a full reports library beyond the stock statement and ageing
+(Phase 13 takes it up), and the Agreement wizard's eleven separate steps.
 
 ## Phase 12 — the things a warehouse actually holds in its hands
 
@@ -1065,6 +1065,37 @@ record and the client had no way to name it; and `GET /attachments` marks
 which file the record actually points at (`isLinked`), because uploading a
 second logo does not delete the first and a list showing two logos as
 equals says nothing about which one prints.
+
+## Phase 13 — the reports library (§55)
+
+Blueprint §55 lists twenty-three reports in four groups, and the
+application had two of them. The rest were not missing code so much as
+missing a *shape*: twenty-three controller methods, each with its own
+filters, its own response and its own export, is how a reports section
+becomes twenty-three slightly different things.
+
+**a. The framework, and the Operations and Documents groups.** A report is
+a definition object (`report-definition.ts`): a code, a group, the
+permission it needs, which filters it accepts, its columns, and a `run`
+that returns rows. `GET /reports/catalogue` lists the ones the caller can
+actually run — filtered by their own grants, so the screen offers nothing
+the API would refuse. `GET /reports/run/:code` runs one and returns
+columns, rows, the totals of the columns that declare themselves summable,
+and the filters *as applied* (an open date range means the last thirty
+days, and the response says so rather than leaving the client to guess).
+`GET /reports/run/:code/csv` is the same rows and the same columns as
+text, behind `export_reports` rather than `view_reports` — taking a report
+out of the building is its own decision.
+
+Nine reports so far: daily inward, daily outward, and the gate entry, GRN
+and dispatch registers; plus the document register, pending POD, pending
+approvals and agreement expiry. Three of those four are *exception*
+reports — they exist to be empty, and a row on one is a delivery nobody
+closed out or a contract about to lapse unnoticed.
+
+One screen serves all of them (`apps/web/src/screens/Reports.tsx`), built
+from the catalogue: adding a report to the backend makes it appear in the
+UI, with its filters and its column types, with no frontend change.
 
 ## Cross-cutting, not a phase
 

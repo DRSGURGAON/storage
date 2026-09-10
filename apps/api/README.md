@@ -609,6 +609,20 @@ provider said.
   row deletes its bytes. The list marks the one the record points at
   (`isLinked`) — a second logo does not delete the first, and without that
   flag nothing says which one prints. `DECISIONS.md` §49.
+- `GET /reports/catalogue`, `GET /reports/run/:code`,
+  `GET /reports/run/:code/csv` — blueprint §55's reports. A report is a
+  definition object (`reports/report-definition.ts`), not a controller
+  method: code, group, permission, the filters it accepts, its columns and
+  a `run(tx, ctx)`. That is what makes the catalogue, the CSV, the
+  permission check and the screen generic rather than written twenty-three
+  times. The catalogue is filtered to what the caller may run; the run
+  echoes the filters *as applied* (an open date range is the last thirty
+  days); the CSV is the same rows and columns as the screen, behind
+  `export_reports`, so an export cannot quietly stop matching the report it
+  is named after. Every `run` applies `tenant_users.warehouse_ids`. Nine
+  reports today: `daily_inward`, `daily_outward`, `gate_entry_register`,
+  `grn_register`, `dispatch_register`, `document_register`, `pending_pod`,
+  `pending_approvals`, `agreement_expiry`.
 - `GET /notification-rules`, `PUT /notification-rules/:code`
   (`manage_company_settings`, Owner/Admin) — the §56 rules, made editable.
   The list is the rules **as they apply**: this workspace's row where it
@@ -744,7 +758,7 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-**38 suites, 301 tests**, all against the real local database
+**39 suites, 308 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,
@@ -762,6 +776,12 @@ rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
   reservation drawing from the sooner-expiring batch rather than a merged
   pool; and a cancelled receipt netting back to the exact pre-GRN balance
   through an additive reversal.
+- `reports/report-runner.spec.ts` — the catalogue, a day counted against
+  records the spec itself created (one vehicle in, one inward received
+  short, one GRN approved), the thirty-day default on an open range, a
+  404 for a report that does not exist and a 400 for a backwards range,
+  the CSV carrying the same numbers as the screen, and the exception
+  reports being empty when nothing is outstanding.
 - `documents/letterhead.spec.ts` — the three letterhead images: absent
   before anything is uploaded (and the ruled signature line still there),
   inlined as `data:` URIs afterwards and printed by the shared shell, and

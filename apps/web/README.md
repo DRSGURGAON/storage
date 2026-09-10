@@ -37,7 +37,10 @@ warehouse receipt); stock on hand, the ledger and ageing; the outbound
 chain (release order → reserve → pick → dispatch → gate pass → gate-out →
 POD); billing runs, invoices, payments and statements; quotations and
 agreements; stock transfers and verifications; returns; the Document
-Centre with its relationship graph; notifications; settings (company,
+Centre with its relationship graph; the **reports library** (one screen
+built from the API's own catalogue, so a report added on the server
+appears here with its filters and column types and no frontend change);
+notifications; settings (company,
 users, notification rules, plan and usage, audit log); and the **customer
 portal**, which a `customer` login lands in instead of the staff app.
 
@@ -63,9 +66,9 @@ control with `capture="environment"`, so a phone opens the camera rather
 than a file browser, and the POD screen takes a real signature on a canvas
 and saves it as the image the delivery document prints.
 
-Still absent, and named rather than implied: a full reports library beyond
-the stock statement and ageing, and the Agreement wizard's eleven separate
-steps.
+Still absent, and named rather than implied: the Agreement wizard's eleven
+separate steps, and the Stock and Billing halves of the reports catalogue
+(the framework and the Operations and Documents groups are built).
 
 ## How it is put together
 

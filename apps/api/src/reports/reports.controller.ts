@@ -7,7 +7,8 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
 import { GenerateDocumentDto } from '../documents/dto/generate-document.dto';
 import { DocumentEngineService } from '../documents/documents.service';
-import { AgeingQuery, StockStatementQuery } from './dto/report-queries';
+import { AgeingQuery, RunReportQuery, StockStatementQuery } from './dto/report-queries';
+import { ReportRunnerService } from './report-runner.service';
 import { ReportsService } from './reports.service';
 
 /**
@@ -22,8 +23,46 @@ import { ReportsService } from './reports.service';
 export class ReportsController {
   constructor(
     private readonly reports: ReportsService,
+    private readonly runner: ReportRunnerService,
     private readonly documentEngine: DocumentEngineService,
   ) {}
+
+  /**
+   * What this caller can actually run. Filtered by their own grants, so
+   * the screen offers nothing the API would refuse -- `view_reports` is
+   * not the only permission in the catalogue (the document register rides
+   * `view_documents`, agreement expiry rides `view_agreement`).
+   */
+  @Get('catalogue')
+  @RequirePermission('view_reports')
+  catalogue(@CurrentUser() user: AuthenticatedUser) {
+    return this.runner.catalogue(user);
+  }
+
+  @Get('run/:code')
+  @RequirePermission('view_reports')
+  run(@CurrentUser() user: AuthenticatedUser, @Param('code') code: string, @Query() query: RunReportQuery) {
+    return this.runner.run(user, code, query);
+  }
+
+  /**
+   * `export_reports` rather than `view_reports`: a file leaves the
+   * building, which `permissions-matrix.md` treats as its own decision
+   * (the Operator can read a report on screen and cannot take it home).
+   */
+  @Get('run/:code/csv')
+  @RequirePermission('export_reports')
+  async csv(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('code') code: string,
+    @Query() query: RunReportQuery,
+    @Res() res: Response,
+  ) {
+    const { fileName, csv } = await this.runner.csv(user, code, query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(csv);
+  }
 
   @Get('stock-statement')
   @RequirePermission('view_reports')

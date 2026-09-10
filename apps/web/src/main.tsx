@@ -37,6 +37,7 @@ import {
   Payments,
   Statements,
 } from './screens/billing/Billing';
+import { Reports } from './screens/Reports';
 import { Documents, DocumentRelations } from './screens/Documents';
 import {
   CompanySettings,
@@ -179,6 +180,7 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="invoices/:id" element={<InvoiceDetail />} />
                     <Route path="payments" element={<Payments />} />
                     <Route path="statements" element={<Statements />} />
+                    <Route path="reports" element={<Reports />} />
                     <Route path="documents" element={<Documents />} />
                     <Route path="documents/:sourceType/:sourceId" element={<DocumentRelations />} />
                     <Route path="quotations" element={<Quotations />} />
