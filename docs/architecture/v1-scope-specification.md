@@ -32,12 +32,15 @@ alone.
 >   `apps/api/src/portal/`), as were the P1 items Debit Note, Stock
 >   Transfer, Stock Verification, standalone Packing List, Notifications,
 >   and the Stock Ageing report.
-> - Still genuinely not built, exactly as this document expected: the
->   **payment gateway** (`DECISIONS.md` §13), a **full reports library**
->   beyond the customer stock statement and ageing. The frontend, which
->   this banner previously listed here too, was built in Phase 11
->   (`apps/web`: React + Vite + Ant Design), so §8's screen map is now
->   mostly built rather than aspirational.
+> - Still genuinely not built, and for a stated reason rather than an
+>   oversight: the **payment gateway** (`DECISIONS.md` §13 — no provider
+>   chosen) and **S3-compatible object storage** (`DECISIONS.md` §24 — no
+>   bucket exists; attachments go through the same interface to the local
+>   filesystem). Everything else this banner used to list is built: the
+>   frontend (Phase 11, `apps/web`), the **full reports library** — all
+>   twenty-three of §55, Phase 13 — file **uploads, photographs and
+>   signatures** (Phase 12), and §15's **eleven-step agreement wizard**
+>   (Phase 14).
 >
 > Individual sections below carry inline corrections where a claim would
 > otherwise mislead. Where this document and `dev-phases.md` disagree about
@@ -124,9 +127,9 @@ launch date.
 | Customer Portal (self-service login) | A full second authentication/authorization surface and its own dashboard; V1 delivers the same documents by direct staff share/download/email without requiring a customer login | V1.1 |
 | Inspection as a standalone document | Blueprint's own §20 warns against turning this into a QA system; condition/seal/damage capture already lives on `grn_items` columns, which covers general warehousing's actual need. The `inspections` table stays in the schema, unused, for later | V1.x, if a customer segment needs formal inspection sign-off |
 | Full configurable multi-step Approval Engine (§50's Operator→Manager→Owner chains per document type) | `approval_chain_templates`/`approval_instances`/`approval_steps` already model this generically; V1 ships one simple Draft→Approved gate per document instead of tenant-configurable chains, to avoid building approval-chain admin UI before any tenant has asked for it | V1.1, config-only addition, no schema change |
-| Full Reports library (§55: Daily Inward/Outward, Stock Ageing, Collection, Document Register, Agreement Expiry, etc.) | Only the three reports already required to close the core loop (Stock Ledger, Customer Stock Statement, Customer Statement) ship in V1; the rest are genuinely "nice to have," not core-loop-blocking | V1.1–V2, prioritized by actual usage data per this phase's own "launch → collect usage → expand" philosophy |
+| ~~Full Reports library~~ (§55: Daily Inward/Outward, Stock Ageing, Collection, Document Register, Agreement Expiry, etc.) | Deferred here as "nice to have" — **built anyway in Phase 13**, all twenty-three of them, once the framework made each one a definition object rather than a screen | Built |
 | In-app/email/WhatsApp Notification Engine (§8, §56) | Not needed to complete a single transaction; every document is still visible and downloadable without it | V1.1 |
-| Stock Ageing report/buckets UI | The underlying computation is already possible from `stock_lots`/received date (`stock-engine.md` §5); only the report screen is missing | V1.1 |
+| ~~Stock Ageing report/buckets UI~~ | Built: its own screen (Phase 11) and a catalogue report reading the workspace's own bucket setting (Phase 13b) | Built |
 | Live payment gateway checkout (Razorpay/Cashfree) | V1 launches on the seeded Free plan with upgrades handled manually/offline by the vendor's own team (see §12); this is explicitly compatible with "launch, get subscribers, then expand" | V1.1, once a gateway is chosen (`DECISIONS.md` §13, still open) |
 | Full guided Demo Mode walkthrough with pre-seeded sample data | The mechanism (`tenants.is_demo`, isolated tenant) is P0; a polished scripted demo experience is UI polish on top of it | V1.1 |
 | ASN, Cold Storage, WDRA, Customs Bonded Warehouse, Advanced TMS, Full Accounting ERP, HRMS, Payroll, RFID, IoT, AI forecasting, Marketplace integrations, Advanced e-commerce OMS | Explicitly out of scope per both blueprints; reaffirmed, not reconsidered | Roadmap, unscheduled |
@@ -313,11 +316,12 @@ these instead of leaving them fully open.
 | Settings | Company, Number Series, Users & Roles, Plan & Usage | Configure | n/a | Owner/Admin only for most | Plan & Usage page itself is the usage-transparency surface |
 | Customer Portal | *(excluded from V1 — see §3; **built anyway**: `GET /portal/*` and `POST /portal/return-requests`)* | Read-only own stock, receipts, dispatches, invoices, documents | own records only | portal membership, not a staff role | — |
 
-No screen exists for Returns, full Reports library, Notifications config,
-or the Agreement wizard's 11 separate steps — deliberately, per §3. *(The
-**APIs** for Returns, Notifications and the portal were built after all;
-what is missing for all of them, and for every row in this table, is the
-frontend, since none exists yet.)*
+This table said no screen existed for Returns, the reports library,
+notification configuration or the Agreement wizard's eleven steps —
+deliberately, per §3. *(All four were built: Returns and the portal in
+Phase 8/11, the notification-rule editor in Phase 11g, the reports library
+in Phase 13, and §15's eleven-step wizard in Phase 14. Every row in this
+table now has a screen.)*
 
 ## 9. Existing Architecture vs. V1 Gap Analysis
 
@@ -325,19 +329,23 @@ frontend, since none exists yet.)*
 > is now built; the module that implements each row is named in the Notes.
 > The *Frontend* column is still accurate — nothing has been built there.
 
+*The Frontend column read "Missing" for every row when this table was
+written, and read that way through Phase 10. Phase 11 built `apps/web`;
+this is the reconciled state.*
+
 | Area | Schema | Backend service/API | Frontend | Notes |
 |---|---|---|---|---|
-| Tenancy, auth, RBAC | Already implemented (`schema/00_core.sql`) | **Built** | Missing | `apps/api/src/auth/`, `db/tenant-context.ts`, `users/`; RLS in `schema/90`–`92` |
-| Entitlement/subscription engine | Already implemented (`schema/80_subscription.sql`) | **Built** | Missing | `apps/api/src/entitlement/entitlement.service.ts` — `checkEntitlement`/`consumeEntitlement`/`recordFailedAttempt` |
+| Tenancy, auth, RBAC | Already implemented (`schema/00_core.sql`) | **Built** | **Built** | `apps/api/src/auth/`, `db/tenant-context.ts`, `users/`; RLS in `schema/90`–`92` |
+| Entitlement/subscription engine | Already implemented (`schema/80_subscription.sql`) | **Built** | **Built** | `apps/api/src/entitlement/entitlement.service.ts` — `checkEntitlement`/`consumeEntitlement`/`recordFailedAttempt` |
 | Numbering engine | Already implemented (`number_series` in `schema/00_core.sql`) | **Built** | n/a | `apps/api/src/numbering/numbering.service.ts`; needed `schema/93` to make its unique key real |
-| Masters (Customer/Warehouse/Product/Transport/Rate Card) | Already implemented (`schema/10_masters.sql`) | **Built** | Missing | `customers/`, `warehouses/`, `products/`, `transport/`, `billing/` |
-| Commercial (Quotation, Agreement, Rate Card linkage) | Already implemented (`schema/20_commercial.sql`) | **Built** | Missing | `quotations/`, `agreements/`; wizard-vs-single-form is still a frontend decision |
-| Inbound (Gate Entry → Warehouse Receipt) | Already implemented (`schema/30_inbound.sql`) | **Built** | Missing | `gate-entries/`, `inwards/`, `grns/`, `inspections/`, `discrepancy-reports/`, `putaways/`, `warehouse-receipts/` — `inspections` is used after all |
-| Stock engine | Already implemented (`schema/40_stock.sql`) | **Built** | Missing | `stock/`, `stock-transfers/`, `stock-verifications/`, `stock-adjustments/`; needed `schema/96` before the balance key was real |
-| Outbound (Release Order → POD, Returns, Packing List) | Already implemented (`schema/50_outbound.sql`) | **Built** | Missing | `release-orders/`, `pick-lists/`, `outbound/`, `returns/` — Returns and a standalone Packing List were built rather than deferred |
-| Billing (Invoice, Debit/Credit Note, Payment) | Already implemented (`schema/60_billing.sql`) | **Built** | Missing | `invoicing/`, `receivables/`; needed `schema/97` for payment idempotency |
-| Document engine, QR, versioning, approvals | Already implemented (`schema/70_documents_governance.sql`) | **Built** | Missing | `documents/` with 24 registered templates; needed `schema/95` for the public verify lookup. `getDocumentRelations` is the one specified piece still unbuilt |
-| Document design system / PDF rendering | Specified (`document-engine.md` §3) | **Built** | Missing | `documents/pdf-renderer.service.ts` + `documents/html/layout.ts` — headless Chromium via `puppeteer-core` (`DECISIONS.md` §24) |
+| Masters (Customer/Warehouse/Product/Transport/Rate Card) | Already implemented (`schema/10_masters.sql`) | **Built** | **Built** | `customers/`, `warehouses/`, `products/`, `transport/`, `billing/` |
+| Commercial (Quotation, Agreement, Rate Card linkage) | Already implemented (`schema/20_commercial.sql`) | **Built** | **Built** | `quotations/`, `agreements/`; the wizard-vs-single-form question in §12 was answered by building the wizard — §15's eleven steps, served as data and validated against (Phase 14) |
+| Inbound (Gate Entry → Warehouse Receipt) | Already implemented (`schema/30_inbound.sql`) | **Built** | **Built** | `gate-entries/`, `inwards/`, `grns/`, `inspections/`, `discrepancy-reports/`, `putaways/`, `warehouse-receipts/` — `inspections` is used after all |
+| Stock engine | Already implemented (`schema/40_stock.sql`) | **Built** | **Built** | `stock/`, `stock-transfers/`, `stock-verifications/`, `stock-adjustments/`; needed `schema/96` before the balance key was real |
+| Outbound (Release Order → POD, Returns, Packing List) | Already implemented (`schema/50_outbound.sql`) | **Built** | **Built** | `release-orders/`, `pick-lists/`, `outbound/`, `returns/` — Returns and a standalone Packing List were built rather than deferred |
+| Billing (Invoice, Debit/Credit Note, Payment) | Already implemented (`schema/60_billing.sql`) | **Built** | **Built** | `invoicing/`, `receivables/`; needed `schema/97` for payment idempotency |
+| Document engine, QR, versioning, approvals | Already implemented (`schema/70_documents_governance.sql`) | **Built** | **Built** | `documents/` with 24 registered templates; needed `schema/95` for the public verify lookup. `getDocumentRelations` was built in Phase 10c, and Phase 12b put the letterhead's logo, signature and stamp on every one of them |
+| Document design system / PDF rendering | Specified (`document-engine.md` §3) | **Built** | **Built** | `documents/pdf-renderer.service.ts` + `documents/html/layout.ts` — headless Chromium via `puppeteer-core` (`DECISIONS.md` §24) |
 
 **Bottom line, as written: nothing in this V1 scope requires a new entity,
 a new API shape, or a schema modification.** The gap is 100% "write the
@@ -353,10 +361,11 @@ idempotency column. Reviewing DDL is not the same as building on it.
 
 ## 10. Launch Blockers
 
-**P0 — launch blockers** *(the first two are closed; see the banner in §1)*:
-- ~~No application code exists yet~~ — the backend is built through Phase 8.
-  What remains a launch blocker is that **no frontend exists**: every screen
-  in §8 is unbuilt, and the API alone is not a product a warehouse can use.
+**P0 — launch blockers** *(the first three are closed; see the banner in §1)*:
+- ~~No application code exists yet~~ — the backend is built.
+- ~~No frontend exists~~ — `apps/web` was built in Phase 11 and has been
+  extended in every phase since; §8's screen map is built, including the
+  customer portal.
 - ~~Technology stack is still not chosen~~ — decided and built on
   (`DECISIONS.md` §0): NestJS + TypeScript on PostgreSQL 16.
 - The Agreement template's legal wording needs actual legal review before
@@ -379,9 +388,13 @@ idempotency column. Reviewing DDL is not the same as building on it.
   paying customers before a payment gateway is integrated.
 
 **P2 — post-launch improvements:**
-- Payment gateway integration, full Reports library, Notifications,
-  Customer Portal, Return workflow, full Approval Engine UI, guided Demo
-  Mode, Stock Ageing report screen.
+- Payment gateway integration and an S3-compatible object store — the two
+  that need a decision nobody has made yet, each behind an interface a
+  provider drops into (`DECISIONS.md` §13, §24). Everything else on this
+  list — the reports library, notifications, the customer portal, the
+  return workflow, guided demo mode, the stock ageing screen — was built;
+  a tenant-configurable approval-chain UI is the one deferral still
+  standing on its original reasoning.
 
 ## 11. Recommended Implementation Order
 

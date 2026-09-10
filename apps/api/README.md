@@ -63,13 +63,32 @@ Account Statement.
   SMTP and HTTP, and the `DEMO / SAMPLE` marking every document a demo
   workspace generates now carries.
 
+- **Phase 11 — the frontend** ([`apps/web`](../web/README.md)), through to
+  the customer portal, the notification-rule editor, and blueprint §64's
+  phone pass.
+
+- **Phase 12 — what a warehouse holds in its hands.** Uploads: damage
+  photographs (the control opens a phone's camera), a POD signature drawn
+  on the screen, customer KYC documents — and the letterhead's logo,
+  signature and stamp, printed on every generated document.
+
+- **Phase 13 — the reports library.** All twenty-three of blueprint §55,
+  each a definition object rather than a controller method, with a
+  catalogue endpoint, CSV export behind `export_reports`, and one screen
+  that draws itself from the catalogue.
+
+- **Phase 14 — the Agreement wizard.** §15's eleven steps as data: served
+  to the client, validated against, merged a step at a time, reported as
+  per-step completion, and printed into eleven template clauses.
+
 The frontend lives in [`apps/web`](../web/README.md) — React + Vite + Ant
 Design, covering the whole operational loop and the customer portal.
 
 **Known gaps**, listed rather than glossed: no object store
 (attachments are on the local filesystem behind an interface — the signed
-links exist, the S3 adapter does not); no payment gateway; `billing_runs`
-is outside the document-relations graph because it has no number; and
+links and the upload API exist, the S3 adapter does not); no payment
+gateway; `billing_runs` is outside the document-relations graph because
+it has no number; and
 `tenants.is_demo` is not excluded from billing runs (a demo's
 billing run is part of the demo, and there is no cross-tenant analytics
 surface to exclude it from yet).

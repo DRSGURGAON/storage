@@ -147,6 +147,10 @@ Named here rather than left as silent gaps in the grid above:
   `portal.spec.ts`: minting, an unauthenticated fetch, a tampered
   signature, an expired link, and one scoped to the wrong customer or
   tenant.
+- **A payment gateway.** No provider is chosen (`DECISIONS.md` §13), so
+  `payment_receipts` records money someone tells it about. Recording,
+  allocation, over-payment refusal and idempotency are all tested; taking
+  a card is not built to be tested.
 - **Fault injection** (killing a process mid-transaction) and **load
   testing**. Concurrency is tested where it decides correctness — numbering
   and entitlement both run genuine parallel races — but nothing here

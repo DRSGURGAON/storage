@@ -270,7 +270,8 @@ Agreement with a `quotationId` re-validates that quotation is `accepted`
 agreement information") and pre-fills `customerId`/`warehouseId` from it
 when the request doesn't set them explicitly. Ships exactly one
 system-seeded template (`db/seed-data.ts` `SYSTEM_AGREEMENT_TEMPLATE`,
-7 clauses covering §15's legal-content wizard steps in plain language) —
+which Phase 14 took from 7 clauses to eleven — one per §15 wizard step,
+in plain language) —
 §15's "must remain editable/configurable... requiring appropriate legal
 review" is read as V1 shipping a usable, generic starting point rather
 than an empty-or-authoring-required feature; a tenant's own reviewed
@@ -1165,6 +1166,31 @@ Two things this fixed on the way: the agreements screen was reading
 which the API has ever returned (so the dates were blank and the clauses
 never rendered), and its "Activate" button called an action the API does
 not have — it is `sign`.
+
+## Phase 15 — the proof, again
+
+Phases 12 to 14 added an upload path, a letterhead, twenty-three reports
+and an eleven-step wizard, and changed a seeded template. So the same
+question Phase 9 and Phase 10f asked gets asked again: **does this still
+build from nothing?**
+
+A database created from empty, all twenty-one schema files applied in
+order, `npm run seed` and `npm run seed:demo` run against it, and the
+whole suite pointed at it: **39 suites, 314 tests, green**. That run is
+what proves the agreement template's growth from seven clauses to eleven
+is a *seed*, not a migration someone has to remember — an existing
+deployment picks it up on its next `npm run seed`, and a new one is born
+with it.
+
+The documentation pass that goes with it corrected what four phases had
+made stale rather than leaving it to rot: `v1-scope-specification.md`'s
+gap-analysis table said "Frontend: Missing" on every row and still listed
+`getDocumentRelations`, the reports library and the agreement wizard as
+unbuilt; its launch-blocker list still led with "no frontend exists". The
+two gaps that remain are the two nobody can close from inside this
+repository — a payment gateway with no provider chosen (`DECISIONS.md`
+§13) and an S3 adapter with no bucket to point at (§24) — and both are
+behind interfaces that a provider drops into.
 
 ## Cross-cutting, not a phase
 
