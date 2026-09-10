@@ -59,6 +59,12 @@ export const PROVISIONAL_SOURCE_STATUSES: Record<string, readonly string[]> = {
   return_inward: ['draft', 'inspected'],
   // An approved or issued invoice is a tax document someone may already have filed.
   invoice: ['draft', 'pending_approval'],
+  credit_note: ['draft', 'pending_approval'],
+  debit_note: ['draft', 'pending_approval'],
+  // A receipt is issued the moment the money is taken; it has no draft state.
+  payment_receipt: [],
+  // Like the stock statement, an account statement is a fresh reading each time.
+  customer_statement: ['issued'],
 };
 
 /**

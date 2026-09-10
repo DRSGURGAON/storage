@@ -18,6 +18,12 @@ import {
 } from './templates/outbound-document.templates';
 import { ReturnInwardDocumentTemplate } from './templates/return-inward-document.template';
 import { InvoiceDocumentTemplate } from './templates/invoice-document.template';
+import {
+  CreditNoteDocumentTemplate,
+  CustomerStatementDocumentTemplate,
+  DebitNoteDocumentTemplate,
+  PaymentReceiptDocumentTemplate,
+} from './templates/receivables-document.templates';
 import { ReleaseOrderDocumentTemplate } from './templates/release-order-document.template';
 import { StockStatementDocumentTemplate } from './templates/stock-statement-document.template';
 import { StockVerificationDocumentTemplate } from './templates/stock-verification-document.template';
@@ -54,6 +60,10 @@ export class DocumentTemplateRegistry {
     podTemplate: PodDocumentTemplate,
     returnInwardTemplate: ReturnInwardDocumentTemplate,
     invoiceTemplate: InvoiceDocumentTemplate,
+    creditNoteTemplate: CreditNoteDocumentTemplate,
+    debitNoteTemplate: DebitNoteDocumentTemplate,
+    paymentReceiptTemplate: PaymentReceiptDocumentTemplate,
+    customerStatementTemplate: CustomerStatementDocumentTemplate,
   ) {
     this.templates.set(quotationTemplate.documentType, quotationTemplate);
     this.templates.set(agreementTemplate.documentType, agreementTemplate);
@@ -75,6 +85,10 @@ export class DocumentTemplateRegistry {
     this.templates.set(podTemplate.documentType, podTemplate);
     this.templates.set(returnInwardTemplate.documentType, returnInwardTemplate);
     this.templates.set(invoiceTemplate.documentType, invoiceTemplate);
+    this.templates.set(creditNoteTemplate.documentType, creditNoteTemplate);
+    this.templates.set(debitNoteTemplate.documentType, debitNoteTemplate);
+    this.templates.set(paymentReceiptTemplate.documentType, paymentReceiptTemplate);
+    this.templates.set(customerStatementTemplate.documentType, customerStatementTemplate);
   }
 
   get(documentType: string): DocumentTemplate {

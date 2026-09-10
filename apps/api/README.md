@@ -501,6 +501,37 @@ rows with no error at all.
   "prevent duplicate invoice posting"); cancelling before issue hands the
   run back to `previewed` so the corrected invoice comes from the same
   computation.
+- `POST/GET /credit-debit-notes[/:id]`, `/submit`, `/cancel`
+  (`create_credit_debit_note`), `/approve`, `/issue`
+  (`approve_credit_debit_note`), `/document[/preview]` — §41, the only way
+  to correct an issued invoice, since an issued invoice is never edited and
+  its billing run is never re-run. A note against a draft invoice is
+  refused with "correct it directly". A note **changes no column on the
+  invoice**: `amount_paid` and `balance_due` mean cash, and a credit is not
+  cash (`DECISIONS.md` §44). Numbering keeps the debit note's `DN2` prefix
+  apart from the dispatch note's `DN`.
+- `POST/GET /payments[/:id]`, `/allocate`, `/cancel`,
+  `/document[/preview]` (`record_payment`) — §42. Every create carries a
+  client `idempotencyKey`; a retry (even with a different body) returns the
+  receipt already recorded, flagged `replayed`, and
+  `payment_receipts.idempotency_key`'s unique index is what makes the race
+  safe. Allocations are absolute — what you pass replaces what the receipt
+  held — and may not exceed the receipt, name an invoice twice, over-pay an
+  invoice, or reach another customer's. Each touched invoice's
+  `amount_paid` is **recomputed** as `sum(payment_allocations)` over live
+  receipts, never incremented, and its status follows: `issued` →
+  `partially_paid` → `paid`, walking back when a receipt is cancelled. A
+  receipt with no allocations sits on account.
+- `GET /customer-statements/:customerId?from=&to=` and
+  `POST /customer-statements/:customerId/document[/preview]`
+  (`view_customer_statement`) — §43's statement, which `schema/60_billing.sql`
+  says has no table: it is a projection over invoices, notes and receipts,
+  each row carrying the running balance, with opening and closing balances
+  (a windowed statement opens from the truth, not from zero), totals, and
+  an ageing breakdown by how far past due each invoice is. Only documents
+  the customer has actually received count. Reading it flips that tenant's
+  overdue invoices first; a nightly `@Cron` job does the same across all
+  tenants.
 - `POST/GET /return-requests[/:id]` and `/cancel` (`create_return_request`),
   `/approve`, `/reject` (`approve_grn`) — §37. With `originalDispatchId`,
   every line must be on that dispatch, for its customer, in no more than
@@ -797,6 +828,28 @@ All against the real local database (`DATABASE_URL`), not mocks:
   each resolved count line pointing back at the adjustment that fixed it;
   the tenth template rendering differently blank versus completed; and
   reject/cancel plus tenant isolation.
+- `receivables/receivables.spec.ts` — two real issued invoices billed over
+  their own weeks, then: a payment posted once however many times the
+  button is clicked (the retry sends a **different amount** under the same
+  token and gets the original receipt back, with one receipt in the list);
+  a quarter-payment moving an invoice to `partially_paid` with
+  `amount_paid`/`balanceDue` asserted, an over-payment refused by name with
+  nothing partial left behind, allocations refused for exceeding the
+  receipt, naming an invoice twice, or reaching another customer's invoice;
+  one receipt settling one invoice and starting another, then cancelled —
+  reversing both in one move because the figure is recomputed rather than
+  decremented; a credit note refused against a draft invoice, raised
+  against the issued one with its tax computed, leaving the invoice's paid
+  figure untouched, and walked submit → approve → issue with approval
+  refused to the Billing Executive; a debit note with the `DN2` prefix; the
+  statement carrying all four entry types with every row's running balance
+  checked against the arithmetic and the closing balance against the
+  totals, a window opening from the previous closing balance, and the
+  document reissuing as version 2 (refused to the Accountant, who lacks
+  `regenerate_document`); an invoice flipped `overdue` by reading the
+  statement and landing in the 1-30 day ageing bucket, then paid in full
+  and clearing to a zero closing balance; plus the Operator refused
+  throughout, filters and tenant isolation.
 - `invoicing/invoicing.spec.ts` — nine days of history made by moving the
   ledger, the GRNs and the put-aways back together, so the accrual and the
   handling charges agree about when things happened. 100 bags with 2 free

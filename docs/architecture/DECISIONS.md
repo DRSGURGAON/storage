@@ -1623,3 +1623,58 @@ document being *created*. Every event the run reads is a completion —
 GRN approved, gate-out posted, loading confirmed, put-away completed,
 pick confirmed — because a draft that is later cancelled must never have
 generated a charge.
+
+## §44 — a credit note is not a payment, and the overdue job is not one statement
+
+Three decisions from closing the billing loop.
+
+**`invoices.amount_paid` means cash, and only cash.** A credit note
+reduces what the customer owes, so the tempting shortcut is to add it to
+`amount_paid` and let `balance_due` fall out. That would make the invoice
+claim it was paid when nobody paid it — wrong on the ageing report, wrong
+in a collections call, wrong in the accounts. So a note changes no column
+on the invoice it references. The customer's true position is
+`invoices + debit notes − credit notes − payments`, and the Customer
+Statement (§43) is the projection that computes it. The invoice keeps
+answering the narrower question it was designed for: how much of *this
+bill* has been settled in money.
+
+**`amount_paid` is recomputed, never incremented.** Every allocation,
+re-allocation and reversal sets it to `sum(payment_allocations)` over that
+invoice's live receipts. An increment would drift the first time a
+request was retried or a receipt reversed; a fresh sum cannot. The
+invoice's status follows the same figure, which is why cancelling a
+receipt walks a `paid` invoice back to `partially_paid` in the same
+transaction, and why the schema's generated `balance_due` never needed
+touching.
+
+**Duplicate payment posting is stopped in the database, not in a check.**
+`60_billing.sql` had no column for billing-engine.md §7's idempotency
+token, which made the requirement unenforceable rather than merely
+unbuilt, so `schema/97_payment_idempotency.sql` adds it with a partial
+unique index per tenant. The endpoint looks the token up first and
+returns the receipt already recorded (marked `replayed`), but the index is
+what makes the race safe: a second concurrent click loses at the insert,
+not at the lookup. The live walkthrough retries with a *different amount*
+under the same token and gets the original receipt back, which is the
+behaviour a double-clicked "Record Payment" button actually needs.
+
+**The overdue job loops over tenants, and that is not an optimisation
+mistake.** `workflow-and-statuses.md` §3 asks for a scheduled flip of
+`issued`/`partially_paid` invoices past their due date. The obvious
+implementation is one global `update` with no tenant filter — and it
+silently does nothing, because `invoices` is under
+`FORCE ROW LEVEL SECURITY` and a statement with no `app.tenant_id` set
+matches zero rows and reports success. The job would have run every night,
+logged nothing and flipped nothing. It now reads the tenant list from
+`tenants` (keyed by `id`, so no policy applies) and updates each tenant's
+invoices inside its own `withTenant` transaction. This is the third time
+in this build that RLS has turned a "working" write into a no-op (§34's
+`warehouse_ids` patch and the reports fixture were the others); the
+pattern is worth stating once more: **a write outside `withTenant` that
+reports success has not necessarily written anything.**
+
+Reading a customer statement flips the overdue flags for that tenant
+first. The nightly job is the schedule, not the only path, and the
+statement is the one screen where an invoice still marked `issued` two
+weeks past its due date would actively mislead.

@@ -681,8 +681,20 @@ the two state codes, rounds to whole rupees into `round_off`, and walks
 draft → pending approval → approved → issued with approval above the
 Billing Executive. A run is invoiced once; cancelling a draft invoice
 hands it back (`DECISIONS.md` §43). The Tax Invoice is the twentieth
-template. Credit/debit notes, payments and the customer statement
-follow.
+template.
+
+**Credit/debit notes, payments and the statement landed**
+(`apps/api/src/receivables/`), which closes the phase. Notes are the only
+way to correct an issued invoice and change no column on it; payments
+carry a client idempotency token backed by a unique index
+(`schema/97_payment_idempotency.sql`) and recompute `amount_paid` as a
+fresh sum after every allocation or reversal; the Customer Statement is
+the projection that nets all three, with an ageing breakdown; and the
+overdue flip is a nightly per-tenant job (`DECISIONS.md` §44). Four more
+templates (Credit Note, Debit Note, Payment Receipt, Customer
+Statement) complete the §46/§76 list of twenty-four.
+
+**Status: complete.**
 
 - Schema: `schema/60_billing.sql`.
 - Docs: `billing-engine.md` in full.

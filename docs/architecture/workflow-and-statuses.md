@@ -87,6 +87,15 @@ Agreement:      Draft → Pending Approval (Admin) → Approved (Owner) → Acti
 `partially_paid` invoices past `due_date` to `overdue` and fires the
 `payment_overdue` notification (§56).
 
+> **Implemented** (`apps/api/src/receivables/overdue.service.ts`): a
+> nightly `@Cron` job that loops over active tenants and updates each
+> one's invoices inside its own `withTenant` transaction — a single
+> global `update` matches zero rows under `FORCE ROW LEVEL SECURITY`
+> (`DECISIONS.md` §44). Reading a customer statement runs the same flip
+> for that tenant first. The reverse direction belongs to the payment:
+> recording or reversing one recomputes its invoice's status from the
+> money. The notification itself waits for Phase 8.
+
 ## 4. Error prevention (§61)
 
 Enforced centrally, not per-form:

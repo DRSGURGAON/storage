@@ -25,6 +25,12 @@ import {
 } from './templates/outbound-document.templates';
 import { ReturnInwardDocumentTemplate } from './templates/return-inward-document.template';
 import { InvoiceDocumentTemplate } from './templates/invoice-document.template';
+import {
+  CreditNoteDocumentTemplate,
+  CustomerStatementDocumentTemplate,
+  DebitNoteDocumentTemplate,
+  PaymentReceiptDocumentTemplate,
+} from './templates/receivables-document.templates';
 import { ReleaseOrderDocumentTemplate } from './templates/release-order-document.template';
 import { StockStatementDocumentTemplate } from './templates/stock-statement-document.template';
 import { StockVerificationDocumentTemplate } from './templates/stock-verification-document.template';
@@ -59,6 +65,10 @@ import { VerifyController, VerifyService } from './verify.controller';
     PodDocumentTemplate,
     ReturnInwardDocumentTemplate,
     InvoiceDocumentTemplate,
+    CreditNoteDocumentTemplate,
+    DebitNoteDocumentTemplate,
+    PaymentReceiptDocumentTemplate,
+    CustomerStatementDocumentTemplate,
     VerifyService,
   ],
   exports: [DocumentEngineService],

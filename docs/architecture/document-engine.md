@@ -77,13 +77,14 @@ deliberately consumes no second entitlement unit. See `DECISIONS.md` §33.
 > `AttachmentStorage` interface with `LocalFilesystemAttachmentStorage` as
 > the only implementation so far — `DECISIONS.md` §24 records the gap
 > against this repo's own S3-signed-URL note and the proxy-endpoint
-> fallback `tenancy-and-security.md` already sanctions. Twenty templates
-> are registered so far — Quotation, Agreement, Phase 4's whole inbound
+> fallback `tenancy-and-security.md` already sanctions. **All twenty-four
+> templates** of §2's list are registered — Quotation, Agreement, Phase 4's whole inbound
 > chain (Gate Entry, Inward, GRN, Discrepancy Report, Put-away, Warehouse
 > Receipt), Phase 5's Stock Transfer, Stock Verification and Stock
 > Statement, and Phase 6's outbound chain (Release Order, Pick List,
 > Packing List, Dispatch Note, Loading Sheet, Gate Pass, POD, Return
-> Inward), and Phase 7's Tax Invoice:
+> Inward), and Phase 7's Tax Invoice, Credit Note, Debit Note, Payment
+> Receipt and Customer Statement:
 >
 > | `documentType` | `featureCode` | Shape |
 > |---|---|---|

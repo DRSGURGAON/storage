@@ -156,6 +156,18 @@ not a constant.
 
 ## 7. Idempotency for payment posting (§61, §79)
 
+> **Implemented** (`apps/api/src/receivables/`, Phase 7): the token lives in
+> `payment_receipts.idempotency_key` (`schema/97_payment_idempotency.sql`
+> adds it, since `60_billing.sql` had nowhere to put it) under a partial
+> unique index per tenant, so a concurrent retry loses at the insert rather
+> than at a lookup. `amount_paid` is recomputed as
+> `sum(payment_allocations)` over live receipts after every allocation or
+> reversal, and the invoice's status follows it (`issued` →
+> `partially_paid` → `paid`, and back when a receipt is cancelled).
+> Credit and debit notes deliberately touch neither column — see
+> `DECISIONS.md` §44 — and the Customer Statement (§43) is the projection
+> that nets invoices, notes and payments into the real outstanding.
+
 A `payment_receipts` row is only ever inserted once per user action; the
 create-payment endpoint requires a client-supplied idempotency token (same
 mechanism as `stock-engine.md` §4) so a retried "Record Payment" click cannot

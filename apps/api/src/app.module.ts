@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AgreementsModule } from './agreements/agreements.module';
@@ -24,6 +25,7 @@ import { InvoicingModule } from './invoicing/invoicing.module';
 import { OutboundModule } from './outbound/outbound.module';
 import { PickListsModule } from './pick-lists/pick-lists.module';
 import { ReleaseOrdersModule } from './release-orders/release-orders.module';
+import { ReceivablesModule } from './receivables/receivables.module';
 import { ReportsModule } from './reports/reports.module';
 import { ReturnsModule } from './returns/returns.module';
 import { StockModule } from './stock/stock.module';
@@ -39,6 +41,8 @@ import { ScopedThrottlerGuard, throttlerConfig } from './throttling';
 
 @Module({
   imports: [
+    // workflow-and-statuses.md §3's overdue flip is a real scheduled job, not a manual click.
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -77,6 +81,7 @@ import { ScopedThrottlerGuard, throttlerConfig } from './throttling';
     OutboundModule,
     ReturnsModule,
     InvoicingModule,
+    ReceivablesModule,
     WarehouseReceiptsModule,
   ],
   controllers: [HealthController],
