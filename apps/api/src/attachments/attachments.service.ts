@@ -63,6 +63,16 @@ export class AttachmentsService {
     return row;
   }
 
+  /**
+   * The bytes for a `storage_key` already read from an `attachments` row.
+   * Used where the row was fetched inside a caller's own transaction (the
+   * document engine inlining a letterhead logo) and opening a second one
+   * to fetch it again would read a different snapshot.
+   */
+  readByStorageKey(storageKey: string): Promise<Buffer> {
+    return this.storage.read(storageKey);
+  }
+
   async readBytes(tenantId: string, attachmentId: string): Promise<{ row: AttachmentRow; bytes: Buffer }> {
     const [row] = await withTenant(this.sql, tenantId, (tx) => tx<AttachmentRow[]>`
       select id, file_name, content_type, size_bytes, storage_key from attachments

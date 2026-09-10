@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type postgres from 'postgres';
-import { escapeHtml, formatDate, renderDocumentShell, renderLineItemTable, renderPartyBlock } from '../html/layout';
+import { escapeHtml, formatDate, renderDocumentShell, renderLineItemTable, renderPartyBlock, renderReceiverSignature } from '../html/layout';
 import { DocumentTemplate, DocumentTemplateData, RenderExtras } from '../document-template';
 
 interface DiscrepancyItemSnapshot {
@@ -47,11 +47,12 @@ export class DiscrepancyDocumentTemplate implements DocumentTemplate {
         reason: string | null;
         remarks: string | null;
         driver_ack_name: string | null;
+        driver_ack_signature_attachment_id: string | null;
         warehouse_ack_at: string | null;
       }[]
     >`
       select number, report_date, status, warehouse_id, customer_id, supplier_name, grn_id, reason,
-             remarks, driver_ack_name, warehouse_ack_at
+             remarks, driver_ack_name, driver_ack_signature_attachment_id, warehouse_ack_at
       from discrepancy_reports where id = ${sourceId} and tenant_id = ${tenantId}
     `;
     if (!report) return null;
@@ -113,6 +114,9 @@ export class DiscrepancyDocumentTemplate implements DocumentTemplate {
       warehouseId: report.warehouse_id,
       statusAtGeneration: report.status,
       snapshot: snapshot as unknown as Record<string, unknown>,
+      // What the driver signed to acknowledge the shortage, if anyone got
+      // it (`POST /attachments` with category 'signature' on this report).
+      imageAttachmentIds: { signature: report.driver_ack_signature_attachment_id },
     };
   }
 
@@ -155,6 +159,7 @@ export class DiscrepancyDocumentTemplate implements DocumentTemplate {
       ${table}
       ${remarksHtml}
       ${acknowledgements}
+      ${renderReceiverSignature(extras.images, "Driver's acknowledgement")}
     `;
 
     return renderDocumentShell({

@@ -200,6 +200,41 @@ describe('Outbound: packing, dispatch, loading, gate pass, POD', () => {
     // A shortage at the consignee changes nothing in the warehouse.
     expect(await totals()).toEqual({ physical: 60, reserved: 0, available: 60 });
 
+    // The receiver's signature, taken on a phone at the tailgate, reaches
+    // the printed POD. Asserted on the HTML rather than the PDF because a
+    // PDF's streams are compressed -- what matters is that the template
+    // asked for the attachment and the engine inlined it.
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    await api()
+      .post('/attachments')
+      .set(auth(operator))
+      .field('ownerType', 'pod')
+      .field('ownerId', pod.body.id)
+      .field('category', 'signature')
+      .attach('file', png, { filename: 'signature.png', contentType: 'image/png' })
+      .expect(201);
+    const { DocumentTemplateRegistry } = await import('../documents/document-template.registry');
+    const { inlineImages, loadCompanyContext } = await import('../documents/company-context');
+    const { AttachmentsService } = await import('../attachments/attachments.service');
+    const { withTenant } = await import('../db/tenant-context');
+    const { PG_CONNECTION } = await import('../db/db.module');
+    const tenantId = JSON.parse(Buffer.from(owner.split('.')[1], 'base64url').toString()).tenantId;
+    const attachments = app.get(AttachmentsService);
+    const podHtml = await withTenant(app.get(PG_CONNECTION), tenantId, async (tx) => {
+      const template = app.get(DocumentTemplateRegistry).get('pod');
+      const loaded = (await template.loadData(tx, tenantId, pod.body.id))!;
+      const images = await inlineImages(tx, tenantId, loaded.imageAttachmentIds, (key) =>
+        attachments.readByStorageKey(key),
+      );
+      const company = await loadCompanyContext(tx, tenantId, (key) => attachments.readByStorageKey(key));
+      return template.renderHtml(loaded, { company, qrDataUri: '', qrToken: 'x', images });
+    });
+    expect(podHtml).toContain('Signed by the receiver');
+    expect(podHtml).toContain('data:image/png;base64,');
+
     // Five templates: packing list, dispatch note, loading sheet, gate pass, POD.
     for (const [path, type] of [
       [`/packing-lists/${packing.body.id}`, 'packing_list'],

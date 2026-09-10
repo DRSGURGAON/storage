@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type postgres from 'postgres';
-import { formatDate, renderDocumentShell, renderLineItemTable, renderPartyBlock, renderTotalsBlock } from '../html/layout';
+import { formatDate, renderDocumentShell, renderLineItemTable, renderPartyBlock, renderReceiverSignature, renderTotalsBlock } from '../html/layout';
 import { DocumentTemplate, DocumentTemplateData, RenderExtras } from '../document-template';
 
 type Row = Record<string, any>;
@@ -233,7 +233,13 @@ export class PodDocumentTemplate implements DocumentTemplate {
       lines: lines.map((l) => ({ sku: l.sku, name: l.name, batchNo: l.batch_no, uom: l.uom_code, dispatchedQty: Number(l.dispatched_qty),
         receivedQty: Number(l.received_qty), shortageQty: Number(l.shortage_qty), damagedQty: Number(l.damaged_qty), remarks: l.remarks })),
     };
-    return { documentNumber: pod.number, customerId: pod.customer_id, warehouseId: pod.warehouse_id, statusAtGeneration: pod.status, snapshot };
+    return {
+      documentNumber: pod.number, customerId: pod.customer_id, warehouseId: pod.warehouse_id, statusAtGeneration: pod.status, snapshot,
+      // What the receiver actually signed on the phone at the tailgate
+      // (`attachments`, category 'signature', which is what set this
+      // column -- attachments/attachment-owners.ts).
+      imageAttachmentIds: { signature: pod.signature_attachment_id, stamp: pod.stamp_attachment_id },
+    };
   }
 
   renderHtml(data: DocumentTemplateData, extras: RenderExtras): string {
@@ -247,6 +253,11 @@ export class PodDocumentTemplate implements DocumentTemplate {
     const table = renderLineItemTable(['Product', 'Batch', 'Dispatched', 'Received', 'Short', 'Damaged', 'UOM', 'Remarks'],
       s.lines.map((l: Row) => [`${l.name} (${l.sku})`, l.batchNo ?? '-', l.dispatchedQty, s.status === 'pending' ? '______' : l.receivedQty,
         s.status === 'pending' ? '' : l.shortageQty, s.status === 'pending' ? '' : l.damagedQty, l.uom, l.remarks ?? '']));
-    return renderDocumentShell({ title: 'Proof of Delivery', documentNumber: s.number, dateLabel: 'Date', date: formatDate(s.createdAt), company: extras.company, bodyHtml: `${header}${table}${receipt}`, qrDataUri: extras.qrDataUri, qrToken: extras.qrToken });
+    // Printed under the "Received By" block rather than in the shell's
+    // signature area: that one is the *warehouse's* authorised signatory,
+    // and the two must not be mistaken for each other on a delivery that
+    // came back short.
+    const signed = renderReceiverSignature(extras.images);
+    return renderDocumentShell({ title: 'Proof of Delivery', documentNumber: s.number, dateLabel: 'Date', date: formatDate(s.createdAt), company: extras.company, bodyHtml: `${header}${table}${receipt}${signed}`, qrDataUri: extras.qrDataUri, qrToken: extras.qrToken });
   }
 }

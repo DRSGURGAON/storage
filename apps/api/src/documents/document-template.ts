@@ -9,12 +9,29 @@ export interface DocumentTemplateData {
   statusAtGeneration: string;
   /** Everything the template needs to render, frozen into documents.render_data_snapshot as-is. */
   snapshot: Record<string, unknown>;
+  /**
+   * Images belonging to the source record that the template wants to
+   * print, as `name -> attachments.id` (a POD's receiver signature, say).
+   *
+   * The engine resolves each to a `data:` URI and hands them back in
+   * `RenderExtras.images`. Ids rather than bytes on purpose: the snapshot
+   * is frozen into `documents.render_data_snapshot`, and a base64 image
+   * there would bloat every stored document row with a copy of a file the
+   * `attachments` table already holds.
+   */
+  imageAttachmentIds?: Record<string, string | null>;
 }
 
 export interface RenderExtras {
   company: CompanyContext;
   qrDataUri: string;
   qrToken: string;
+  /**
+   * The `imageAttachmentIds` the template asked for, inlined as `data:`
+   * URIs -- or absent, if the attachment has since been deleted or its
+   * bytes cannot be read. A template must render without them.
+   */
+  images?: Record<string, string | null>;
 }
 
 /**

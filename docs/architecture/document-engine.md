@@ -170,7 +170,28 @@ One shared A4 layout shell used by every template:
 
 Shared primitives (one implementation, reused by every template): page
 header/footer, party-detail block, line-item table, totals block, signature
-block, QR block. A template for a specific document type only supplies which
+block, QR block.
+
+The `[Logo]` and the signature area are real images as of Phase 12b:
+`tenants.logo_attachment_id`, `signature_attachment_id` and
+`stamp_attachment_id`, uploaded through `POST /attachments` with
+`ownerType=company` and inlined by `company-context.ts` as `data:` URIs —
+never URLs, because the renderer is a headless browser with no session and
+an authenticated `<img src>` would fail silently, leaving a gap where the
+logo should be. A workspace that has uploaded none of them gets exactly
+the header and the ruled signature line it got before, and a document
+whose image bytes have gone missing still renders: a letterhead must not
+be able to cause a paperwork outage.
+
+A document may also print the **counterparty's** signature — the receiver
+on a POD, the driver on a discrepancy acknowledgement — via
+`DocumentTemplateData.imageAttachmentIds`, which the engine resolves into
+`RenderExtras.images`. Ids in the snapshot rather than bytes, so
+`documents.render_data_snapshot` does not carry a base64 copy of a file
+`attachments` already holds. That block is rendered separately from the
+shell's signature area on purpose: the shell's is the *warehouse's*
+authorised signatory, and on a delivery that came back short the two must
+not be mistaken for each other. A template for a specific document type only supplies which
 sections it needs and their field bindings — it cannot introduce a different
 visual language, which is what "documents should look like they belong to the
 same professional software" (§47) requires structurally rather than by

@@ -738,7 +738,7 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-**37 suites, 297 tests**, all against the real local database
+**38 suites, 301 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,
@@ -756,6 +756,11 @@ rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
   reservation drawing from the sooner-expiring batch rather than a merged
   pool; and a cancelled receipt netting back to the exact pre-GRN balance
   through an additive reversal.
+- `documents/letterhead.spec.ts` — the three letterhead images: absent
+  before anything is uploaded (and the ruled signature line still there),
+  inlined as `data:` URIs afterwards and printed by the shared shell, and
+  a document that still renders when the bytes have gone missing under the
+  storage provider. Ends on a real `%PDF`.
 - `attachments/attachments.spec.ts` — a real 1×1 PNG through the real
   filesystem provider: stored, listed, read back byte for byte (and found
   on disk under its `storage_key`, with a sha256), refused to a role

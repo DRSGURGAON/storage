@@ -1920,3 +1920,39 @@ Everything else now leaves the session alone and renders "Cannot reach the
 server — you are still signed in" with a retry, which is both true and
 actionable. The general shape: *the client may only discard a credential
 when the server says the credential is wrong.*
+
+## §51 — Letterhead images: data URIs, and never one scan on top of another
+
+Two decisions that only became obvious once there was a PDF to look at.
+
+**`data:` URIs, not URLs.** What renders a document is a headless browser
+handed an HTML *string*, with no session, no cookie and no origin. An
+`<img src="/attachments/…">` there is an unauthenticated request from a
+page that cannot make one — it fails, silently, and the document prints
+with a hole where the logo should be. So `company-context.ts` reads the
+bytes through the same storage provider the rest of the application uses
+and inlines them, base64, before the template ever sees them.
+
+The same reasoning decides where the bytes are *not* kept: a document's
+`render_data_snapshot` is frozen for the life of the document, so putting
+base64 images in it would give every stored document row its own copy of a
+file `attachments` already holds. Templates therefore declare
+`imageAttachmentIds` — ids — and the engine resolves them at render time.
+A deleted attachment then prints as nothing, which is the honest outcome:
+the already-generated PDF still has the image; only a regeneration loses
+it.
+
+**A signature and a stamp go side by side.** The first version overlapped
+them the way ink does on paper — the seal partly over the signature, both
+sitting on the ruled line. On screen it looked right; in the PDF the
+signature had erased the stamp. Both images are, in practice, *photographs
+of white paper*: an uploaded scan carries its own opaque white background,
+and so does anything drawn on the app's own signature canvas (which fills
+white deliberately, because a transparent PNG prints as nothing on white
+and as black on dark). Two such images cannot overlap. They are laid out
+as a flex row, signature then seal, resting on the line — and the line
+stays either way, because a scanned signature is not a legal substitute
+everywhere and someone may still want to sign the printed copy.
+
+A missing image is never an error. A letterhead that could fail a document
+would be decoration causing a paperwork outage.

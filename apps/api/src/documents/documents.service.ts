@@ -9,7 +9,7 @@ import { PG_CONNECTION } from '../db/db.module';
 import { loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { EntitlementService } from '../entitlement/entitlement.service';
-import { loadCompanyContext } from './company-context';
+import { inlineImages, loadCompanyContext } from './company-context';
 import { DocumentTemplateRegistry } from './document-template.registry';
 import { PaywallException } from './paywall.exception';
 import { PdfRendererService } from './pdf-renderer.service';
@@ -99,8 +99,14 @@ export class DocumentEngineService {
       }
 
       const qrToken = randomUUID();
-      const [qrDataUri, company] = await Promise.all([this.qr.dataUri(qrToken), loadCompanyContext(tx, actor.tenantId)]);
-      const html = template.renderHtml(data, { company, qrDataUri, qrToken });
+      const [qrDataUri, company] = await Promise.all([
+        this.qr.dataUri(qrToken),
+        loadCompanyContext(tx, actor.tenantId, (key) => this.attachments.readByStorageKey(key)),
+      ]);
+      const images = await inlineImages(tx, actor.tenantId, data.imageAttachmentIds, (key) =>
+        this.attachments.readByStorageKey(key),
+      );
+      const html = template.renderHtml(data, { company, qrDataUri, qrToken, images });
       return this.pdfRenderer.renderPdf(html);
     });
   }
@@ -155,8 +161,14 @@ export class DocumentEngineService {
       }
 
       const qrToken = randomUUID();
-      const [qrDataUri, company] = await Promise.all([this.qr.dataUri(qrToken), loadCompanyContext(tx, actor.tenantId)]);
-      const html = template.renderHtml(data, { company, qrDataUri, qrToken });
+      const [qrDataUri, company] = await Promise.all([
+        this.qr.dataUri(qrToken),
+        loadCompanyContext(tx, actor.tenantId, (key) => this.attachments.readByStorageKey(key)),
+      ]);
+      const images = await inlineImages(tx, actor.tenantId, data.imageAttachmentIds, (key) =>
+        this.attachments.readByStorageKey(key),
+      );
+      const html = template.renderHtml(data, { company, qrDataUri, qrToken, images });
       const pdfBytes = await this.pdfRenderer.renderPdf(html);
 
       const attachment = await this.attachments.create(tx, {

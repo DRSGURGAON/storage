@@ -1046,6 +1046,17 @@ the *list* screens but not the *detail* screens: their three-column
 Card header at 390px squeezed the record number out of existence entirely.
 All seventeen screens now measure `scrollWidth == clientWidth == 390`.
 
+**b. The letterhead.** With those three columns finally fillable, the
+document engine prints them: the logo in the header band, the signature
+and stamp above the ruled line, and — through
+`DocumentTemplateData.imageAttachmentIds` — the receiver's own signature
+on a POD and the driver's on a discrepancy acknowledgement.
+`document-engine.md` §3 carries the design; `DECISIONS.md` §51 carries the
+two things looking at an actual PDF taught: images must be `data:` URIs
+because the renderer has no session, and a signature and a seal must sit
+side by side rather than overlap, because both are photographs on white
+paper and the second would simply erase the first.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not
