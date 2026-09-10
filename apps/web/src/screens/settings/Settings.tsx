@@ -23,6 +23,7 @@ import { CreateButton, ListPage } from '../../components/ListPage';
 import { FormDrawer } from '../../components/FormDrawer';
 import { api, ApiError } from '../../lib/api';
 import { useSession } from '../../lib/session';
+import { Attachments } from '../../components/Attachments';
 import { STATE_CODES } from '../masters/Customers';
 import { dateTime, humanise, money } from '../../lib/format';
 
@@ -71,6 +72,7 @@ const STAFF_ROLES = [
  */
 export function CompanySettings() {
   const [form] = Form.useForm();
+  const { session } = useSession();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ['/company'], queryFn: () => api<Company>('/company') });
@@ -90,125 +92,140 @@ export function CompanySettings() {
   });
 
   return (
-    <Card
-      loading={isLoading}
-      title={<Typography.Title level={4} style={{ margin: 0 }}>Company</Typography.Title>}
-      extra={
-        <Button type="primary" loading={save.isPending} onClick={() => form.submit()}>
-          Save
-        </Button>
-      }
-    >
-      {data && !data.isDocumentReady && (
-        <Alert
-          type="warning"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message="Documents will print with an incomplete letterhead"
-          description="A GSTIN, address line, city, state and pincode are what a letterhead needs. Until all five are here, every PDF this workspace issues shows a bare company name."
-        />
-      )}
-      <Form form={form} layout="vertical" onFinish={(values) => save.mutate(values)}>
-        <Row gutter={12}>
-          <Col span={12}>
-            <Form.Item name="legalName" label="Legal name" rules={[{ required: true }]}>
-              <Input />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item name="tradeName" label="Trade name" tooltip="Printed on the letterhead when set">
-              <Input />
-            </Form.Item>
-          </Col>
-        </Row>
-        <Form.Item name="addressLine1" label="Address">
-          <Input />
-        </Form.Item>
-        <Form.Item name="addressLine2" label=" " colon={false}>
-          <Input />
-        </Form.Item>
-        <Row gutter={12}>
-          <Col span={8}>
-            <Form.Item name="city" label="City">
-              <Input />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="state" label="State">
-              <Input />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="pincode" label="Pincode">
-              <Input />
-            </Form.Item>
-          </Col>
-        </Row>
-        <Row gutter={12}>
-          <Col span={8}>
-            <Form.Item
-              name="stateCode"
-              label="State code"
-              tooltip="Decides CGST+SGST versus IGST on every invoice this workspace raises"
-            >
-              <Select allowClear showSearch optionFilterProp="label" options={STATE_CODES} />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="gstin" label="GSTIN">
-              <Input />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="pan" label="PAN">
-              <Input />
-            </Form.Item>
-          </Col>
-        </Row>
-        <Row gutter={12}>
-          <Col span={12}>
-            <Form.Item name="phone" label="Phone">
-              <Input />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item name="email" label="Email">
-              <Input />
-            </Form.Item>
-          </Col>
-        </Row>
-        <Typography.Title level={5}>Bank details</Typography.Title>
-        <Row gutter={12}>
-          <Col span={8}>
-            <Form.Item name="bankName" label="Bank">
-              <Input />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="bankAccountNo" label="Account number">
-              <Input />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="bankIfsc" label="IFSC">
-              <Input />
-            </Form.Item>
-          </Col>
-        </Row>
-        <Row gutter={12}>
-          <Col span={12}>
-            <Form.Item name="signatoryName" label="Authorised signatory">
-              <Input />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item name="signatoryDesignation" label="Designation">
-              <Input />
-            </Form.Item>
-          </Col>
-        </Row>
-      </Form>
-    </Card>
+    <Space direction="vertical" size={16} style={{ display: 'flex' }}>
+      <Card
+        loading={isLoading}
+        title={<Typography.Title level={4} style={{ margin: 0 }}>Company</Typography.Title>}
+        extra={
+          <Button type="primary" loading={save.isPending} onClick={() => form.submit()}>
+            Save
+          </Button>
+        }
+      >
+        {data && !data.isDocumentReady && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="Documents will print with an incomplete letterhead"
+            description="A GSTIN, address line, city, state and pincode are what a letterhead needs. Until all five are here, every PDF this workspace issues shows a bare company name."
+          />
+        )}
+        <Form form={form} layout="vertical" onFinish={(values) => save.mutate(values)}>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="legalName" label="Legal name" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="tradeName" label="Trade name" tooltip="Printed on the letterhead when set">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="addressLine1" label="Address">
+            <Input />
+          </Form.Item>
+          <Form.Item name="addressLine2" label=" " colon={false}>
+            <Input />
+          </Form.Item>
+          <Row gutter={12}>
+            <Col span={8}>
+              <Form.Item name="city" label="City">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="state" label="State">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="pincode" label="Pincode">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={12}>
+            <Col span={8}>
+              <Form.Item
+                name="stateCode"
+                label="State code"
+                tooltip="Decides CGST+SGST versus IGST on every invoice this workspace raises"
+              >
+                <Select allowClear showSearch optionFilterProp="label" options={STATE_CODES} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="gstin" label="GSTIN">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="pan" label="PAN">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="phone" label="Phone">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="email" label="Email">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Typography.Title level={5}>Bank details</Typography.Title>
+          <Row gutter={12}>
+            <Col span={8}>
+              <Form.Item name="bankName" label="Bank">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="bankAccountNo" label="Account number">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="bankIfsc" label="IFSC">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="signatoryName" label="Authorised signatory">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="signatoryDesignation" label="Designation">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Card>
+
+      {/* The three images every generated document prints
+          (document-engine.md §3). They are attachments on the workspace
+          itself, so this is the same component the GRN and POD screens
+          use -- ownerType 'company', the tenant as the owner id. */}
+      <Attachments
+        ownerType="company"
+        ownerId={session?.tenant.id ?? ''}
+        title="Letterhead"
+        categories={['logo', 'signature', 'stamp']}
+        writePermission="manage_company_settings"
+        emptyText="No letterhead images yet. A logo prints in the header of every document; a signature and a seal print above the authorised-signatory line."
+      />
+    </Space>
   );
 }
 

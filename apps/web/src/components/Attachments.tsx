@@ -15,6 +15,8 @@ export interface Attachment {
   sizeBytes: number;
   uploadedAt: string;
   uploadedBy: string | null;
+  /** True for the file the record itself points at (a POD's signature, the company logo). */
+  isLinked?: boolean;
 }
 
 interface AttachmentsProps {
@@ -221,7 +223,14 @@ function AttachmentTile({
           </Typography.Text>
         )}
       </div>
-      <Tag>{humanise(attachment.category)}</Tag>
+      <Space size={4} wrap>
+        <Tag>{humanise(attachment.category)}</Tag>
+        {attachment.isLinked && (
+          <Tag color="blue" title="This is the one the record uses — a newer upload of the same kind replaces it">
+            In use
+          </Tag>
+        )}
+      </Space>
       <Typography.Text ellipsis style={{ fontSize: 12 }} title={attachment.fileName}>
         {attachment.fileName}
       </Typography.Text>

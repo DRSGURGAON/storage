@@ -53,6 +53,10 @@ things worth fixing: there was no way to open the navigation at all below
 `lg`, the list tables pushed the page sideways, and the login card and the
 form drawers were both wider than the screen. All three are fixed.
 
+The company's letterhead images (logo, signature, seal) are uploaded from
+Settings → Company with the same card, and the one each document prints is
+marked "in use".
+
 Photographs and signatures are captured here too (Phase 12a): the
 `Attachments` card on a GRN, gate entry, customer or POD uses an upload
 control with `capture="environment"`, so a phone opens the camera rather

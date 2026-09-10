@@ -4,7 +4,7 @@ import { api, ApiError, getToken, setToken } from './api';
 export interface Session {
   user: { email: string; fullName: string };
   role: { code: string; name: string };
-  tenant: { slug: string; legalName: string; isDemo: boolean };
+  tenant: { id: string; slug: string; legalName: string; isDemo: boolean };
   /** The caller's live grants. Presentation only -- the API re-checks. */
   permissions: string[];
 }

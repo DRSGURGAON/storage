@@ -162,9 +162,18 @@ describe('Attachments', () => {
     `);
     expect((await linked())[0].logo_attachment_id).toBe(logo.body.id);
 
+    // And the list says which one is in use, so a second upload does not
+    // leave two logos looking equally authoritative.
+    const listed = await api().get('/attachments').query({ ownerType: 'company', ownerId: tenantId }).set(auth()).expect(200);
+    expect(listed.body.find((f: { id: string }) => f.id === logo.body.id).isLinked).toBe(true);
+
     // A second logo takes the link with it...
     const replacement = await upload(owner, { ownerType: 'company', ownerId: tenantId, category: 'logo' }, png, 'logo2.png').expect(201);
     expect((await linked())[0].logo_attachment_id).toBe(replacement.body.id);
+
+    const afterSecond = await api().get('/attachments').query({ ownerType: 'company', ownerId: tenantId }).set(auth()).expect(200);
+    expect(afterSecond.body.filter((f: { isLinked: boolean }) => f.isLinked).map((f: { id: string }) => f.id))
+      .toEqual([replacement.body.id]);
 
     // ...so deleting the *first* one must not clear a link to the second.
     await api().delete(`/attachments/${logo.body.id}`).set(auth()).expect(200);

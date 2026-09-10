@@ -132,7 +132,11 @@ provider said.
 - `GET /auth/me` — requires `Authorization: Bearer <token>`; returns the
   authenticated user's tenant/role, read through `withTenant()`
   (`src/db/tenant-context.ts`) so every response is proven, not assumed,
-  to be RLS-scoped to the caller's own tenant.
+  to be RLS-scoped to the caller's own tenant. It also carries the caller's
+  live permission codes (presentation only — `PermissionsGuard` re-resolves
+  them per request), `tenant.isDemo`, and `tenant.id`, which the client
+  needs to address the workspace as a record when uploading a letterhead
+  image.
 - `POST /customers` (`create_customer`), `GET /customers?q=&limit=&offset=`
   and `GET /customers/:id` (`view_customer`), `PATCH /customers/:id`
   (`edit_customer`). Every route is behind `JwtAuthGuard` + `PermissionsGuard`;
@@ -602,7 +606,9 @@ provider said.
   acknowledgement) writes that column on upload and clears it on delete.
   Content types are limited to what a camera or scanner produces, the size
   cap is enforced at the socket and again in the service, and deleting a
-  row deletes its bytes. `DECISIONS.md` §49.
+  row deletes its bytes. The list marks the one the record points at
+  (`isLinked`) — a second logo does not delete the first, and without that
+  flag nothing says which one prints. `DECISIONS.md` §49.
 - `GET /notification-rules`, `PUT /notification-rules/:code`
   (`manage_company_settings`, Owner/Admin) — the §56 rules, made editable.
   The list is the rules **as they apply**: this workspace's row where it

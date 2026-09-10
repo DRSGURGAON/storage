@@ -1057,6 +1057,15 @@ because the renderer has no session, and a signature and a seal must sit
 side by side rather than overlap, because both are photographs on white
 paper and the second would simply erase the first.
 
+**c. The letterhead, reachable.** A Letterhead card on Settings → Company,
+over the same `Attachments` component the GRN and POD screens use. Two
+small things came with it: `GET /auth/me` now returns the workspace's own
+`tenant.id`, because `POST /attachments` addresses the workspace as a
+record and the client had no way to name it; and `GET /attachments` marks
+which file the record actually points at (`isLinked`), because uploading a
+second logo does not delete the first and a list showing two logos as
+equals says nothing about which one prints.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

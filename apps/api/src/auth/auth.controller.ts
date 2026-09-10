@@ -94,7 +94,11 @@ export class AuthController {
       // `isDemo` travels with the session because the UI is what labels a
       // demo workspace on every screen (`entitlement-engine.md` §10); the
       // documents mark themselves.
-      tenant: { slug: row.tenant_slug, legalName: row.legal_name, isDemo: row.is_demo },
+      // The id is here so the client can address the workspace as a record
+      // -- `POST /attachments` with `ownerType=company` takes it as the
+      // owner id. It is the caller's own tenant and no secret: every row
+      // they can already read is scoped to it.
+      tenant: { id: user.tenantId, slug: row.tenant_slug, legalName: row.legal_name, isDemo: row.is_demo },
       // The caller's live grants, so a client can draw the right screen --
       // hide an action the role cannot take, rather than offering it and
       // collecting a 403. This is presentation only: `PermissionsGuard`

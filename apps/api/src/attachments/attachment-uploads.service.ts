@@ -153,6 +153,11 @@ export class AttachmentUploadsService {
     const granted = await withTenant(this.sql, actor.tenantId, (tx) => hasPermission(tx, actor, owner.read));
     if (!granted) throw new ForbiddenException(`Missing permission: ${owner.read}`);
 
+    // Which of these the owner row actually points at. Uploading a second
+    // logo does not delete the first, so without this the list shows two
+    // logos as equals and nothing says which one prints.
+    const linked = await this.linkedIds(actor, owner, query.ownerId);
+
     const rows = await withTenant(this.sql, actor.tenantId, (tx) => tx<ListedRow[]>`
       select a.id, a.owner_type, a.owner_id, a.category, a.file_name, a.content_type,
              a.size_bytes, a.uploaded_at, u.full_name as uploaded_by_name
@@ -173,6 +178,8 @@ export class AttachmentUploadsService {
       sizeBytes: Number(r.size_bytes),
       uploadedAt: r.uploaded_at,
       uploadedBy: r.uploaded_by_name,
+      /** True for the one the record itself points at, where a category links. */
+      isLinked: linked.has(r.id),
     }));
   }
 
@@ -233,6 +240,22 @@ export class AttachmentUploadsService {
       ipAddress,
     });
     return { id: attachmentId, deleted: true };
+  }
+
+  /** The attachment ids the owner row's own columns point at, if any. */
+  private async linkedIds(actor: AuthenticatedUser, owner: AttachmentOwner, ownerId: string): Promise<Set<string>> {
+    const columns = Object.values(owner.links ?? {});
+    if (columns.length === 0) return new Set();
+    const selection = columns.map((c) => `"${c}"`).join(', ');
+    const [row] = await withTenant(this.sql, actor.tenantId, (tx) =>
+      owner.isTenantRow
+        ? tx<Record<string, string | null>[]>`select ${tx.unsafe(selection)} from tenants where id = ${actor.tenantId}`
+        : tx<Record<string, string | null>[]>`
+            select ${tx.unsafe(selection)} from ${tx.unsafe(owner.table)}
+            where id = ${ownerId} and tenant_id = ${actor.tenantId}
+          `,
+    );
+    return new Set(Object.values(row ?? {}).filter((value): value is string => Boolean(value)));
   }
 
   private ownerTypeOrThrow(ownerType: string): AttachmentOwner {
