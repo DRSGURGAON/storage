@@ -35,6 +35,18 @@ export class AgreementsController {
     return this.agreements.list(user, query);
   }
 
+  /**
+   * §15's eleven steps and their fields. Served rather than hard-coded in
+   * the client for the same reason the report catalogue is: the wizard's
+   * shape and the validation that refuses an unknown field are then one
+   * definition, not two that drift.
+   */
+  @Get('wizard')
+  @RequirePermission('view_agreement')
+  wizard() {
+    return this.agreements.wizard();
+  }
+
   @Get('templates')
   @RequirePermission('view_agreement')
   listTemplates(@CurrentUser() user: AuthenticatedUser) {

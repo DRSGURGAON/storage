@@ -7,6 +7,7 @@ import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
 import { NumberingService } from '../numbering/numbering.service';
 import { AgreementTemplateClause, AgreementTemplatesService } from './agreement-templates.service';
+import { AGREEMENT_WIZARD, validateWizardData, wizardCompletion, wizardDataForPrinting } from './agreement-wizard';
 import { CreateAgreementDto } from './dto/create-agreement.dto';
 import { ListAgreementsQuery } from './dto/list-agreements.query';
 import { TerminateAgreementDto } from './dto/terminate-agreement.dto';
@@ -66,6 +67,13 @@ function toApi(row: AgreementRow) {
     terminationReason: row.termination_reason,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    /**
+     * §15's eleven steps, and which of them still need something. On the
+     * record itself rather than behind another call, because "what is left
+     * before this can be approved" is the first question anyone opening a
+     * draft agreement has.
+     */
+    wizardSteps: wizardCompletion(row.wizard_data),
   };
 }
 
@@ -114,6 +122,7 @@ export class AgreementsService {
       endDate: string | null;
       noticePeriodDays: number | null;
     },
+    wizardData?: Record<string, unknown> | null,
   ): Promise<Record<string, unknown>> {
     const [company] = await tx<
       {
@@ -158,6 +167,10 @@ export class AgreementsService {
         gstin: company.gstin,
       },
       customer: { name: customer.name, legalName: customer.legal_name ?? customer.name, gstin: customer.gstin, pan: customer.pan },
+      // `{{wizard.payment.creditDays}}` and the like. The wizard's answers
+      // are what the clauses about liability, termination and payment are
+      // *for*; before this they were stored and never printed.
+      wizard: wizardDataForPrinting(wizardData),
       warehouse: warehouse
         ? { name: warehouse.name, code: warehouse.code, addressLine1: warehouse.address_line1, city: warehouse.city, state: warehouse.state }
         : {},
@@ -198,16 +211,27 @@ export class AgreementsService {
       const template = await this.templates.get(tx, actor.tenantId, dto.templateId);
       if (dto.templateId && !template) throw new NotFoundException('Agreement template not found');
 
+      const wizardData = dto.wizardData ?? {};
+      const problems = validateWizardData(wizardData);
+      if (problems.length > 0) throw new BadRequestException(problems);
+
       const number = await this.numbering.allocateNumberIn(tx, actor.tenantId, 'AGREEMENT_GENERATION');
       const agreementDate = dto.agreementDate ?? new Date().toISOString().slice(0, 10);
 
-      const context = await this.buildContext(tx, actor.tenantId, customerId, warehouseId, {
-        number,
-        agreementDate,
-        startDate: dto.startDate,
-        endDate: dto.endDate ?? null,
-        noticePeriodDays: dto.noticePeriodDays ?? null,
-      });
+      const context = await this.buildContext(
+        tx,
+        actor.tenantId,
+        customerId,
+        warehouseId,
+        {
+          number,
+          agreementDate,
+          startDate: dto.startDate,
+          endDate: dto.endDate ?? null,
+          noticePeriodDays: dto.noticePeriodDays ?? null,
+        },
+        wizardData,
+      );
       const renderedClauses = template ? renderClauses(template.clauses, context) : null;
 
       const id = randomUUID();
@@ -218,7 +242,7 @@ export class AgreementsService {
           created_by, updated_by
         ) values (
           ${id}, ${actor.tenantId}, ${number}, ${agreementDate}, ${customerId}, ${warehouseId}, ${dto.quotationId ?? null},
-          ${dto.rateCardId ?? null}, ${template?.id ?? null}, ${JSON.stringify(dto.wizardData ?? {})}::jsonb,
+          ${dto.rateCardId ?? null}, ${template?.id ?? null}, ${JSON.stringify(wizardData)}::jsonb,
           ${renderedClauses ? JSON.stringify(renderedClauses) : null}::jsonb, ${dto.startDate}, ${dto.endDate ?? null},
           ${dto.autoRenew ?? false}, ${dto.noticePeriodDays ?? null}, ${actor.userId}, ${actor.userId}
         )
@@ -304,13 +328,30 @@ export class AgreementsService {
       const endDate = dto.endDate !== undefined ? dto.endDate : before.end_date;
       const noticePeriodDays = dto.noticePeriodDays !== undefined ? dto.noticePeriodDays : before.notice_period_days;
 
-      const context = await this.buildContext(tx, actor.tenantId, customerId, warehouseId, {
-        number: before.number,
-        agreementDate,
-        startDate,
-        endDate,
-        noticePeriodDays,
-      });
+      // Merged one step at a time, not replaced wholesale: the wizard
+      // saves the step somebody just filled in, and a whole-object replace
+      // would take the other ten steps' answers with it. Sending a step as
+      // `{}` clears that step, which is the only way to unsay something.
+      const wizardData = dto.wizardData
+        ? { ...(before.wizard_data ?? {}), ...dto.wizardData }
+        : (before.wizard_data ?? {});
+      const problems = validateWizardData(wizardData);
+      if (problems.length > 0) throw new BadRequestException(problems);
+
+      const context = await this.buildContext(
+        tx,
+        actor.tenantId,
+        customerId,
+        warehouseId,
+        {
+          number: before.number,
+          agreementDate,
+          startDate,
+          endDate,
+          noticePeriodDays,
+        },
+        wizardData,
+      );
       const renderedClauses = template ? renderClauses(template.clauses, context) : null;
 
       await tx`
@@ -320,7 +361,7 @@ export class AgreementsService {
             quotation_id = ${dto.quotationId !== undefined ? dto.quotationId : before.quotation_id},
             rate_card_id = ${dto.rateCardId !== undefined ? dto.rateCardId : before.rate_card_id},
             template_id = ${template?.id ?? null},
-            wizard_data = ${JSON.stringify(dto.wizardData ?? before.wizard_data)}::jsonb,
+            wizard_data = ${JSON.stringify(wizardData)}::jsonb,
             rendered_clauses = ${renderedClauses ? JSON.stringify(renderedClauses) : null}::jsonb,
             agreement_date = ${agreementDate},
             start_date = ${startDate},
@@ -390,10 +431,28 @@ export class AgreementsService {
     return toApi(result.after);
   }
 
+  /**
+   * The wizard's required answers are checked *here* rather than on save.
+   * A draft is allowed to be half-filled -- that is what a wizard is for
+   * -- but the moment it goes for approval it stops being a working
+   * document, and an agreement approved with no termination clause and no
+   * signatories is a piece of paper that helps nobody.
+   */
   submit(actor: AuthenticatedUser, id: string, ipAddress?: string) {
-    return this.transition(actor, id, ipAddress, ['draft'], async (tx) => {
+    return this.transition(actor, id, ipAddress, ['draft'], async (tx, before) => {
+      const incomplete = wizardCompletion(before.wizard_data).filter((step) => !step.complete);
+      if (incomplete.length > 0) {
+        throw new BadRequestException(
+          incomplete.map((step) => `${step.title}: ${step.missing.join(', ')}`),
+        );
+      }
       await tx`update agreements set status = 'pending_approval' where id = ${id} and tenant_id = ${actor.tenantId}`;
     });
+  }
+
+  /** §15's eleven steps and their fields -- the screen draws itself from this. */
+  wizard() {
+    return AGREEMENT_WIZARD;
   }
 
   /** approve_agreement is Owner-only (permissions-matrix.md) -- enforced by the controller's @RequirePermission, not here. */

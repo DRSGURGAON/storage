@@ -7,7 +7,7 @@ runnable checklist. Every row maps to a real integration test: the
 **Proven by** column names the spec file and the test that covers it. All
 of them run against a live PostgreSQL database — there are no mocked
 repositories in this suite — and the whole set is
-**39 suites, 311 tests, green** (`cd apps/api && npm test`).
+**39 suites, 314 tests, green** (`cd apps/api && npm test`).
 
 Two files carry most of the cross-module rows:
 

@@ -609,6 +609,17 @@ provider said.
   row deletes its bytes. The list marks the one the record points at
   (`isLinked`) — a second logo does not delete the first, and without that
   flag nothing says which one prints. `DECISIONS.md` §49.
+- `GET /agreements/wizard` (`view_agreement`) — blueprint §15's eleven
+  steps as data: id, title, help, fields, which are required, and which
+  masters pre-fill each step. Served rather than hard-coded in the client
+  so the wizard's shape and the validation that refuses an unknown field
+  are one definition. `POST`/`PATCH /agreements` validate `wizardData`
+  against it (an undeclared step or field is a 400, not a jsonb write
+  nothing reads), `PATCH` **merges one step at a time** so saving as you go
+  cannot wipe the other ten, and `GET /agreements/:id` carries
+  `wizardSteps` — per step, complete or not, and what is missing.
+  `POST /agreements/:id/submit` refuses while anything required is
+  missing: a draft may be half-filled, an approval may not.
 - `GET /reports/catalogue`, `GET /reports/run/:code`,
   `GET /reports/run/:code/csv` — blueprint §55's reports. A report is a
   definition object (`reports/report-definition.ts`), not a controller
@@ -766,7 +777,7 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-**39 suites, 311 tests**, all against the real local database
+**39 suites, 314 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,

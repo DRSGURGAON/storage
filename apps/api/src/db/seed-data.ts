@@ -374,48 +374,85 @@ export const SYSTEM_TAX_RATES = [
  */
 export const SYSTEM_AGREEMENT_TEMPLATE = {
   name: 'Standard Warehousing Agreement',
+  /**
+   * One clause per §15 wizard step, in the order the wizard asks. The
+   * `{{wizard.<step>.<field>}}` tokens resolve against `wizard_data`
+   * (`agreements/agreement-wizard.ts`), so what an operator typed into the
+   * wizard is what the agreement prints -- before Phase 14 those answers
+   * were stored and never read, and the clauses said "as mutually agreed"
+   * where an actual figure belonged.
+   *
+   * `{{...}}` for a value nobody supplied resolves to an empty string
+   * rather than crashing, which is why the sentences are written to stay
+   * readable when a field is blank. The wording is a starting point and
+   * still wants a lawyer's eye -- blueprint §15 is explicit about that.
+   */
   clauses: [
     {
       id: 'parties',
       title: 'Parties',
       editable: true,
-      body: "This Warehousing Agreement (\"Agreement\") is entered into between {{company.legalName}}, having its registered office at {{company.addressLine1}}, {{company.city}}, {{company.state}} - {{company.pincode}} (GSTIN {{company.gstin}}) (\"Service Provider\"), and {{customer.legalName}} (GSTIN {{customer.gstin}}) (\"Customer\").",
+      body: "This Warehousing Agreement (\"Agreement\") is entered into on {{agreement.agreementDate}} between {{company.legalName}}, having its registered office at {{company.addressLine1}}, {{company.city}}, {{company.state}} - {{company.pincode}} (GSTIN {{company.gstin}}) (\"Service Provider\"), and {{customer.legalName}} (GSTIN {{customer.gstin}}) (\"Customer\"). Notices to the Customer shall be sent to {{wizard.parties.customerContactName}} ({{wizard.parties.customerContactDesignation}}) at {{wizard.parties.customerContactEmail}}. {{wizard.parties.noticeAddress}}",
     },
     {
-      id: 'warehouse_services',
-      title: 'Warehouse & Services',
+      id: 'warehouse',
+      title: 'Warehouse',
       editable: true,
-      body: 'The Service Provider shall provide warehousing, storage, and related handling services to the Customer at {{warehouse.name}} ({{warehouse.code}}), located at {{warehouse.addressLine1}}, {{warehouse.city}}, {{warehouse.state}}.',
+      body: 'The services shall be performed at {{warehouse.name}} ({{warehouse.code}}), {{warehouse.addressLine1}}, {{warehouse.city}}, {{warehouse.state}}. Space allotted to the Customer: {{wizard.warehouse.areaAllotted}}. Operating hours: {{wizard.warehouse.operatingHours}}.',
     },
     {
-      id: 'term',
-      title: 'Term',
+      id: 'services',
+      title: 'Services',
       editable: true,
-      body: 'This Agreement shall commence on {{agreement.startDate}} and continue until {{agreement.endDate}}, unless terminated earlier in accordance with this Agreement.',
+      body: 'The Service Provider shall provide the following services: {{wizard.services.scope}} Value-added services: {{wizard.services.valueAdded}} The following are expressly excluded from this Agreement: {{wizard.services.exclusions}}',
+    },
+    {
+      id: 'goods',
+      title: 'Goods',
+      editable: true,
+      body: 'The goods to be stored are: {{wizard.goods.description}} Storage conditions: {{wizard.goods.storageConditions}}. Special conditions: {{wizard.goods.specialConditions}} The Customer warrants that the goods are lawfully owned or lawfully held by it, are accurately described, and are not prohibited from storage under applicable law.',
     },
     {
       id: 'commercial_terms',
-      title: 'Commercial Terms & Payment',
+      title: 'Commercial Terms',
       editable: true,
-      body: "Rates, charges, and payment terms for the services under this Agreement shall be as set out in the Customer's applicable rate card, which forms part of this Agreement by reference and may be revised by the Service Provider with prior written notice.",
+      body: 'Minimum monthly charge: {{wizard.commercial_terms.minimumMonthlyCharge}}. Minimum guaranteed volume: {{wizard.commercial_terms.minimumGuaranteedVolume}}. Security deposit: {{wizard.commercial_terms.securityDeposit}}. Rate revision: {{wizard.commercial_terms.rateRevision}}',
+    },
+    {
+      id: 'rates',
+      title: 'Rates',
+      editable: true,
+      body: "Rates and charges shall be those of the rate card attached to this Agreement, which forms part of it by reference and is the same rate card the Service Provider's system uses to compute the Customer's invoices. Storage is charged {{wizard.rates.rateBasis}}, billed {{wizard.rates.billingCycle}}. Taxes are charged as applicable under law.",
+    },
+    {
+      id: 'payment',
+      title: 'Payment',
+      editable: true,
+      body: 'Invoices are payable within {{wizard.payment.creditDays}} days of the invoice date, by {{wizard.payment.paymentMode}}. Amounts not paid when due may attract interest at {{wizard.payment.lateFeePct}}% per month. Any dispute in an invoice shall be raised in writing within {{wizard.payment.disputeWindowDays}} days of receipt, failing which the invoice shall be treated as accepted.',
     },
     {
       id: 'liability_insurance',
       title: 'Liability & Insurance',
       editable: true,
-      body: "The Service Provider's liability for loss of or damage to goods stored under this Agreement shall be as mutually agreed between the parties in writing. The Customer is advised to maintain adequate insurance coverage for goods held in storage.",
+      body: "Insurance of the goods shall be arranged and maintained by the {{wizard.liability_insurance.insuredBy}}, for a declared value of {{wizard.liability_insurance.insuredValue}}. The Service Provider's liability for loss of or damage to the goods shall not exceed {{wizard.liability_insurance.liabilityCap}}. The Service Provider shall not be liable for: {{wizard.liability_insurance.exclusions}}",
+    },
+    {
+      id: 'term',
+      title: 'Term',
+      editable: true,
+      body: 'This Agreement shall commence on {{agreement.startDate}} and continue until {{agreement.endDate}}, unless terminated earlier in accordance with this Agreement. Lock-in period: {{wizard.term.lockInMonths}} months. Renewal: {{wizard.term.renewalTerms}}',
     },
     {
       id: 'termination',
       title: 'Termination',
       editable: true,
-      body: "Either party may terminate this Agreement by providing not less than {{agreement.noticePeriodDays}} days' prior written notice to the other party, without prejudice to any accrued rights or obligations.",
+      body: "Either party may terminate this Agreement by giving not less than {{wizard.termination.noticeDays}} days' prior written notice to the other, without prejudice to accrued rights or obligations. {{wizard.termination.terminationForCause}} On termination or expiry: {{wizard.termination.goodsRemoval}}",
     },
     {
       id: 'signatories',
       title: 'Signatories',
       editable: true,
-      body: 'IN WITNESS WHEREOF, the parties have executed this Agreement as of {{agreement.agreementDate}}, through their duly authorised representatives.',
+      body: 'IN WITNESS WHEREOF the parties have executed this Agreement at {{wizard.signatories.placeOfExecution}} on {{agreement.agreementDate}}, through their duly authorised representatives: for the Service Provider, {{wizard.signatories.providerName}} ({{wizard.signatories.providerDesignation}}); for the Customer, {{wizard.signatories.customerName}} ({{wizard.signatories.customerDesignation}}). {{wizard.signatories.witnesses}}',
     },
   ],
 } as const;

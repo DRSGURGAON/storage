@@ -1,13 +1,31 @@
-import { useState } from 'react';
-import { Alert, Card, Col, Descriptions, Form, InputNumber, Row, Select, Space, Table, Tag, Typography } from 'antd';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Col,
+  Descriptions,
+  Form,
+  Input,
+  InputNumber,
+  Row,
+  Select,
+  Space,
+  Steps,
+  Switch,
+  Table,
+  Tag,
+  Typography,
+} from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CreateButton, ListPage } from '../components/ListPage';
 import { FormDrawer } from '../components/FormDrawer';
 import { RecordPicker } from '../components/RecordPicker';
 import { RecordActions } from '../components/RecordActions';
 import { DocumentActions } from '../components/DocumentActions';
-import { api } from '../lib/api';
+import { api, ApiError } from '../lib/api';
 import { useSession } from '../lib/session';
 import { date, humanise, money, quantity, statusColor } from '../lib/format';
 
@@ -105,12 +123,36 @@ export function QuotationDetail() {
   );
 }
 
+interface WizardField {
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'number' | 'money' | 'date' | 'boolean' | 'select';
+  options?: string[];
+  required?: boolean;
+  help?: string;
+}
+
+interface WizardStep {
+  id: string;
+  title: string;
+  help: string;
+  prefilledFrom?: string[];
+  fields: WizardField[];
+}
+
 interface Agreement {
   id: string;
   number: string;
   status: string;
-  effectiveFrom: string;
-  effectiveTo: string | null;
+  /** The API's own field names -- this screen used to read `effectiveFrom`/`effectiveTo`, which it never returned. */
+  startDate: string;
+  endDate: string | null;
+  agreementDate: string;
+  noticePeriodDays: number | null;
+  autoRenew: boolean;
+  wizardData: Record<string, Record<string, unknown>> | null;
+  wizardSteps: { id: string; title: string; complete: boolean; missing: string[] }[];
+  renderedClauses: { id: string; title: string; body: string }[] | null;
 }
 
 export function Agreements() {
@@ -124,8 +166,8 @@ export function Agreements() {
       emptyDescription="No agreements yet. An agreement's clauses are resolved from the company and customer at the moment it is drawn."
       columns={[
         { title: 'Number', dataIndex: 'number', width: 180 },
-        { title: 'From', dataIndex: 'effectiveFrom', width: 130, render: (v) => date(v) },
-        { title: 'To', dataIndex: 'effectiveTo', width: 130, render: (v) => date(v) },
+        { title: 'From', dataIndex: 'startDate', width: 130, render: (v) => date(v) },
+        { title: 'To', dataIndex: 'endDate', width: 130, render: (v) => date(v) },
         {
           title: 'Status',
           dataIndex: 'status',
@@ -141,7 +183,7 @@ export function AgreementDetail() {
   const { id = '' } = useParams();
   const { data, isLoading } = useQuery({
     queryKey: ['/agreements', id],
-    queryFn: () => api<Agreement & { clauses?: { id: string; title: string; renderedClause: string }[] }>(`/agreements/${id}`),
+    queryFn: () => api<Agreement>(`/agreements/${id}`),
   });
 
   return (
@@ -165,7 +207,7 @@ export function AgreementDetail() {
               actions={[
                 { label: 'Submit for approval', action: 'submit', permission: 'edit_agreement', from: ['draft'], primary: true },
                 { label: 'Approve', action: 'approve', permission: 'approve_agreement', from: ['pending_approval'], primary: true },
-                { label: 'Activate', action: 'activate', permission: 'approve_agreement', from: ['approved'], primary: true },
+                { label: 'Mark signed', action: 'sign', permission: 'approve_agreement', from: ['approved'], primary: true },
                 { label: 'Terminate', action: 'terminate', permission: 'approve_agreement', from: ['active'], danger: true, needsReason: true },
               ]}
             />
@@ -173,24 +215,186 @@ export function AgreementDetail() {
         }
       >
         <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
-          <Descriptions.Item label="Effective from">{date(data?.effectiveFrom)}</Descriptions.Item>
-          <Descriptions.Item label="Until">{date(data?.effectiveTo)}</Descriptions.Item>
-          <Descriptions.Item label="Status">{humanise(data?.status)}</Descriptions.Item>
+          <Descriptions.Item label="Dated">{date(data?.agreementDate)}</Descriptions.Item>
+          <Descriptions.Item label="Effective from">{date(data?.startDate)}</Descriptions.Item>
+          <Descriptions.Item label="Until">{data?.endDate ? date(data.endDate) : 'Open-ended'}</Descriptions.Item>
+          <Descriptions.Item label="Notice period">
+            {data?.noticePeriodDays ? `${data.noticePeriodDays} days` : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="Auto-renews">{data?.autoRenew ? 'Yes' : 'No'}</Descriptions.Item>
         </Descriptions>
       </Card>
-      <Card title="Clauses">
-        {(data?.clauses ?? []).map((clause) => (
+
+      {data && <AgreementWizard agreement={data} />}
+      <Card title="Clauses as they will print">
+        {(data?.renderedClauses ?? []).length === 0 && (
+          <Typography.Text type="secondary">
+            No template is attached to this agreement, so it has no clauses to print.
+          </Typography.Text>
+        )}
+        {(data?.renderedClauses ?? []).map((clause) => (
           <div key={clause.id} style={{ marginBottom: 16 }}>
             <Typography.Title level={5} style={{ marginBottom: 4 }}>
               {clause.title}
             </Typography.Title>
             <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
-              {clause.renderedClause}
+              {clause.body}
             </Typography.Paragraph>
           </div>
         ))}
       </Card>
     </Space>
+  );
+}
+
+/**
+ * Blueprint §15's eleven steps, drawn from `GET /agreements/wizard` rather
+ * than listed here — the same definition the API validates against, so a
+ * field cannot exist on the screen and be refused on save.
+ *
+ * Each step saves on its own (`PATCH` with just that step's answers, which
+ * the API merges), because a wizard that only saves at the end loses
+ * somebody's afternoon. What is still missing is shown per step, and it is
+ * what "Submit for approval" will refuse on.
+ */
+function AgreementWizard({ agreement }: { agreement: Agreement }) {
+  const { can } = useSession();
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  const [current, setCurrent] = useState(0);
+  const [form] = Form.useForm();
+  const editable = agreement.status === 'draft' && can('edit_agreement');
+
+  const { data: steps } = useQuery({
+    queryKey: ['/agreements/wizard'],
+    queryFn: () => api<WizardStep[]>('/agreements/wizard'),
+  });
+
+  const step = steps?.[current];
+  const completion = agreement.wizardSteps ?? [];
+
+  useEffect(() => {
+    if (step) form.setFieldsValue(agreement.wizardData?.[step.id] ?? {});
+  }, [step, agreement.wizardData, form]);
+
+  const save = useMutation({
+    mutationFn: (values: Record<string, unknown>) =>
+      api(`/agreements/${agreement.id}`, { method: 'PATCH', body: { wizardData: { [step!.id]: values } } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/agreements', agreement.id] });
+      message.success(`${step!.title} saved`);
+    },
+    onError: (error) => message.error(error instanceof ApiError ? error.message : 'Could not save that step'),
+  });
+
+  if (!steps || !step) return null;
+
+  const left = completion.filter((s) => !s.complete);
+
+  return (
+    <Card
+      title="Agreement wizard"
+      extra={
+        left.length === 0 ? (
+          <Tag color="success">All eleven steps answered</Tag>
+        ) : (
+          <Tag color="warning">{left.length} step{left.length === 1 ? '' : 's'} still need something</Tag>
+        )
+      }
+    >
+      <Row gutter={24}>
+        <Col xs={24} md={7}>
+          {/* Vertical, because eleven horizontal steps squeeze every title
+              into "Commerc…" — and the step list is also where someone
+              looks to see what is still outstanding. */}
+          <Steps
+            size="small"
+            current={current}
+            onChange={setCurrent}
+            direction="vertical"
+            style={{ marginBottom: 20 }}
+            items={steps.map((s) => {
+              const status = completion.find((c) => c.id === s.id);
+              return {
+                title: s.title,
+                description: status?.complete ? undefined : status?.missing.join(', '),
+                status: status?.complete ? ('finish' as const) : ('wait' as const),
+              };
+            })}
+          />
+        </Col>
+        <Col xs={24} md={17}>
+      <Typography.Paragraph type="secondary">{step.help}</Typography.Paragraph>
+      {step.prefilledFrom && (
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+          Filled from the {step.prefilledFrom.join(', ')} record{step.prefilledFrom.length === 1 ? '' : 's'} — this step only
+          asks for what those cannot know.
+        </Typography.Paragraph>
+      )}
+
+      <Form form={form} layout="vertical" disabled={!editable} onFinish={(values) => save.mutate(values)}>
+        <Row gutter={12}>
+          {step.fields.map((field) => (
+            <Col key={field.key} xs={24} md={field.type === 'textarea' ? 24 : 12}>
+              <Form.Item
+                name={field.key}
+                label={field.label}
+                tooltip={field.help}
+                valuePropName={field.type === 'boolean' ? 'checked' : 'value'}
+                rules={field.required ? [{ required: true, message: `${field.label} is needed before this can be approved` }] : []}
+              >
+                {field.type === 'textarea' ? (
+                  <Input.TextArea rows={3} />
+                ) : field.type === 'boolean' ? (
+                  <Switch />
+                ) : field.type === 'select' ? (
+                  <Select allowClear options={(field.options ?? []).map((o) => ({ value: o, label: humanise(o) }))} />
+                ) : field.type === 'number' || field.type === 'money' ? (
+                  <InputNumber style={{ width: '100%' }} min={0} />
+                ) : field.type === 'date' ? (
+                  <Input type="date" />
+                ) : (
+                  <Input />
+                )}
+              </Form.Item>
+            </Col>
+          ))}
+        </Row>
+        <Space wrap>
+          <Button disabled={current === 0} onClick={() => setCurrent((n) => n - 1)}>
+            Back
+          </Button>
+          {editable && (
+            <Button type="primary" loading={save.isPending} onClick={() => form.submit()}>
+              Save this step
+            </Button>
+          )}
+          <Button disabled={current === steps.length - 1} onClick={() => setCurrent((n) => n + 1)}>
+            Next
+          </Button>
+        </Space>
+      </Form>
+        </Col>
+      </Row>
+
+      {left.length > 0 && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginTop: 16 }}
+          message="Still needed before this agreement can be submitted"
+          description={
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {left.map((s) => (
+                <li key={s.id}>
+                  <strong>{s.title}</strong>: {s.missing.join(', ')}
+                </li>
+              ))}
+            </ul>
+          }
+        />
+      )}
+    </Card>
   );
 }
 

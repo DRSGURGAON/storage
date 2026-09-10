@@ -66,8 +66,9 @@ control with `capture="environment"`, so a phone opens the camera rather
 than a file browser, and the POD screen takes a real signature on a canvas
 and saves it as the image the delivery document prints.
 
-Still absent, and named rather than implied: the Agreement wizard's eleven
-separate steps.
+The Agreement screen carries §15's eleven-step wizard, drawn from the
+API's own definition, each step saving on its own and showing what is
+still outstanding before the agreement can be submitted.
 
 ## How it is put together
 

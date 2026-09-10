@@ -98,6 +98,26 @@ describe('Agreements', () => {
     expect(res.body[0].clauses.length).toBeGreaterThan(0);
   });
 
+
+  /**
+   * Every §15 wizard answer the eleven steps insist on. Submitting for
+   * approval now checks these, so a spec that walks the workflow has to
+   * fill the wizard in -- which is the point of the change.
+   */
+  const completeWizard = () => ({
+    parties: { customerContactName: 'R. Mehta', customerContactEmail: 'r.mehta@acme.test' },
+    services: { scope: 'Storage, inward handling, put-away, picking and dispatch.' },
+    goods: { description: 'Packaged foodgrain in 25kg bags.' },
+    rates: { billingCycle: 'monthly' },
+    payment: { creditDays: 30 },
+    liability_insurance: { insuredBy: 'customer' },
+    termination: { noticeDays: 30, goodsRemoval: 'The Customer shall remove all goods within 15 days of termination, at its own cost.' },
+    signatories: {
+      providerName: 'A. Sharma', providerDesignation: 'Director',
+      customerName: 'R. Mehta', customerDesignation: 'Head of Supply Chain',
+    },
+  });
+
   it('creates an agreement pre-filled from an accepted quotation, with placeholder-resolved clauses', async () => {
     const quotationId = await createAndAcceptQuotation();
 
@@ -110,7 +130,7 @@ describe('Agreements', () => {
         startDate: '2026-01-01',
         endDate: '2027-01-01',
         noticePeriodDays: 30,
-        wizardData: { parties: { note: 'ok' } },
+        wizardData: completeWizard(),
       })
       .expect(201);
 
@@ -123,9 +143,10 @@ describe('Agreements', () => {
     const partiesClause = res.body.renderedClauses.find((c: { id: string }) => c.id === 'parties');
     expect(partiesClause.body).toContain('Acme Co');
     expect(partiesClause.body).toContain('06AAACA1234A1Z5');
-    const warehouseClause = res.body.renderedClauses.find((c: { id: string }) => c.id === 'warehouse_services');
+    const warehouseClause = res.body.renderedClauses.find((c: { id: string }) => c.id === 'warehouse');
     expect(warehouseClause.body).toContain('Main Godown');
     expect(warehouseClause.body).toContain('WH01');
+    // The notice period the wizard's Termination step gives, printed.
     const terminationClause = res.body.renderedClauses.find((c: { id: string }) => c.id === 'termination');
     expect(terminationClause.body).toContain('30 days');
   });
@@ -158,7 +179,7 @@ describe('Agreements', () => {
     const created = await api()
       .post('/agreements')
       .set('Authorization', `Bearer ${owner}`)
-      .send({ customerId, startDate: '2026-01-01' })
+      .send({ customerId, startDate: '2026-01-01', wizardData: completeWizard() })
       .expect(201);
     const id = created.body.id;
 
@@ -186,11 +207,104 @@ describe('Agreements', () => {
     expect(signed.body.signedAt).not.toBeNull();
   });
 
+  it('serves the eleven steps, refuses a field nobody defined, and merges one step at a time', async () => {
+    const steps = (await api().get('/agreements/wizard').set('Authorization', `Bearer ${owner}`).expect(200)).body;
+    expect(steps).toHaveLength(11);
+    expect(steps.map((s: { id: string }) => s.id)).toEqual([
+      'parties', 'warehouse', 'services', 'goods', 'commercial_terms', 'rates',
+      'payment', 'liability_insurance', 'term', 'termination', 'signatories',
+    ]);
+    expect(steps[0].fields.some((f: { required: boolean }) => f.required)).toBe(true);
+
+    const created = await api()
+      .post('/agreements')
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ customerId, startDate: '2026-01-01', wizardData: { payment: { creditDays: 45 } } })
+      .expect(201);
+    const id = created.body.id;
+
+    // A step nobody declared, and a field nobody declared, are both
+    // refused -- jsonb would have stored either one and never read it.
+    await api().patch(`/agreements/${id}`).set('Authorization', `Bearer ${owner}`)
+      .send({ wizardData: { insurance_maybe: { x: 1 } } }).expect(400);
+    await api().patch(`/agreements/${id}`).set('Authorization', `Bearer ${owner}`)
+      .send({ wizardData: { payment: { creditDaysss: 45 } } }).expect(400);
+
+    // Saving one step keeps the others: the wizard saves as it goes.
+    const patched = await api().patch(`/agreements/${id}`).set('Authorization', `Bearer ${owner}`)
+      .send({ wizardData: { goods: { description: 'Packaged foodgrain.' } } }).expect(200);
+    expect(patched.body.wizardData).toMatchObject({
+      payment: { creditDays: 45 },
+      goods: { description: 'Packaged foodgrain.' },
+    });
+
+    // And the record says what is still missing, step by step.
+    const goods = patched.body.wizardSteps.find((s: { id: string }) => s.id === 'goods');
+    expect(goods).toMatchObject({ complete: true, missing: [] });
+    const signatories = patched.body.wizardSteps.find((s: { id: string }) => s.id === 'signatories');
+    expect(signatories.complete).toBe(false);
+    expect(signatories.missing).toContain('For the customer — name');
+  });
+
+  it('lets a draft be half-filled and refuses to submit one', async () => {
+    const created = await api()
+      .post('/agreements')
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ customerId, startDate: '2026-01-01', wizardData: { payment: { creditDays: 30 } } })
+      .expect(201);
+
+    const refused = await api().post(`/agreements/${created.body.id}/submit`)
+      .set('Authorization', `Bearer ${owner}`).expect(400);
+    // The refusal names every step that is short, not just the first.
+    expect(refused.body.message.join(' | ')).toContain('Signatories');
+    expect(refused.body.message.join(' | ')).toContain('Termination');
+
+    await api().patch(`/agreements/${created.body.id}`).set('Authorization', `Bearer ${owner}`)
+      .send({ wizardData: completeWizard() }).expect(200);
+    await api().post(`/agreements/${created.body.id}/submit`).set('Authorization', `Bearer ${owner}`).expect(201);
+  });
+
+  it('prints the wizard\'s answers into the agreement rather than storing them unread', async () => {
+    const created = await api()
+      .post('/agreements')
+      .set('Authorization', `Bearer ${owner}`)
+      .send({
+        customerId,
+        warehouseId,
+        startDate: '2026-01-01',
+        endDate: '2027-01-01',
+        wizardData: {
+          ...completeWizard(),
+          goods: { description: 'Packaged foodgrain.', storageConditions: 'air_conditioned' },
+          payment: { creditDays: 45, paymentMode: 'neft', lateFeePct: 1.5 },
+          liability_insurance: { insuredBy: 'customer', liabilityCap: "One month's storage charges" },
+        },
+      })
+      .expect(201);
+
+    const clauses = created.body.renderedClauses as { id: string; body: string }[];
+    expect(clauses.map((c) => c.id)).toEqual([
+      'parties', 'warehouse', 'services', 'goods', 'commercial_terms', 'rates',
+      'payment', 'liability_insurance', 'term', 'termination', 'signatories',
+    ]);
+    const byId = (id: string) => clauses.find((c) => c.id === id)!.body;
+    // A select prints as words, not as the value it is stored as.
+    expect(byId('rates')).toContain('billed monthly');
+    expect(byId('goods')).toContain('Storage conditions: air conditioned');
+    expect(byId('payment')).toContain('within 45 days');
+    expect(byId('payment')).toContain('1.5% per month');
+    expect(byId('liability_insurance')).toContain("One month's storage charges");
+    expect(byId('signatories')).toContain('A. Sharma');
+    expect(byId('termination')).toContain('within 15 days of termination');
+    // A field left blank leaves a gap, not a `{{token}}`.
+    expect(clauses.every((c) => !c.body.includes('{{'))).toBe(true);
+  });
+
   it('approve_agreement is Owner-only -- an Admin gets 403 even though Admin has edit_agreement', async () => {
     const created = await api()
       .post('/agreements')
       .set('Authorization', `Bearer ${owner}`)
-      .send({ customerId, startDate: '2026-01-01' })
+      .send({ customerId, startDate: '2026-01-01', wizardData: completeWizard() })
       .expect(201);
     await api().post(`/agreements/${created.body.id}/submit`).set('Authorization', `Bearer ${owner}`).expect(201);
 
@@ -211,7 +325,7 @@ describe('Agreements', () => {
     const created = await api()
       .post('/agreements')
       .set('Authorization', `Bearer ${owner}`)
-      .send({ customerId, startDate: '2026-01-01' })
+      .send({ customerId, startDate: '2026-01-01', wizardData: completeWizard() })
       .expect(201);
     const id = created.body.id;
     await api().post(`/agreements/${id}/submit`).set('Authorization', `Bearer ${owner}`).expect(201);
@@ -232,7 +346,7 @@ describe('Agreements', () => {
     const created = await api()
       .post('/agreements')
       .set('Authorization', `Bearer ${owner}`)
-      .send({ customerId, startDate: '2026-01-01' })
+      .send({ customerId, startDate: '2026-01-01', wizardData: completeWizard() })
       .expect(201);
 
     await api().get(`/agreements/${created.body.id}`).set('Authorization', `Bearer ${otherOwner}`).expect(404);

@@ -1009,7 +1009,8 @@ switching an event off switched it back on (`DECISIONS.md` §48).
 
 **Still not built at the close of Phase 11**, and named rather than
 implied: a full reports library beyond the stock statement and ageing
-(Phase 13 takes it up), and the Agreement wizard's eleven separate steps.
+(Phase 13 takes it up), and the Agreement wizard's eleven separate steps
+(Phase 14).
 
 ## Phase 12 — the things a warehouse actually holds in its hands
 
@@ -1123,6 +1124,47 @@ billing reports against the customer statement's own totals, which is how
 the difference between *outstanding* (unpaid invoice balances) and
 *closing balance* (the whole account, including an unapplied credit note)
 stopped being a bug and became a documented distinction.
+
+## Phase 14 — the Agreement wizard (§15)
+
+Blueprint §15 lists eleven wizard steps by name. What existed was
+`agreements.wizard_data`: a jsonb column the API accepted any shape into,
+nothing that said what a complete agreement was, and a template that could
+not print an answer because no answer had a name. The clauses said "as
+mutually agreed between the parties" where a figure belonged.
+
+The eleven steps are now declared once, as data
+(`agreements/agreement-wizard.ts`) — id, title, help, the fields each
+collects, which are required, and which masters pre-fill it. Everything
+else reads that one definition:
+
+- `GET /agreements/wizard` serves it, so the screen draws itself and
+  cannot offer a field the API would refuse.
+- A step or field nobody declared is **refused**. jsonb would have stored
+  either happily and never read it — an operator would fill something in,
+  watch it save, and find it missing from the printed agreement.
+- `PATCH` merges **one step at a time**. The wizard saves as you go, and a
+  whole-object replace would take the other ten steps with it.
+- The record carries `wizardSteps`: per step, complete or not, and what is
+  missing. That is what the screen shows and what
+  **submit-for-approval refuses on** — a draft may be half-filled, because
+  that is what a wizard is for, but an agreement approved with no
+  termination clause and no signatories is a piece of paper that helps
+  nobody.
+- The system template grew from seven clauses to eleven, one per step,
+  with `{{wizard.<step>.<field>}}` tokens. A `select` is stored as its
+  machine value and printed as words — `per_pallet_per_day` becomes "per
+  pallet per day" — because a stored answer should be stable and a
+  printed one should be readable.
+
+The screen is a vertical eleven-step form on the agreement itself, each
+step saving on its own, with what is outstanding beside every step name.
+
+Two things this fixed on the way: the agreements screen was reading
+`effectiveFrom`/`effectiveTo` and `clauses[].renderedClause`, none of
+which the API has ever returned (so the dates were blank and the clauses
+never rendered), and its "Activate" button called an action the API does
+not have — it is `sign`.
 
 ## Cross-cutting, not a phase
 
