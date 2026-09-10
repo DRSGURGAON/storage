@@ -279,6 +279,30 @@ export class DocumentEngineService {
     });
   }
 
+  /**
+   * The signed-link path into the same bytes `downloadBytes` serves. It
+   * takes verified claims rather than a request, so the only way to reach
+   * it is through `DownloadLinkService.verify()`.
+   *
+   * The customer check is repeated here rather than trusted from the
+   * link: the claims say who the link was minted for, and this asserts
+   * the document still belongs to them. A customer whose portal access is
+   * later removed keeps any unexpired link they were already holding --
+   * that is inherent to a bearer capability, and the reason the lifetime
+   * is minutes -- but a link can never be walked sideways onto another
+   * customer's document, whatever the claims say.
+   */
+  async downloadBytesByClaims(claims: { documentId: string; tenantId: string; customerId: string | null }) {
+    const [row] = await withTenant(this.sql, claims.tenantId, (tx) => tx<DocumentRow[]>`
+      select ${tx.unsafe(SELECT_COLUMNS)} from documents
+      where id = ${claims.documentId} and tenant_id = ${claims.tenantId}
+        and (${claims.customerId}::uuid is null or customer_id = ${claims.customerId})
+    `);
+    if (!row) throw new NotFoundException('Document not found');
+    const { bytes } = await this.attachments.readBytes(claims.tenantId, row.file_attachment_id);
+    return { fileName: `${row.document_number.replace(/\//g, '-')}.pdf`, bytes };
+  }
+
   async downloadBytes(actor: AuthenticatedUser, id: string) {
     const [row] = await withTenant(this.sql, actor.tenantId, (tx) => tx<DocumentRow[]>`
       select ${tx.unsafe(SELECT_COLUMNS)} from documents where id = ${id} and tenant_id = ${actor.tenantId}

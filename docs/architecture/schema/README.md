@@ -3,10 +3,11 @@
 Plain PostgreSQL DDL expressing the V1 data model. Split by domain so each
 file stays reviewable; load order matters because of foreign keys.
 
-Files `00`–`80` are the domain model. Files `85`–`97` are fixes, each found
-by building on the schema rather than by reading it; every one carries a
-header explaining what broke. `apps/api/src/db/migrate.ts` applies all
-eighteen, in this order, and is the only thing that does.
+Files `00`–`80` are the domain model. Files `85`–`98` are fixes and
+late additions, each found by building on the schema rather than by reading
+it; every one carries a header explaining what broke.
+`apps/api/src/db/migrate.ts` applies all nineteen, in this order, and is the
+only thing that does.
 
 | Order | File | Domain | Blueprint §§ |
 |---|---|---|---|
@@ -28,6 +29,7 @@ eighteen, in this order, and is the only thing that does.
 | 16 | [95_document_qr_verify_lookup.sql](95_document_qr_verify_lookup.sql) | A second, SELECT-only policy on `documents` so the public `/verify/{qr_token}` route can find a document before any tenant is known — the same shape as `91` (`DECISIONS.md` §25) | — |
 | 17 | [96_stock_lots_balance_key.sql](96_stock_lots_balance_key.sql) | Makes `stock_lots`' balance key actually unique: three of its seven columns are nullable, so the declared constraint enforced nothing for the most ordinary lot there is (`DECISIONS.md` §31) | — |
 | 18 | [97_payment_idempotency.sql](97_payment_idempotency.sql) | Adds `payment_receipts.idempotency_key` and its partial unique index, so a retried "Record Payment" click cannot over-credit a customer (§79) | — |
+| 19 | [98_portal_row_level_security.sql](98_portal_row_level_security.sql) | A **restrictive** `portal_customer_isolation` policy on every table with a `customer_id`, driven by `app.actor_kind`/`app.customer_id`, so a portal query that forgets its customer filter still cannot see another customer (`tenancy-and-security.md` §2) | 53 |
 
 ## Conventions
 

@@ -2,9 +2,10 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundEx
 import type postgres from 'postgres';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
-import { withTenant } from '../db/tenant-context';
+import { withPortalTenant } from '../db/tenant-context';
 import { AuditService } from '../audit/audit.service';
 import { DocumentEngineService } from '../documents/documents.service';
+import { DownloadLinkService } from '../documents/download-link.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NumberingService } from '../numbering/numbering.service';
 import { buildCustomerStatement } from '../receivables/statements.service';
@@ -33,6 +34,7 @@ export class PortalService {
   constructor(
     @Inject(PG_CONNECTION) private readonly sql: postgres.Sql,
     private readonly documents: DocumentEngineService,
+    private readonly links: DownloadLinkService,
     private readonly numbering: NumberingService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
@@ -45,7 +47,7 @@ export class PortalService {
 
   async profile(actor: AuthenticatedUser) {
     const customerId = this.customerOf(actor);
-    return withTenant(this.sql, actor.tenantId, async (tx) => {
+    return withPortalTenant(this.sql, actor.tenantId, customerId, async (tx) => {
       const [customer] = await tx<Record<string, any>[]>`
         select c.id, c.code, c.name, c.legal_name, c.gstin, c.pan, c.place_of_supply, c.credit_days, c.payment_terms,
                t.legal_name as tenant_name, t.trade_name as tenant_trade_name
@@ -84,7 +86,7 @@ export class PortalService {
   /** §53's "my stock": the customer's own lots, never anyone else's, with no warehouse-wide totals. */
   async stock(actor: AuthenticatedUser, query: PortalListQuery) {
     const customerId = this.customerOf(actor);
-    return withTenant(this.sql, actor.tenantId, async (tx) => {
+    return withPortalTenant(this.sql, actor.tenantId, customerId, async (tx) => {
       const rows = await tx<Record<string, any>[]>`
         select p.sku, p.name as product_name, w.code as warehouse_code, w.name as warehouse_name, b.batch_no, b.expiry_date,
                sum(sl.physical_qty)::text as physical_qty, sum(sl.reserved_qty)::text as reserved_qty,
@@ -115,7 +117,7 @@ export class PortalService {
   async documentsList(actor: AuthenticatedUser, query: PortalListQuery & { documentType?: string }) {
     const customerId = this.customerOf(actor);
     const typeFilter = query.documentType ?? null;
-    return withTenant(this.sql, actor.tenantId, async (tx) => {
+    return withPortalTenant(this.sql, actor.tenantId, customerId, async (tx) => {
       const where = tx`
         where tenant_id = ${actor.tenantId} and customer_id = ${customerId} and is_latest
           and (${typeFilter}::text is null or document_type = ${typeFilter})`;
@@ -142,16 +144,37 @@ export class PortalService {
    */
   async downloadDocument(actor: AuthenticatedUser, documentId: string) {
     const customerId = this.customerOf(actor);
-    const [owned] = await withTenant(this.sql, actor.tenantId, (tx) => tx`
+    const [owned] = await withPortalTenant(this.sql, actor.tenantId, customerId, (tx) => tx`
       select 1 from documents where id = ${documentId} and tenant_id = ${actor.tenantId} and customer_id = ${customerId}
     `);
     if (!owned) throw new NotFoundException('Document not found');
     return this.documents.downloadBytes(actor, documentId);
   }
 
+  /**
+   * The same document, as a short-lived signed link
+   * (`tenancy-and-security.md` §5). A customer forwarding a delivery note
+   * to their own accountant, or a page embedding the PDF in an iframe,
+   * cannot carry the portal's bearer token; this gives them something
+   * that expires instead of asking them to share a session.
+   *
+   * The claims carry `customerId`, so even if the link leaks it can only
+   * ever release a document that still belongs to this customer -- the
+   * consumer re-checks, rather than trusting the claim.
+   */
+  async documentDownloadLink(actor: AuthenticatedUser, documentId: string) {
+    const customerId = this.customerOf(actor);
+    const [owned] = await withPortalTenant(this.sql, actor.tenantId, customerId, (tx) => tx`
+      select 1 from documents where id = ${documentId} and tenant_id = ${actor.tenantId} and customer_id = ${customerId}
+    `);
+    if (!owned) throw new NotFoundException('Document not found');
+    const { token, path, expiresAt } = this.links.sign({ documentId, tenantId: actor.tenantId, customerId });
+    return { url: path, token, expiresAt, expiresInSeconds: this.links.ttlSeconds };
+  }
+
   async goodsReceipts(actor: AuthenticatedUser, query: PortalListQuery) {
     const customerId = this.customerOf(actor);
-    return withTenant(this.sql, actor.tenantId, async (tx) => {
+    return withPortalTenant(this.sql, actor.tenantId, customerId, async (tx) => {
       const where = tx`
         where g.tenant_id = ${actor.tenantId} and g.customer_id = ${customerId} and g.status in ('approved', 'reversed')`;
       const rows = await tx<Record<string, any>[]>`
@@ -174,7 +197,7 @@ export class PortalService {
 
   async dispatches(actor: AuthenticatedUser, query: PortalListQuery) {
     const customerId = this.customerOf(actor);
-    return withTenant(this.sql, actor.tenantId, async (tx) => {
+    return withPortalTenant(this.sql, actor.tenantId, customerId, async (tx) => {
       const where = tx`
         where d.tenant_id = ${actor.tenantId} and d.customer_id = ${customerId} and d.status in ('gate_out', 'completed')`;
       const rows = await tx<Record<string, any>[]>`
@@ -198,7 +221,7 @@ export class PortalService {
   /** §53's "pending releases": what the customer has asked for and where it has got to. */
   async releaseOrders(actor: AuthenticatedUser, query: PortalListQuery) {
     const customerId = this.customerOf(actor);
-    return withTenant(this.sql, actor.tenantId, async (tx) => {
+    return withPortalTenant(this.sql, actor.tenantId, customerId, async (tx) => {
       const where = tx`where ro.tenant_id = ${actor.tenantId} and ro.customer_id = ${customerId}`;
       const rows = await tx<Record<string, any>[]>`
         select ro.id, ro.number, ro.order_date, ro.requested_date, ro.status, ro.consignee_name, w.code as warehouse_code,
@@ -221,7 +244,7 @@ export class PortalService {
 
   async invoices(actor: AuthenticatedUser, query: PortalListQuery) {
     const customerId = this.customerOf(actor);
-    return withTenant(this.sql, actor.tenantId, async (tx) => {
+    return withPortalTenant(this.sql, actor.tenantId, customerId, async (tx) => {
       // A draft or cancelled invoice is not the customer's business; only what was issued to them.
       const where = tx`
         where tenant_id = ${actor.tenantId} and customer_id = ${customerId}
@@ -246,7 +269,7 @@ export class PortalService {
   /** The same projection the staff endpoint serves, for this customer and no other. */
   statement(actor: AuthenticatedUser, query: { from?: string; to?: string }) {
     const customerId = this.customerOf(actor);
-    return withTenant(this.sql, actor.tenantId, (tx) => buildCustomerStatement(tx, actor.tenantId, customerId, query));
+    return withPortalTenant(this.sql, actor.tenantId, customerId, (tx) => buildCustomerStatement(tx, actor.tenantId, customerId, query));
   }
 
   /**
@@ -257,7 +280,7 @@ export class PortalService {
    */
   async requestReturn(actor: AuthenticatedUser, dto: { originalDispatchId: string; reason: string; lines: { productId: string; quantity: number }[] }, ipAddress?: string) {
     const customerId = this.customerOf(actor);
-    const created = await withTenant(this.sql, actor.tenantId, async (tx) => {
+    const created = await withPortalTenant(this.sql, actor.tenantId, customerId, async (tx) => {
       const [dispatch] = await tx<{ id: string; warehouse_id: string; status: string }[]>`
         select id, warehouse_id, status from dispatches
         where id = ${dto.originalDispatchId} and tenant_id = ${actor.tenantId} and customer_id = ${customerId}

@@ -41,7 +41,22 @@ belt-and-braces way as tenant isolation:
 
 - Service layer: portal API controllers use a distinct base repository that
   hard-codes the `customer_id` filter; it is structurally impossible to call
-  the "all customers" query path from a portal request handler.
+  the "all customers" query path from a portal request handler. Built as
+  `apps/api/src/portal/portal.service.ts` — one file, every query written
+  with `customer_id = ${customerId}` inline, none of them taking a customer
+  from the request and none of them calling a staff service that could be
+  handed a different one.
+- Database layer: `schema/98_portal_row_level_security.sql` adds a
+  **restrictive** policy, `portal_customer_isolation`, to every table with a
+  `customer_id` (and to `customers`, on its `id`). A portal request runs
+  through `withPortalTenant()`, which sets `app.actor_kind = 'customer'` and
+  `app.customer_id` alongside `app.tenant_id`; the policy narrows every read
+  and write to that customer. It has to be *restrictive*, not another
+  ordinary policy: permissive policies are OR-ed together, so a second one
+  would have widened access rather than narrowed it, and the portal's own
+  tests would still have passed. Staff requests never set `app.actor_kind`,
+  so the added clause is trivially true for them and nothing else in the
+  application changes.
 - RLS: an additional policy on customer-visible tables
   (`grns`, `warehouse_receipts`, `dispatches`, `pods`, `invoices`,
   `payment_receipts`, `stock_lots`, `documents`, …) checks
@@ -135,10 +150,31 @@ issue time (see §5 below).
 ## 5. Secure file access (§69)
 
 - `attachments.storage_key` is never exposed to the client directly.
-- Downloads are served via short-lived signed URLs (or a proxy endpoint) that
-  re-validates: the requester's tenant matches `attachments.tenant_id`, and
-  for portal users, that the owning record's `customer_id` matches the
-  session's `customer_id`.
+- Downloads are served two ways, and both re-validate rather than trusting an
+  id the caller supplied:
+  - **The authenticated proxy endpoint.** `GET /documents/:id/download`
+    (and the portal's own `GET /portal/documents/:id/download`) reads the row
+    under the caller's tenant context and streams the bytes. This is the
+    default path and the only one a normal UI needs.
+  - **A short-lived signed link**, for the places a session cannot travel:
+    an `<iframe>` preview, a print window, a PDF forwarded by email.
+    `POST /documents/:id/download-link` (or its portal twin) returns
+    `/document-links/<token>`, where the token is
+    `base64url(claims).base64url(HMAC-SHA256(claims))` and the claims name
+    one document, its tenant, an optional customer, and an expiry — five
+    minutes by default (`DOCUMENT_LINK_TTL_SECONDS`). The public consumer
+    (`apps/api/src/documents/download-link.service.ts`) checks the signature
+    in constant time before parsing anything, refuses an expired token with a
+    message that says so, and re-reads the document under the claims' tenant
+    *and* customer, so a valid signature can never be walked sideways onto
+    another customer's file.
+
+    The claims travel in the link rather than in a table, so consuming one
+    costs no write and there is nothing to expire out of a database. The
+    trade, stated plainly: **a minted link cannot be revoked before it
+    expires.** That is what makes the lifetime minutes rather than days, and
+    why a link names a single document rather than a customer or a folder.
+    It is a bearer capability, not a second authentication scheme.
 - QR verification pages (§48) are the one deliberate public exception, and
   only expose the minimal fields listed in `document-engine.md` §4 — never
   the underlying `attachments` row or `render_data_snapshot`.

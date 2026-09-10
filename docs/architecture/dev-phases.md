@@ -711,8 +711,7 @@ Statement) complete the §46/§76 list of twenty-four.
 
 ## Phase 8 — Customer Portal, Reports, Notifications, Audit, QR Verification
 
-**Status: complete** apart from the three items named at the end of this
-section. The customer portal landed (`apps/api/src/portal/`). A portal
+**Status: complete.** The customer portal landed (`apps/api/src/portal/`). A portal
 login is an ordinary `tenant_users` row with `role = customer` and a
 mandatory `customer_id`; `PortalGuard` re-reads that membership on every
 request, and `PortalService` hard-codes the customer filter into every
@@ -740,12 +739,12 @@ what is enforced. The Document Centre gained the filters and pagination
 seeded by `npm run seed:demo`, which drives the real services rather than
 inserting rows (`DECISIONS.md` §46).
 
-Still open from this phase: the portal-specific RLS policy
-(`app.customer_id` / `app.actor_kind`), signed time-limited document
-URLs, and the email/WhatsApp/SMS notification adapters — all noted in
-their own documents rather than silently skipped.
+Still open at the end of this phase were three items, all noted in their
+own documents rather than silently skipped: the portal-specific RLS policy
+(`app.customer_id` / `app.actor_kind`), signed time-limited document URLs,
+and the email/WhatsApp/SMS notification adapters. Phase 10 closes them.
 
-**Status: complete** apart from those three, which are named above.
+**Status: complete.**
 
 - Schema: `notification_rules`/`notifications`, `audit_logs`,
   `approval_chain_templates`/`approval_instances`/`approval_steps` from
@@ -816,6 +815,54 @@ mid-transaction. `test-plan.md` §5 lists the full set of gaps.
   scenario, the §79 critical test-case list, plus security/permission testing
   (`tenancy-and-security.md`), PDF correctness (`document-engine.md` §3–§4),
   stock and billing reconciliation, and mobile responsiveness (§64).
+
+## Phase 10 — Closing the open items
+
+Phase 8 ended with three named gaps and Phase 9's audit found two more.
+This phase closes them; it exists because "named in a document" is not the
+same as fixed.
+
+**a. The portal's database-level isolation.**
+`schema/98_portal_row_level_security.sql` adds a **restrictive** policy,
+`portal_customer_isolation`, to every table with a `customer_id` and to
+`customers` (on its `id`). `withPortalTenant()` sets `app.actor_kind =
+'customer'` and `app.customer_id` for the transaction, and the policy
+narrows every read and write to that customer.
+
+Restrictive, not permissive, is the whole point: ordinary policies are
+OR-ed together, so a second permissive policy would have *widened* access
+while looking like it worked — the portal's own tests would still have
+passed. A restrictive policy is AND-ed with `tenant_isolation`, which is
+the semantics needed: that tenant's rows, and additionally that customer's.
+Staff requests never set `app.actor_kind`, so the added clause is trivially
+true for them and nothing else in the application changes.
+
+Three tables get a deliberate exception: `products`, `rate_cards` and
+`suppliers` carry a nullable `customer_id` where NULL means "shared across
+this tenant's customers", and those rows stay visible — otherwise the
+portal's own stock list could not name the product it is holding.
+Everywhere else NULL means "not this customer's" and is refused.
+
+`portal.spec.ts` proves it the only way worth proving: by running the
+queries *without* their `customer_id` filter — the mistake the service is
+one typo away from — and asserting the rows come back narrowed anyway,
+including a write claiming another customer being refused by `WITH CHECK`.
+
+**b. Signed, time-limited document links.**
+`POST /documents/:id/download-link` (and `POST
+/portal/documents/:id/download-link`) mints
+`/document-links/<payload>.<signature>`: HMAC-SHA256 over claims naming one
+document, its tenant, an optional customer, and an expiry. The public
+consumer checks the signature in constant time, refuses an expired link
+with a message that says *expired* rather than *invalid*, and re-reads the
+document under the claims' tenant and customer. See
+`tenancy-and-security.md` §5 for the design and for the trade it accepts —
+a minted link cannot be revoked before it expires, which is why the default
+life is five minutes.
+
+**c. Document relationships.** `getDocumentRelations` — see below.
+
+**d. Notification delivery.** The channel adapters — see below.
 
 ## Cross-cutting, not a phase
 

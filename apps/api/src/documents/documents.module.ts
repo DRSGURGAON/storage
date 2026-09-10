@@ -3,8 +3,9 @@ import { AttachmentsModule } from '../attachments/attachments.module';
 import { AuditModule } from '../audit/audit.module';
 import { EntitlementModule } from '../entitlement/entitlement.module';
 import { DocumentTemplateRegistry } from './document-template.registry';
-import { DocumentsController } from './documents.controller';
+import { DocumentLinkController, DocumentsController } from './documents.controller';
 import { DocumentEngineService } from './documents.service';
+import { DownloadLinkService } from './download-link.service';
 import { PdfRendererService } from './pdf-renderer.service';
 import { QrService } from './qr.service';
 import { AgreementDocumentTemplate } from './templates/agreement-document.template';
@@ -39,10 +40,11 @@ import { VerifyController, VerifyService } from './verify.controller';
 
 @Module({
   imports: [AttachmentsModule, AuditModule, EntitlementModule],
-  controllers: [DocumentsController, VerifyController],
+  controllers: [DocumentsController, DocumentLinkController, VerifyController],
   providers: [
     DocumentEngineService,
     DocumentTemplateRegistry,
+    DownloadLinkService,
     PdfRendererService,
     QrService,
     QuotationDocumentTemplate,
@@ -71,6 +73,6 @@ import { VerifyController, VerifyService } from './verify.controller';
     CustomerStatementDocumentTemplate,
     VerifyService,
   ],
-  exports: [DocumentEngineService],
+  exports: [DocumentEngineService, DownloadLinkService],
 })
 export class DocumentsModule {}

@@ -31,3 +31,37 @@ export async function withTenant<T>(
   );
   return result as T;
 }
+
+/**
+ * The portal's variant, for `tenancy-and-security.md` §2. Sets the same
+ * `app.tenant_id` plus two more transaction-local GUCs -- `app.actor_kind`
+ * = `'customer'` and `app.customer_id` -- which
+ * `schema/98_portal_row_level_security.sql`'s restrictive policies read.
+ *
+ * The effect is that inside `fn`, a query that forgets its
+ * `customer_id = ...` filter returns this customer's rows anyway, instead
+ * of every customer's. That is the same bargain `withTenant` strikes for
+ * tenants, and for the same reason: the inline filters stay (they are
+ * still written in every portal query, and still the primary control), but
+ * a mistake in one of them stops being a data breach.
+ *
+ * Never call this for a staff request. `app.actor_kind` left unset is what
+ * tells the database this is ordinary staff access, and every staff query
+ * in the app depends on that being the default.
+ */
+export async function withPortalTenant<T>(
+  sql: postgres.Sql,
+  tenantId: string,
+  customerId: string,
+  fn: (tx: postgres.TransactionSql) => Promise<T>,
+): Promise<T> {
+  const result = await (sql.begin as (cb: unknown) => Promise<unknown>)(
+    async (tx: postgres.TransactionSql) => {
+      await tx`select set_config('app.tenant_id', ${tenantId}, true)`;
+      await tx`select set_config('app.actor_kind', 'customer', true)`;
+      await tx`select set_config('app.customer_id', ${customerId}, true)`;
+      return fn(tx);
+    },
+  );
+  return result as T;
+}

@@ -86,7 +86,7 @@ Every row below is covered. "Proven by" names the file and the test.
 | Case | Proven by |
 |---|---|
 | Tenant A cannot reach tenant B's records via any staff API | `db/tenant-isolation.spec.ts` (directly, including a reused pooled connection) and every module spec's own *"isolates tenants"* test — `customers.spec.ts` proves it first through HTTP: list empty, fetch 404, patch 404 |
-| A portal session cannot reach another customer's data, even by guessing ids | `portal/portal.spec.ts` *"cannot see the other customer, whichever door it tries"*, and *"stops working the moment the membership is disabled"* |
+| A portal session cannot reach another customer's data, even by guessing ids | `portal/portal.spec.ts` *"cannot see the other customer, whichever door it tries"* and *"stops working the moment the membership is disabled"* — plus *"§2: a portal transaction cannot read another customer, even with the filter left out"*, which drops the service-layer filter on purpose and proves `schema/98`'s restrictive policy catches it |
 | A user without `approve_grn` cannot approve one by calling the API directly | `acceptance.spec.ts` (the Operator's approve → 403); `grns.spec.ts` *"a Warehouse Operator can create and submit but cannot check, approve, or reject"* |
 
 ### Financial
@@ -113,7 +113,7 @@ Every row below is covered. "Proven by" names the file and the test.
 | Check | State |
 |---|---|
 | Rate limiting on login and public QR verification | **Done.** `auth/auth.spec.ts` *"throttles repeated login attempts against one account, without penalising the rest of the office"* — the limit is keyed per (IP, email), so one account being hammered does not lock out the next login from the same office (`DECISIONS.md` §36). `/verify/:qrToken` carries its own limit (`documents/verify.controller.ts`) |
-| File access requires a signed, scoped URL | **Not done, and named as open** in `dev-phases.md` Phase 8. Attachments are served through the authenticated API against `LocalFilesystemAttachmentStorage`; there are no signed time-limited URLs, because there is no object store behind them yet (`DECISIONS.md` §0's update, §24) |
+| File access requires a signed, scoped URL | **Done** (Phase 10b). `POST /documents/:id/download-link` mints an HMAC-signed link naming one document, its tenant and optionally its customer, expiring in five minutes; `documents.spec.ts` and `portal.spec.ts` cover the unauthenticated fetch, a flipped signature byte, a forged payload, an expired link, and links scoped to the wrong customer or tenant. The bytes still come from `LocalFilesystemAttachmentStorage` — the object store itself is still unbuilt (`DECISIONS.md` §0's update, §24) |
 | Stock postings are atomic under mid-transaction failure | **Partly.** Atomicity is structural, not chaos-tested: `StockService.postWithin()` takes the caller's transaction, so the ledger insert, the lot upsert and the caller's own status change commit together or not at all — `stock.spec.ts` proves the negative-balance refusal leaves nothing behind, and every posting spec asserts no partial rows. What is *not* done is killing the process mid-transaction to prove it; that needs a fault-injection harness this suite does not have |
 | Mobile responsiveness of the operator flows | **Not applicable yet.** There is no frontend in this repository — `apps/` contains only `api`. This row cannot be tested until one exists |
 
@@ -141,13 +141,12 @@ Named here rather than left as silent gaps in the grid above:
 
 - **`getDocumentRelations`** (`document-engine.md` §8, `ux-system.md` §7) is
   unbuilt, so there is nothing to test.
-- **Signed, time-limited document URLs** and an S3 adapter — open since
-  Phase 8.
-- **The portal-specific RLS policy** (`app.customer_id` / `app.actor_kind`).
-  Portal isolation today is enforced in the service layer, with the customer
-  filter inline in every query and proven in `portal.spec.ts`; the
-  database-level backstop that staff queries get from `tenant_isolation` has
-  no portal equivalent yet.
+- **An S3 adapter.** Attachments still live on the local filesystem behind
+  the `AttachmentStorage` interface. Signed, time-limited links themselves
+  are built (Phase 10b) and tested in `documents.spec.ts` and
+  `portal.spec.ts`: minting, an unauthenticated fetch, a tampered
+  signature, an expired link, and one scoped to the wrong customer or
+  tenant.
 - **Email/WhatsApp/SMS notification delivery** — notifications are written
   and read in-app only; there is no adapter to test.
 - **Fault injection** (killing a process mid-transaction) and **load

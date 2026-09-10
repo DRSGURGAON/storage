@@ -73,6 +73,12 @@ export class PortalController {
     res.send(bytes);
   }
 
+  /** A link the customer can forward or embed, good for a few minutes. */
+  @Post('documents/:id/download-link')
+  downloadLink(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.portal.documentDownloadLink(user, id);
+  }
+
   /** §53's "raise a return request", limited to goods this customer actually received. */
   @Post('return-requests')
   requestReturn(@CurrentUser() user: AuthenticatedUser, @Body() dto: PortalReturnRequestDto, @Ip() ip: string) {

@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { AppModule } from '../app.module';
+import { DownloadLinkService } from './download-link.service';
 
 /**
  * document-engine.md: the PDF generation/versioning/QR-verification
@@ -691,5 +692,72 @@ describe('Document engine', () => {
 
     const revoked = await api().get(`/verify/${committed.body.qrToken}`).expect(200);
     expect(revoked.body.result).toBe('revoked');
+  });
+  /**
+   * `tenancy-and-security.md` §5 / `dev-phases.md` Phase 8's last open
+   * item: a link that carries its own authorisation, so a PDF can be
+   * embedded or forwarded without sharing a session, and stops working on
+   * its own.
+   */
+  it('mints a signed link that downloads without a token, and refuses a tampered, expired or foreign one', async () => {
+    // Its own tenant: the shared one's two free Quotation copies are long spent
+    // by the paywall tests above, and this test needs a real document.
+    const linkSuffix = randomUUID().slice(0, 8);
+    const owner = await signup(`lk-${linkSuffix}`, `lk-${linkSuffix}@test.local`);
+    const custId = (
+      await api().post('/customers').set('Authorization', `Bearer ${owner}`).send({ name: 'Link Co' }).expect(201)
+    ).body.id;
+    const chargeTypes = await api().get('/charge-types').set('Authorization', `Bearer ${owner}`).expect(200);
+    const chargeTypeId = chargeTypes.body.find((c: { code: string }) => c.code === 'STORAGE').id;
+    const quotationId = await createQuotation(owner, custId, chargeTypeId);
+    const committed = await api()
+      .post(`/quotations/${quotationId}/document`)
+      .set('Authorization', `Bearer ${owner}`)
+      .send({})
+      .expect(201);
+
+    const minted = await api()
+      .post(`/documents/${committed.body.id}/download-link`)
+      .set('Authorization', `Bearer ${owner}`)
+      .expect(201);
+    expect(minted.body.url).toBe(`/document-links/${minted.body.token}`);
+    expect(new Date(minted.body.expiresAt).getTime()).toBeGreaterThan(Date.now());
+
+    // The whole point: no Authorization header at all.
+    const fetched = await api().get(minted.body.url).expect(200);
+    expect(fetched.headers['content-type']).toBe('application/pdf');
+    expect(fetched.headers['cache-control']).toBe('private, no-store');
+    expect(Buffer.from(fetched.body).subarray(0, 4).toString()).toBe('%PDF');
+
+    // Flip one character of the signature: refused, and told nothing.
+    const [payload, signature] = (minted.body.token as string).split('.');
+    const flipped = signature[0] === 'A' ? `B${signature.slice(1)}` : `A${signature.slice(1)}`;
+    await api().get(`/document-links/${payload}.${flipped}`).expect(400);
+    // Re-signing a payload of one's own choosing needs the secret, which is the point.
+    const forgedPayload = Buffer.from(
+      JSON.stringify({ documentId: committed.body.id, tenantId: 'x', customerId: null, expiresAt: 9999999999 }),
+    ).toString('base64url');
+    await api().get(`/document-links/${forgedPayload}.${signature}`).expect(400);
+    await api().get('/document-links/not-even-a-token').expect(400);
+
+    // An expired link says so, in different words from a bad one: holding a
+    // stale link is ordinary, and should not read as "you have been phished".
+    const links = app.get(DownloadLinkService);
+    const tenantId = JSON.parse(Buffer.from(owner.split('.')[1], 'base64url').toString()).tenantId;
+    const stale = links.sign({ documentId: committed.body.id, tenantId, customerId: null }, -1);
+    const expired = await api().get(`/document-links/${stale.token}`).expect(400);
+    expect(expired.body.message).toMatch(/expired/);
+
+    // A validly-signed link for a real document, but scoped to a customer
+    // that document does not belong to: 404, not the file.
+    const otherCustomer = (
+      await api().post('/customers').set('Authorization', `Bearer ${owner}`).send({ name: 'Someone Else' }).expect(201)
+    ).body.id;
+    const wrongCustomer = links.sign({ documentId: committed.body.id, tenantId, customerId: otherCustomer });
+    await api().get(`/document-links/${wrongCustomer.token}`).expect(404);
+
+    // And one signed for another tenant entirely.
+    const foreignTenant = links.sign({ documentId: committed.body.id, tenantId: randomUUID(), customerId: null });
+    await api().get(`/document-links/${foreignTenant.token}`).expect(404);
   });
 });

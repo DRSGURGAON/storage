@@ -2,7 +2,10 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
+import type postgres from 'postgres';
 import { AppModule } from '../app.module';
+import { PG_CONNECTION } from '../db/db.module';
+import { withPortalTenant, withTenant } from '../db/tenant-context';
 
 /**
  * Blueprint §53 and `tenancy-and-security.md` §2: a portal login sees its
@@ -12,6 +15,8 @@ import { AppModule } from '../app.module';
  */
 describe('Customer portal', () => {
   let app: INestApplication;
+  let sql: postgres.Sql;
+  let tenantId = '';
   const suffix = randomUUID().slice(0, 8);
   const password = 'correcthorsebattery';
   let owner = '';
@@ -66,6 +71,7 @@ describe('Customer portal', () => {
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     await app.init();
+    sql = app.get(PG_CONNECTION);
     owner = (
       await api()
         .post('/auth/signup')
@@ -86,6 +92,7 @@ describe('Customer portal', () => {
     acmeDocumentId = acmeShipment.documentId;
     boltDocumentId = (await shipTo(bolt, 40)).documentId;
 
+    tenantId = JSON.parse(Buffer.from(owner.split('.')[1], 'base64url').toString()).tenantId;
     acmePortal = await portalLogin(`acme-${suffix}@test.local`, acme);
     boltPortal = await portalLogin(`bolt-${suffix}@test.local`, bolt);
   });
@@ -190,6 +197,68 @@ describe('Customer portal', () => {
     await api().post(`/return-requests/${created.body.id}/approve`).set(auth(owner)).expect(201);
     // The portal cannot approve its own request.
     await api().post(`/return-requests/${created.body.id}/approve`).set(auth(acmePortal)).expect(403);
+  });
+
+  /**
+   * The database half of `tenancy-and-security.md` §2. Everything above
+   * proves the *service* keeps the two customers apart; this proves the
+   * separation survives the service getting it wrong. Each query below is
+   * deliberately written without a `customer_id` filter -- the mistake the
+   * portal is one typo away from -- and run inside `withPortalTenant`, the
+   * way a portal request runs.
+   */
+  it('§2: a portal transaction cannot read another customer, even with the filter left out', async () => {
+    const unfiltered = (tx: postgres.TransactionSql) =>
+      Promise.all([
+        tx<{ customer_id: string }[]>`select customer_id from stock_lots where tenant_id = ${tenantId}`,
+        tx<{ customer_id: string }[]>`select customer_id from grns where tenant_id = ${tenantId}`,
+        tx<{ customer_id: string }[]>`select customer_id from dispatches where tenant_id = ${tenantId}`,
+        tx<{ id: string }[]>`select id from customers where tenant_id = ${tenantId}`,
+      ]);
+
+    // Staff context: both customers are there, which is what makes the next assertion mean something.
+    const staff = await withTenant(sql, tenantId, unfiltered);
+    expect(new Set(staff[0].map((r) => r.customer_id))).toEqual(new Set([acme, bolt]));
+    expect(staff[3]).toHaveLength(2);
+
+    // Portal context, same queries: only ever the one customer.
+    const asAcme = await withPortalTenant(sql, tenantId, acme, unfiltered);
+    for (const rows of asAcme.slice(0, 3) as { customer_id: string }[][]) {
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.every((r) => r.customer_id === acme)).toBe(true);
+    }
+    expect((asAcme[3] as { id: string }[]).map((r) => r.id)).toEqual([acme]);
+
+    const asBolt = await withPortalTenant(sql, tenantId, bolt, unfiltered);
+    expect((asBolt[0] as { customer_id: string }[]).every((r) => r.customer_id === bolt)).toBe(true);
+    expect((asBolt[3] as { id: string }[]).map((r) => r.id)).toEqual([bolt]);
+
+    // A shared master stays readable -- the portal's own stock list has to be able to name the product.
+    const products = await withPortalTenant(sql, tenantId, acme, (tx) =>
+      tx<{ id: string }[]>`select id from products where tenant_id = ${tenantId} and customer_id is null`,
+    );
+    expect(products.length).toBeGreaterThan(0);
+
+    // And a write claiming another customer is refused by WITH CHECK, not merely unwritten.
+    await expect(
+      withPortalTenant(sql, tenantId, acme, (tx) =>
+        tx`insert into return_requests (id, tenant_id, number, request_date, customer_id, warehouse_id, original_dispatch_id, reason)
+           values (gen_random_uuid(), ${tenantId}, ${'RR/FORGED/1'}, current_date, ${bolt}, ${warehouseId}, ${acmeDispatchId}, 'forged')`,
+      ),
+    ).rejects.toThrow(/row-level security/i);
+  });
+
+  it('hands the customer a signed link it can forward, scoped to itself', async () => {
+    const minted = await api().post(`/portal/documents/${acmeDocumentId}/download-link`).set(auth(acmePortal)).expect(201);
+    const fetched = await api().get(minted.body.url).expect(200);
+    expect(Buffer.from(fetched.body).subarray(0, 4).toString()).toBe('%PDF');
+
+    // The other customer cannot mint one for a document that is not theirs...
+    await api().post(`/portal/documents/${acmeDocumentId}/download-link`).set(auth(boltPortal)).expect(404);
+    // ...and staff minting one for Bolt's document produces a link that opens
+    // Bolt's document and nothing else, however it is passed around.
+    const staffLink = await api().post(`/documents/${boltDocumentId}/download-link`).set(auth(owner)).expect(201);
+    await api().get(staffLink.body.url).expect(200);
   });
 
   it('stops working the moment the membership is disabled', async () => {
