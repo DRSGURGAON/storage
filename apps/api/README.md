@@ -628,6 +628,17 @@ provider said.
   row deletes its bytes. The list marks the one the record points at
   (`isLinked`) — a second logo does not delete the first, and without that
   flag nothing says which one prints. `DECISIONS.md` §49.
+- `GET /number-series`, `PUT /number-series/:documentType`
+  (`manage_company_settings`) — §62's numbering, configurable at last.
+  `numbering.md` §2 always said a tenant may edit prefix, format, width
+  and starting number from Settings; the engine read those columns and
+  nothing wrote them. The list carries **every** document type, used or
+  not, because a series row is created lazily by the first allocation.
+  The next number may be **raised, never lowered** — every numbered table
+  has `unique (tenant_id, number)`, so lowering does not re-issue quietly,
+  it collides at some later save. A format without `{seq}` is refused, and
+  `padding` is kept in sync with the format's own `{seq:n}`, which
+  otherwise wins at render time and made the width setting do nothing.
 - `GET /agreements/wizard` (`view_agreement`) — blueprint §15's eleven
   steps as data: id, title, help, fields, which are required, and which
   masters pre-fill each step. Served rather than hard-coded in the client
@@ -796,7 +807,7 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-**39 suites, 314 tests**, all against the real local database
+**40 suites, 320 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,
@@ -814,6 +825,11 @@ rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
   reservation drawing from the sooner-expiring batch rather than a merged
   pool; and a cancelled receipt netting back to the exact pre-GRN balance
   through an additive reversal.
+- `numbering/number-series.spec.ts` — every document type listed exactly
+  once (used or not), a prefix changed before the first document is
+  numbered and the engine then numbering with it, the next number raised
+  and a lowering refused, a format with no `{seq}` refused, and an
+  Operator refused both the read and the write.
 - `reports/report-runner.spec.ts` — the catalogue, a day counted against
   records the spec itself created (one vehicle in, one inward received
   short, one GRN approved), the thirty-day default on an open range, a

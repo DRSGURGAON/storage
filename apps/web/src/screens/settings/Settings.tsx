@@ -8,6 +8,7 @@ import {
   Descriptions,
   Form,
   Input,
+  InputNumber,
   Progress,
   Row,
   Select,
@@ -671,5 +672,219 @@ export function NotificationRuleSettings() {
         ]}
       />
     </Card>
+  );
+}
+
+interface NumberSeries {
+  id: string | null;
+  documentType: string;
+  warehouseId: string | null;
+  warehouseName: string | null;
+  prefix: string;
+  format: string;
+  fyStyle: string;
+  resetPolicy: string;
+  padding: number;
+  nextSeq: number;
+  isConfigured: boolean;
+}
+
+/** What each series numbers, in the words the rest of the app uses. */
+const SERIES_LABELS: Record<string, string> = {
+  GATE_ENTRY: 'Gate entry',
+  INWARD: 'Inward',
+  GRN_GENERATION: 'GRN',
+  DISCREPANCY_REPORT: 'Discrepancy report',
+  INSPECTION: 'Inspection',
+  PUTAWAY: 'Put-away',
+  WAREHOUSE_RECEIPT: 'Warehouse receipt',
+  QUOTATION_GENERATION: 'Quotation',
+  AGREEMENT_GENERATION: 'Agreement',
+  STOCK_TRANSFER: 'Stock transfer',
+  STOCK_VERIFICATION: 'Stock verification',
+  STOCK_ADJUSTMENT: 'Stock adjustment',
+  RELEASE_ORDER: 'Release order',
+  PICK_LIST: 'Pick list',
+  PACKING_LIST: 'Packing list',
+  DISPATCH_NOTE: 'Dispatch note',
+  LOADING_SHEET: 'Loading sheet',
+  GATE_PASS: 'Gate pass',
+  POD: 'Proof of delivery',
+  RETURN_REQUEST: 'Return request',
+  RETURN_INWARD: 'Return inward',
+  INVOICE_GENERATION: 'Invoice',
+  CREDIT_NOTE: 'Credit note',
+  DEBIT_NOTE: 'Debit note',
+  PAYMENT_RECEIPT: 'Payment receipt',
+  CUSTOMER: 'Customer code',
+};
+
+/** `{prefix}/{fy}/{seq:6}` with today's values in it, so the setting shows its own result. */
+function previewNumber(series: NumberSeries): string {
+  const now = new Date();
+  const fyStart = now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
+  const fy =
+    series.fyStyle === 'NONE'
+      ? ''
+      : series.fyStyle === 'YYYY'
+        ? String(fyStart)
+        : series.fyStyle === 'YYYY-YY'
+          ? `${fyStart}-${String((fyStart + 1) % 100).padStart(2, '0')}`
+          : `${String(fyStart % 100).padStart(2, '0')}-${String((fyStart + 1) % 100).padStart(2, '0')}`;
+  return series.format
+    .replace('{prefix}', series.prefix)
+    .replace('{fy}', fy)
+    .replace(/\{seq(?::(\d+))?\}/, (_m, width) =>
+      String(series.nextSeq).padStart(width ? Number(width) : series.padding, '0'),
+    );
+}
+
+/**
+ * `numbering.md` §2: "Tenants may edit prefix/format/padding/starting
+ * number per document type from Settings." This is that Settings.
+ *
+ * Every document type is listed, used or not — a series row is created by
+ * the first allocation, so a young workspace has almost none, and showing
+ * only what exists would hide everything it is about to number. The
+ * preview column is the point of the screen: a prefix is an abstraction
+ * until you see `GR/26-27/0001` next to it.
+ */
+export function NumberSeriesSettings() {
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState<NumberSeries | null>(null);
+  const { data, isLoading } = useQuery({
+    queryKey: ['/number-series'],
+    queryFn: () => api<NumberSeries[]>('/number-series'),
+  });
+
+  return (
+    <>
+      <Card
+        loading={isLoading}
+        title={<Typography.Title level={4} style={{ margin: 0 }}>Number series</Typography.Title>}
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="A number, once printed, is on somebody's paperwork"
+          description="Prefix, format and width can be changed at any time — the next document simply uses the new shape. The next number can be raised (migrating from a system that already issued invoices up to 4,120) but never lowered: re-issuing a number collides with the document that already carries it."
+        />
+        <Table<NumberSeries>
+          size="small"
+          rowKey={(row) => `${row.documentType}:${row.warehouseId ?? 'all'}`}
+          pagination={false}
+          scroll={{ x: 'max-content' }}
+          dataSource={data ?? []}
+          columns={[
+            {
+              title: 'Document',
+              render: (_, row) => (
+                <Space direction="vertical" size={0}>
+                  <strong>{SERIES_LABELS[row.documentType] ?? humanise(row.documentType)}</strong>
+                  {row.warehouseName && (
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      {row.warehouseName} only
+                    </Typography.Text>
+                  )}
+                </Space>
+              ),
+            },
+            { title: 'Prefix', dataIndex: 'prefix', width: 100 },
+            { title: 'Format', dataIndex: 'format', width: 190 },
+            { title: 'Resets', dataIndex: 'resetPolicy', width: 110, render: (v) => humanise(v) },
+            { title: 'Next number', dataIndex: 'nextSeq', width: 120, align: 'right' },
+            {
+              title: 'Next document will be',
+              width: 200,
+              render: (_, row) => <code>{previewNumber(row)}</code>,
+            },
+            {
+              title: '',
+              width: 90,
+              render: (_, row) =>
+                row.warehouseId ? null : (
+                  <Button size="small" onClick={() => setEditing(row)}>
+                    Change
+                  </Button>
+                ),
+            },
+          ]}
+        />
+      </Card>
+
+      <FormDrawer
+        open={Boolean(editing)}
+        title={editing ? `${SERIES_LABELS[editing.documentType] ?? humanise(editing.documentType)} numbering` : ''}
+        path={editing ? `/number-series/${editing.documentType}` : ''}
+        method="PUT"
+        invalidate={['/number-series']}
+        initialValues={editing ? { ...editing } : undefined}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ['/number-series'] });
+          message.success('The next document uses it');
+        }}
+      >
+        {() => (
+          <>
+            <Form.Item name="prefix" label="Prefix" rules={[{ required: true, max: 12 }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item
+              name="format"
+              label="Format"
+              tooltip="{prefix}, {fy} and {seq} — {seq:4} pads to four digits"
+              rules={[{ required: true }]}
+            >
+              <Input />
+            </Form.Item>
+            <Row gutter={12}>
+              <Col span={12}>
+                <Form.Item name="fyStyle" label="Financial year shown as">
+                  <Select
+                    options={[
+                      { value: 'YY-YY', label: '26-27' },
+                      { value: 'YYYY-YY', label: '2026-27' },
+                      { value: 'YYYY', label: '2026' },
+                      { value: 'NONE', label: 'Not shown' },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="resetPolicy" label="Counter resets">
+                  <Select
+                    options={[
+                      { value: 'yearly', label: 'Every financial year' },
+                      { value: 'monthly', label: 'Every month' },
+                      { value: 'never', label: 'Never' },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={12}>
+              <Col span={12}>
+                <Form.Item name="padding" label="Digits" rules={[{ type: 'number', min: 1, max: 12 }]}>
+                  <InputNumber min={1} max={12} style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="nextSeq"
+                  label="Next number"
+                  tooltip="May be raised, never lowered"
+                  rules={[{ type: 'number', min: editing?.nextSeq ?? 1 }]}
+                >
+                  <InputNumber min={editing?.nextSeq ?? 1} style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+            </Row>
+          </>
+        )}
+      </FormDrawer>
+    </>
   );
 }

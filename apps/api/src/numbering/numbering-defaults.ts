@@ -47,6 +47,14 @@ export interface SeriesDefaults {
   padding: number;
 }
 
+/** Mirrors `number_series`' own column defaults in schema/00_core.sql. */
+export const TABLE_DEFAULTS: SeriesDefaults = {
+  format: '{prefix}/{fy}/{seq:6}',
+  fyStyle: 'YY-YY',
+  resetPolicy: 'yearly',
+  padding: 6,
+};
+
 /** Only types whose first-use series should differ from the table defaults ('{prefix}/{fy}/{seq:6}', YY-YY, yearly). */
 export const SERIES_DEFAULT_OVERRIDES: Record<string, SeriesDefaults> = {
   CUSTOMER: { format: '{prefix}{seq:4}', fyStyle: 'NONE', resetPolicy: 'never', padding: 4 },

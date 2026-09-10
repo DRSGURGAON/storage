@@ -5,16 +5,8 @@ import { withTenant } from '../db/tenant-context';
 import {
   DOCUMENT_TYPE_PREFIXES,
   SERIES_DEFAULT_OVERRIDES,
-  SeriesDefaults,
+  TABLE_DEFAULTS,
 } from './numbering-defaults';
-
-/** Mirrors number_series' column defaults in schema/00_core.sql. */
-const TABLE_DEFAULTS: SeriesDefaults = {
-  format: '{prefix}/{fy}/{seq:6}',
-  fyStyle: 'YY-YY',
-  resetPolicy: 'yearly',
-  padding: 6,
-};
 
 interface SeriesRow {
   id: string;

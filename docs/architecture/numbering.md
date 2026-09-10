@@ -31,7 +31,14 @@ Full worked example: `GE/26-27/000001`.
 
 Tenants may edit `prefix`/`format`/`padding`/starting number per document
 type from Settings; the *mechanism* (one series row, one allocation function)
-never changes.
+never changes. Built in Phase 17: `GET /number-series` lists every document
+type (a series row is created lazily by the first allocation, so most of a
+young workspace's are still hypothetical) and
+`PUT /number-series/:documentType` writes one. The starting number may be
+**raised, never lowered** — `unique (tenant_id, number)` means a lowered
+counter collides at a later save rather than re-issuing quietly — and
+`padding` is kept in step with the format's own `{seq:n}`, which wins at
+render time.
 
 ## 3. Financial year computation
 

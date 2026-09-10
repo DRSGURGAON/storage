@@ -1221,6 +1221,40 @@ API does not return, and an endpoint it could not construct or was not
 allowed to call. The second kind is not a defect, and labelling it as one
 would make the tool the sort of thing people stop running.
 
+## Phase 17 — number series, configurable (§62)
+
+`numbering.md` §2 has always said "tenants may edit
+`prefix`/`format`/`padding`/starting number per document type from
+Settings", and the engine has always read those columns. Nothing could
+write them. A workspace that wanted `GR/` instead of `GRN/`, or that was
+migrating from a system which had already printed invoices up to 4,120,
+had no way to say so.
+
+`GET /number-series` and `PUT /number-series/:documentType` close it,
+behind `manage_company_settings`. Four things worth naming:
+
+- **Every document type is listed, used or not.** A series row is created
+  lazily by the first allocation, so a young workspace has almost none —
+  and a screen showing only existing rows would hide the twenty-odd
+  series it is about to create. Unconfigured types come back with the
+  values the first allocation *would* use.
+- **The next number may be raised, never lowered.** Every numbered table
+  has `unique (tenant_id, number)`, so a lowered counter does not quietly
+  re-issue: it collides later, at some unrelated user's save. Raising it
+  is the migration case and is allowed.
+- **A format must contain `{seq}`.** Without it every document of that
+  type would be numbered identically — refused rather than discovered.
+- **`padding` and the format's `{seq:6}` are kept in sync.** They are two
+  ways to say the same thing and the format wins at render time, so
+  setting the width to 4 against the shipped `{prefix}/{fy}/{seq:6}` did
+  nothing at all. Found by using the screen: the prefix changed, the width
+  did not.
+
+The screen previews the result — `GR/26-27/0001` beside the setting,
+because a format string is an abstraction until you see the number it
+makes — and shows per-warehouse series read-only, since those are created
+by allocating against a warehouse rather than configured here.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

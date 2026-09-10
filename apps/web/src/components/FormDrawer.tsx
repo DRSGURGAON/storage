@@ -9,7 +9,7 @@ interface FormDrawerProps<T> {
   title: string;
   /** Where to POST (create) or PATCH (edit). */
   path: string;
-  method?: 'POST' | 'PATCH';
+  method?: 'POST' | 'PATCH' | 'PUT';
   initialValues?: Record<string, unknown>;
   /** Cache keys to invalidate on success; the list path is usually enough. */
   invalidate: string[];
