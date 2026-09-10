@@ -142,18 +142,23 @@ traversal, not hand-maintained per document type:
   Warehouse Receipt, its Discrepancy Report, its `stock_ledger` rows via
   `source_type='grn', source_id=this.id`).
 
-Both are meant to use one generic `getDocumentRelations(documentType,
-sourceId)` service function that knows the fixed foreign-key graph implied
-by `schema/README.md`'s conventions — not a bespoke query written per
-document type. **Neither the function nor an endpoint for it exists in
-`apps/api`** (`document-engine.md` §8 says the same): the foreign keys are
-all in place, but nothing walks them yet, so these two panels and the
-timeline below have no backend today. The **Document Timeline** is the same underlying graph rendered as
+Both use one generic `getDocumentRelations(documentType, sourceId)` service
+function that knows the fixed foreign-key graph implied by
+`schema/README.md`'s conventions — not a bespoke query written per document
+type. Built as `GET /documents/relations/{sourceType}/{sourceId}`
+(`document-engine.md` §8 has the design): the graph is discovered from
+`information_schema`, so it cannot drift from the schema it describes. The
+response's `createdFrom` and `related` are these two panels; its `chain` is
+the timeline below. The **Document Timeline** is the same underlying graph rendered as
 the fixed sequence from blueprint §45/§68 (Gate Entry → Inward → GRN →
 Inspection → Put-away → Warehouse Receipt → Stock → Release → Picking →
 Dispatch → Gate Pass → POD → Invoice), with the records that actually exist
 for this chain highlighted and clickable, and the ones that don't yet exist
-shown as the next available smart action (§8).
+shown as the next available smart action (§8). The API returns that walk as
+`chain.records`, already sorted into §68's order and each carrying the hop
+it was reached by; a record reached over `stock_ledger` rather than a
+foreign key says so, and the UI should show that hop differently — it means
+"the same goods", not "the same paperwork".
 
 ## 8. "Create Next" Smart Actions (§26)
 

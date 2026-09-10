@@ -7,7 +7,7 @@ runnable checklist. Every row maps to a real integration test: the
 **Proven by** column names the spec file and the test that covers it. All
 of them run against a live PostgreSQL database — there are no mocked
 repositories in this suite — and the whole set is
-**33 suites, 269 tests, green** (`cd apps/api && npm test`).
+**34 suites, 275 tests, green** (`cd apps/api && npm test`).
 
 Two files carry most of the cross-module rows:
 
@@ -106,6 +106,7 @@ Every row below is covered. "Proven by" names the file and the test.
 | Retry does not duplicate a transaction | `receivables.spec.ts` *"records a payment exactly once however many times the button is clicked"*; `documents.spec.ts` (commit retry → one row); `entitlement/entitlement.spec.ts` *"does not double-consume on a retried idempotency key"* |
 | Multiple warehouses keep separate balances for one SKU | `acceptance.spec.ts` *"two warehouses and two batches of one SKU keep separate balances"* |
 | Two batches of one SKU never merge | same test — and it goes further: a FEFO reservation of 25 draws entirely from the sooner-expiring batch rather than from a merged pool |
+| Document relationships resolve from the graph, not a hand-written list | `documents/document-relations.spec.ts` — a real inbound chain (gate entry → inward → GRN → put-away → warehouse receipt) and a real outbound one (release order → pick list → dispatch → gate pass → POD), asserting "Created From"/"Related" off the actual foreign keys, the §68-ordered chain from the far end, the `stock_ledger` hop that joins the two halves, cross-tenant 404, and a 400 naming the known types for a table that is not a record |
 | The audit log records the critical changes | `acceptance.spec.ts` (GRN `create` + `status_change`, and `document_generate` rows); `auth/auth.spec.ts` (signup, login, `login_failed` with the IP); `console/console.spec.ts` (the viewer, filtered, and hidden from those who may not read it) |
 
 ## 3. Non-functional checks (Phase 9, from §69–§70, §64)
@@ -139,8 +140,6 @@ Every row below is covered. "Proven by" names the file and the test.
 
 Named here rather than left as silent gaps in the grid above:
 
-- **`getDocumentRelations`** (`document-engine.md` §8, `ux-system.md` §7) is
-  unbuilt, so there is nothing to test.
 - **An S3 adapter.** Attachments still live on the local filesystem behind
   the `AttachmentStorage` interface. Signed, time-limited links themselves
   are built (Phase 10b) and tested in `documents.spec.ts` and

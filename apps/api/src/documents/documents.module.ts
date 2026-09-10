@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AttachmentsModule } from '../attachments/attachments.module';
 import { AuditModule } from '../audit/audit.module';
 import { EntitlementModule } from '../entitlement/entitlement.module';
+import { DocumentRelationsService } from './document-relations.service';
 import { DocumentTemplateRegistry } from './document-template.registry';
 import { DocumentLinkController, DocumentsController } from './documents.controller';
 import { DocumentEngineService } from './documents.service';
@@ -44,6 +45,7 @@ import { VerifyController, VerifyService } from './verify.controller';
   providers: [
     DocumentEngineService,
     DocumentTemplateRegistry,
+    DocumentRelationsService,
     DownloadLinkService,
     PdfRendererService,
     QrService,
@@ -73,6 +75,6 @@ import { VerifyController, VerifyService } from './verify.controller';
     CustomerStatementDocumentTemplate,
     VerifyService,
   ],
-  exports: [DocumentEngineService, DownloadLinkService],
+  exports: [DocumentEngineService, DownloadLinkService, DocumentRelationsService],
 })
 export class DocumentsModule {}

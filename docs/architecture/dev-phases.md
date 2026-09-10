@@ -860,7 +860,21 @@ document under the claims' tenant and customer. See
 a minted link cannot be revoked before it expires, which is why the default
 life is five minutes.
 
-**c. Document relationships.** `getDocumentRelations` — see below.
+**c. Document relationships.** `GET /documents/relations/{sourceType}/{sourceId}`
+(`apps/api/src/documents/document-relations.service.ts`) returns the
+record, its "Created From", its "Related Documents", its own generated
+copies, and the §68 chain around it. The graph is read out of
+`information_schema` at first use — a record is a table with a `number`
+column, an edge is a foreign key between two of them — so it cannot drift
+from the schema the way a hand-written edge list would.
+
+The one hop that is not a foreign key is the interesting one: no Release
+Order references the GRN its goods arrived on, so the FK graph is two
+components, inbound and outbound. The chain bridges them through
+`stock_ledger` — same customer, warehouse, product and batch — and labels
+that hop `via: 'stock_ledger'`, because "the same goods" is a different
+claim from "the same paperwork". `document-engine.md` §8 has the full
+design and its limitations.
 
 **d. Notification delivery.** The channel adapters — see below.
 

@@ -267,12 +267,41 @@ re-rendering an existing document is never a new unit of usage.
 every source table — "Created From" and "Related Documents" are computed,
 not stored. See `ux-system.md` §7 for the UI contract.
 
-> **Not implemented.** The `getDocumentRelations(documentType, sourceId)`
-> traversal this section describes does not exist in `apps/api`, and neither
-> does an endpoint for it. Every relationship it would walk *is* present in
-> the schema (a GRN carries its `inward_id`, an Inward its `gate_entry_id`, a
-> Dispatch its `release_order_id`, and so on), so this is unwritten code
-> rather than a missing data model — but nothing today returns the graph, and
-> `ux-system.md` §7's "Created From"/"Related Documents" panels have no
-> backend. It is the largest single gap left in the document engine; it is
-> named here rather than left to be discovered from the absence of a route.
+> **Implemented** (`apps/api/src/documents/document-relations.service.ts`,
+> `GET /documents/relations/{sourceType}/{sourceId}`), and built the way
+> this section asks for — from the graph, not from a hand-written edge list.
+> Two conventions carry it, both read out of `information_schema` at first
+> use:
+>
+> - **A record is a table with a `number` column.** That is exactly the set
+>   holding a number from `number_series` — 24 tables, the same 24
+>   `numbering.md` §6 lists. Masters and line-item tables have no `number`
+>   and are correctly not nodes; nobody wants a customer in "Related
+>   Documents".
+> - **An edge is a foreign key between two of those tables.** Followed one
+>   way it is "Created From", the other way "Related Documents".
+>
+> A hand-maintained list would be a second source of truth for the schema,
+> and its failure mode is silent: add `return_inwards.grn_id` to the DDL,
+> forget the list, and an arm of the chain stops appearing with nothing to
+> catch it.
+>
+> The response carries four things: the record, `createdFrom`, `related`,
+> the record's own `documents`, and `chain` — the whole connected component
+> sorted into blueprint §68's lifecycle order, so a POD shows the gate entry
+> the goods arrived on five hops back. The chain is capped at 60 records and
+> reports `truncated` rather than pretending a partial walk is complete.
+>
+> **One edge is not a foreign key, and is labelled as such.** A Release
+> Order does not reference the GRN its goods arrived on, and should not:
+> receiving and shipping are separate events joined by the balance between
+> them, so the FK graph is genuinely two components. The chain bridges them
+> through `stock_ledger` — two records are linked when they moved the same
+> customer's goods, of the same product and batch, in the same warehouse.
+> That is provenance rather than a guess, and it appears with
+> `via: 'stock_ledger'` so a reader can see the hop is different in kind.
+> `related` stays strictly foreign-key, as `ux-system.md` §7 specifies.
+>
+> One known limitation, recorded rather than special-cased away:
+> `billing_runs` has no `number` (it is a preview, not an issued document),
+> so an invoice's "Created From" shows nothing above it.

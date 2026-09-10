@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { DocumentRelationsService } from './document-relations.service';
 import { DownloadLinkService } from './download-link.service';
 import { positiveNumber } from '../throttling';
 import { DocumentEngineService } from './documents.service';
@@ -26,7 +27,28 @@ export class DocumentsController {
   constructor(
     private readonly documents: DocumentEngineService,
     private readonly links: DownloadLinkService,
+    private readonly relations: DocumentRelationsService,
   ) {}
+
+  /**
+   * `document-engine.md` §8 / `ux-system.md` §7: "Created From", "Related
+   * Documents", this record's own generated copies, and the §68 timeline
+   * around it -- all computed from the foreign-key graph, none of it
+   * stored.
+   *
+   * Declared above `@Get(':id')` on purpose: routes match in declaration
+   * order, and `:id` carries a `ParseUUIDPipe` that would reject the
+   * literal segment `relations` with a 400 before this could ever run.
+   */
+  @Get('relations/:sourceType/:sourceId')
+  @RequirePermission('view_documents')
+  relationsFor(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('sourceType') sourceType: string,
+    @Param('sourceId', ParseUUIDPipe) sourceId: string,
+  ) {
+    return this.relations.relations(user, sourceType, sourceId);
+  }
 
   @Get()
   @RequirePermission('view_documents')
