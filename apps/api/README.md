@@ -18,19 +18,21 @@ Entry → Inward → GRN (with §50's Operator → Manager approval split) →
 Inspection / Discrepancy Report → Put-away → Warehouse Receipt; and a
 real document engine — server-rendered PDF generation (headless Chromium
 via `puppeteer-core`), QR-code verification, versioning, and FREE-plan
-entitlement gating — proven end-to-end against **nine** registered
+entitlement gating — proven end-to-end against **ten** registered
 templates: Quotation, Agreement, Gate Entry, Inward, GRN, Discrepancy
-Report, Put-away Slip, Warehouse Receipt, and Stock Transfer Note.
+Report, Put-away Slip, Warehouse Receipt, Stock Transfer Note, and the
+Physical Stock Count Sheet.
 
 Phase 5 is under way: the **stock engine** is built and wired into the
 inbound chain. `StockService` is the only thing in the codebase that
 writes a stock balance — GRN approval posts real `INWARD` ledger rows
 and resolves batches, put-away completion relocates that stock as a
 `TRANSFER_OUT`/`TRANSFER_IN` pair, and `GET /stock` / `GET /stock/ledger`
-read it back. Stock Transfer is built on top of it, and Physical
-Verification, Stock Adjustment, the ageing report and GRN reversal
-(`'reversed'` still has no transition) are the rest of the phase; Outward
-and the billing-run modules come after it.
+read it back. Stock Transfer, Physical Verification and Stock Adjustment
+are all built on top of it; the ageing report, the customer stock
+statement and GRN reversal (`'reversed'` still has no transition) are the
+rest of the phase, and Outward and the billing-run modules come after
+it.
 
 ## Stack
 
@@ -361,6 +363,35 @@ rows with no error at all.
   §3.5). A line with no `toLocationId` lands unallocated at the
   destination, exactly as a receipt awaiting put-away does. See
   `DECISIONS.md` §37.
+- `POST/GET /stock-verifications[/:id]` plus
+  `PATCH /stock-verifications/:id/lines/:lineId` (record what was counted),
+  `POST /stock-verifications/:id/lines` (stock found with no lot behind
+  it), `/complete`, `/cancel`, and the `document/preview` / `document` pair
+  (`documentType: 'stock_verification'`, `featureCode:
+  'STOCK_VERIFICATION'`). All on `create_stock_verification`. The count
+  sheet **builds itself** from `stock_lots` — the caller does not supply
+  lines, because a count whose subject the counter picks is not a count —
+  and `systemQty` is frozen at that moment. It **posts no stock at all**:
+  finding 8 where the system says 10 records a disagreement, it does not
+  correct one. `differenceQty` is a generated column, so the client never
+  asserts it. The document renders blank before the count (system quantity
+  deliberately hidden, ruled blanks to write in) and filled in after.
+- `POST/GET /stock-adjustments[/:id]` plus `/submit`, `/approve`
+  (`approve_stock_adjustment`), `/approve-final`
+  (`approve_stock_adjustment_final` — **Owner only**, one of just two codes
+  Admin does not hold), `/reject`, `/post`, `/cancel`. Raised from a
+  verification (copying only the discrepant lines, deltas carried straight
+  from the count's own arithmetic) or standalone; `reason` is always
+  required. The chain is `draft → pending_manager → [pending_owner] →
+  approved → posted`, with the Owner step inserted only when
+  `approvals.stock_adjustment.owner_required` is set — read per request, so
+  switching it on applies to the next adjustment. **Posting is a separate
+  act from approval**, deliberately: a write-off larger than the shelf
+  holds fails the negative-stock invariant, and collapsing the two would
+  let that failure roll back a decision two people already made
+  (`DECISIONS.md` §38). `post` rides the approve permission, not the create
+  one. This is the only endpoint in the system that writes an `ADJUSTMENT`
+  ledger row.
 - `GET /stock?customerId=&warehouseId=&productId=&locationId=&includeEmpty=`
   (`view_stock`) and `GET /stock/ledger?...&txnType=&sourceType=&sourceId=`
   (`view_stock_ledger`) — current balances and the append-only movement
@@ -614,6 +645,22 @@ All against the real local database (`DATABASE_URL`), not mocks:
   worth asserting here because `tenants` is keyed by `id` rather than
   `tenant_id`, so `schema/90`'s generator gives it no RLS policy and the
   explicit filter is the only thing scoping it.
+- `stock-verifications/stock-verifications.spec.ts` — both halves of §27.
+  The sheet building itself from current stock with `systemQty` frozen; a
+  counted line's `differenceQty` computed by the database; **counting
+  proven to move nothing**; the sheet locking on completion; a found line
+  with no lot behind it (systemQty 0, positive difference); an adjustment
+  copying only the discrepant lines with the count's own deltas; a missing
+  reason refused; the full chain with posting refused at every stage before
+  `approved` and the balance asserted unchanged until it; the Owner step
+  appearing only once the setting is on; all four roles walked through the
+  permission split (Operator raises but cannot approve, Manager approves
+  but cannot finalise their own approval, Admin cannot finalise either,
+  Owner can, and posting is refused to the Operator); a negative posting
+  refused **with the approval left standing and no ledger row written**;
+  each resolved count line pointing back at the adjustment that fixed it;
+  the tenth template rendering differently blank versus completed; and
+  reject/cancel plus tenant isolation.
 - `stock-transfers/stock-transfers.spec.ts` — a kind that contradicts its
   warehouses refused both ways, a location outside its own warehouse and a
   same-bin move refused; a bin-to-bin transfer moving nothing until it is

@@ -1298,3 +1298,74 @@ the goods have arrived but not been shelved, so they land unallocated
 (`location_id` null) at the destination and wait for a put-away. Refused
 on a location transfer, where "move this pallet to nowhere in particular"
 is not a real instruction.
+
+## §38 — approval and posting are separate acts on a stock adjustment
+
+A Stock Adjustment is the only way a stock figure changes in this system
+with no receipt and no dispatch behind it, so it is the one record that
+carries a real approval chain (§50). The chain ends at `approved`, and a
+*separate* `post` writes the ledger rows. `stock_adjustments` has both a
+status and a `posted_at`, so the schema already expects two events; the
+question is whether the code should collapse them, as GRN approval does.
+
+It should not, and the reason is concrete rather than procedural:
+**posting can fail on its own merits.** A write-off of 50 bags against a
+lot now holding 30 hits the negative-stock invariant. If approval posted
+in the same transaction, that failure would roll the approval back too —
+silently discarding a decision a manager and possibly an Owner had
+already made, and leaving the record looking as though nobody had ever
+looked at it. Keeping them apart makes the authorisation durable and the
+posting retryable, which is exactly the shape of the problem: the
+approval is a judgement about whether the correction is *right*, and the
+posting is a mechanical question of whether the shelf can bear it.
+
+Proven directly: an approved write-off of 9999 is refused with a
+negative-stock 400, the adjustment stays `approved`, no ledger row
+exists, and no balance moved.
+
+This is also why a GRN can collapse the two. Its approval *is* the
+acceptance of goods that physically arrived; its posting cannot fail for
+lack of stock, because it only ever adds.
+
+### The count changes nothing, deliberately
+
+A verification posts no stock in either direction. Finding 8 bags where
+the system says 10 does not correct the system — it records a
+disagreement, and correcting it is a separate, approved act. That is
+`stock-engine.md` §3.4 ("there is no manual stock edit transaction type")
+made structural: there is no code path from a count to a balance.
+
+Its lines are **built from `stock_lots`, not supplied by the caller**. A
+count whose subject the counter chooses is not a count; the value is
+entirely in comparing the shelf against what the system claims,
+independently of who is looking. `system_qty` is frozen at that moment
+for the same reason a GRN freezes its product snapshot — the sheet has to
+still mean what it meant when it was printed.
+
+`stock_verification_lines.stock_lot_id` is nullable, and that carries
+real weight: it is how a counter records goods sitting in a rack that the
+system has no lot for at all. Without it a count could only ever report
+shortages, never a find.
+
+### The blank sheet hides the expected quantity
+
+The count-sheet document renders differently by status, and it is not
+cosmetic. Printed from a `draft` it omits the system quantity entirely
+and leaves a ruled blank — telling a counter what they are expected to
+find is how a count stops being one. Printed from a `completed`
+verification it shows system, counted, difference and reason, because
+then it is the record of what was found rather than the instrument for
+finding it.
+
+### One narrow permission, and why it is narrow
+
+`approve_stock_adjustment_final` is Owner-only — Admin does not hold it,
+which is true of only one other code in the entire catalogue
+(`approve_agreement`). The Owner step is inserted only when the tenant
+sets `approvals.stock_adjustment.owner_required`, read per request so
+switching it on applies to the next adjustment rather than the next
+deploy. Verified through all four roles: an Operator may raise one but
+not approve it; a Manager approves and then cannot finalise their own
+approval; an Admin cannot finalise either; the Owner can. `post` rides
+`approve_stock_adjustment` rather than the create code — applying an
+approved change is the approver's act, not the requester's.

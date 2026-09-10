@@ -565,10 +565,30 @@ and a line with no destination bin lands unallocated at the far end
 exactly as a receipt awaiting put-away does. The Stock Transfer Note is
 the **ninth** registered document template.
 
-**Still to build in this phase:** Physical Verification and Stock
-Adjustment with their approval chains; the Customer Stock Statement and
-Ageing report; and GRN reversal — `'reversed'` still has no transition,
-because undoing a posting once the goods have been put away (or partly
+**Physical Verification and Stock Adjustment landed**
+(`apps/api/src/stock-verifications/`, `apps/api/src/stock-adjustments/`),
+§27 in full with §50's approval chain. A verification builds its own
+count sheet from `stock_lots` — the caller does not supply lines, because
+a count whose subject the counter chooses is not a count — freezes
+`system_qty`, accepts a physical count per line, and **posts no stock at
+all**: finding 8 where the system says 10 records a disagreement, it does
+not correct one. Correcting it is a Stock Adjustment, which copies only
+the discrepant lines, requires a reason, and walks `draft →
+pending_manager → [pending_owner] → approved → posted` — the Owner step
+present only when `approvals.stock_adjustment.owner_required` is set.
+`approve_stock_adjustment_final` is Owner-only; not even Admin holds it.
+
+Posting is a **separate act** from approval, and `DECISIONS.md` §38
+records why: a posting can fail on its own merits (a write-off larger
+than the shelf holds), and collapsing the two would let that failure roll
+back a decision two people already made. The count sheet document — the
+tenth registered template — renders blank before the count and filled in
+after, hiding the system quantity on the blank form so the counter is
+counting rather than confirming.
+
+**Still to build in this phase:** the Customer Stock Statement and Ageing
+report; and GRN reversal — `'reversed'` still has no transition, because
+undoing a posting once the goods have been put away (or partly
 dispatched) is a real design question, not a transcription of §3.5, and
 it deserves its own slice rather than a half-correct one bolted on.
 

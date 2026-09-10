@@ -38,6 +38,9 @@ export const PROVISIONAL_SOURCE_STATUSES: Record<string, readonly string[]> = {
   // in_transit the TRANSFER_OUT is in the ledger and a driver may be
   // carrying the printed copy.
   stock_transfer: ['draft', 'approved'],
+  // A blank count sheet is provisional; a completed verification is the
+  // record someone signed, and reissuing it should be a deliberate act.
+  stock_verification: ['draft'],
 };
 
 /**
