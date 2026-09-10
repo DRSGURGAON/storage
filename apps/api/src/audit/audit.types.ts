@@ -21,6 +21,11 @@ export type AuditAction =
   | 'password_change_failed'
   | 'password_reset'
   | 'password_set_for_member'
+  // Someone leaving, or a whole workspace closing. Recorded before the
+  // account is anonymised, because afterwards there is nothing on the row
+  // left to say who it was.
+  | 'account_deleted'
+  | 'workspace_deletion_requested'
   | 'permission_denied';
 
 export interface RecordAuditParams {

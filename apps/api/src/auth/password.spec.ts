@@ -197,6 +197,98 @@ describe('Passwords', () => {
       .expect(400);
   });
 
+  it('deletes an account by removing the person, not the record they are on', async () => {
+    const leaverEmail = `pw-leaver-${suffix}@test.local`;
+    const invited = (
+      await api()
+        .post('/users')
+        .set(auth(owner))
+        .send({ email: leaverEmail, fullName: 'Leaver', password, roleCode: 'warehouse_manager' })
+        .expect(201)
+    ).body;
+    // The membership id and the (global) user id are different things, and
+    // only the second can be looked up on a bare connection: `tenant_users`
+    // is under FORCE RLS, `users` is not.
+    const leaverId = invited.id;
+    const leaverUserId = invited.userId;
+    const leaver = await login(leaverEmail, password);
+
+    // The password is asked for again: this is the one irreversible action
+    // in the product, and an unlocked laptop is the ordinary case.
+    await api().post('/auth/delete-account').set(auth(leaver)).send({ currentPassword: 'wrong-one' }).expect(401);
+
+    const deleted = await api()
+      .post('/auth/delete-account')
+      .set(auth(leaver))
+      .send({ currentPassword: password })
+      .expect(201);
+    expect(deleted.body).toMatchObject({ deleted: true, workspaces: 1 });
+
+    // Gone: the session, and the ability to sign in at all.
+    await api().get('/auth/me').set(auth(leaver)).expect(401);
+    await api().post('/auth/login').send({ email: leaverEmail, password }).expect(401);
+
+    // The personal data is replaced rather than the row dropped -- their
+    // name is on work they did, and `audit_logs` references it.
+    const [row] = await sql<{ email: string; full_name: string; password_hash: string | null }[]>`
+      select email, full_name, password_hash from users where id = ${leaverUserId}
+    `;
+    expect(row.full_name).toBe('Deleted user');
+    expect(row.email).toMatch(/@removed\.invalid$/);
+    expect(row.password_hash).toBeNull();
+
+    // The workspace still sees the membership, disabled -- an Owner should
+    // be able to tell that someone left rather than find a gap.
+    const members = await api().get('/users').set(auth(owner)).expect(200);
+    expect(members.body.find((m: { id: string }) => m.id === leaverId)).toMatchObject({ status: 'disabled' });
+
+    // And the audit row was written before the name was taken off it.
+    const trail = await api().get('/audit-logs?action=account_deleted').set(auth(owner)).expect(200);
+    expect(trail.body.total).toBe(1);
+  });
+
+  it('refuses to delete the only Owner a workspace has', async () => {
+    const soloSlug = `pw-solo-${suffix}`;
+    const soloEmail = `pw-solo-${suffix}@test.local`;
+    const solo = (
+      await api()
+        .post('/auth/signup')
+        .send({
+          companyLegalName: `${soloSlug} Pvt Ltd`,
+          tenantSlug: soloSlug,
+          email: soloEmail,
+          fullName: 'Only Owner',
+          password,
+        })
+        .expect(201)
+    ).body.accessToken;
+
+    const refused = await api()
+      .post('/auth/delete-account')
+      .set(auth(solo))
+      .send({ currentPassword: password })
+      .expect(400);
+    // The message has to say what to do instead: an ownerless workspace is
+    // a support ticket nobody can resolve from inside the product.
+    expect(refused.body.message).toMatch(/only Owner/);
+    expect(refused.body.message).toMatch(/someone else an Owner/);
+
+    // Still working, because nothing was written.
+    await api().get('/auth/me').set(auth(solo)).expect(200);
+
+    // Closing the whole workspace is the other route, and it ends every
+    // session in it -- including the Owner's own.
+    const closed = await api()
+      .post('/company/deletion-request')
+      .set(auth(solo))
+      .send({ reason: 'Pilot finished' })
+      .expect(201);
+    expect(closed.body).toMatchObject({ requested: true });
+    expect(closed.body.message).toMatch(/statutory retention/);
+    await api().get('/auth/me').set(auth(solo)).expect(401);
+    await api().post('/auth/login').send({ email: soloEmail, password }).expect(401);
+  });
+
   it('signs out a membership the moment it is disabled, not when the token expires', async () => {
     const memberToken = await login(memberEmail, 'reset-through-the-link');
     await api().get('/auth/me').set(auth(memberToken)).expect(200);

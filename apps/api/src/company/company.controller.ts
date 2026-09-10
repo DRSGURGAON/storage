@@ -1,9 +1,11 @@
-import { Body, Controller, Delete, Get, Ip, Param, Patch, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Ip, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
+import { AccountDeletionService } from '../auth/account-deletion.service';
+import { RequestWorkspaceDeletionDto } from '../auth/dto/password.dto';
 import { CompanyService } from './company.service';
 import { SetSettingDto } from './dto/set-setting.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -22,7 +24,29 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 @Controller('company')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class CompanyController {
-  constructor(private readonly company: CompanyService) {}
+  constructor(
+    private readonly company: CompanyService,
+    private readonly accountDeletion: AccountDeletionService,
+  ) {}
+
+  /**
+   * Closing the workspace. Owner/Admin only, like everything else here.
+   *
+   * It disables every sign-in immediately and records the request; it does
+   * not drop the data, because a warehouse's stock ledger and issued
+   * invoices are statutory records and how long they are kept after a
+   * closure is a decision for whoever runs the service. The response says
+   * exactly that rather than implying the data is gone.
+   */
+  @Post('deletion-request')
+  @RequirePermission('manage_company_settings')
+  requestDeletion(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RequestWorkspaceDeletionDto,
+    @Ip() ip: string,
+  ) {
+    return this.accountDeletion.requestWorkspaceDeletion(user, dto.reason, ip);
+  }
 
   @Get()
   @RequirePermission('manage_company_settings')

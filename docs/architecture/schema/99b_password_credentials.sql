@@ -89,6 +89,28 @@ alter table audit_logs add constraint audit_logs_action_check check (
     'create', 'update', 'delete', 'approve', 'reject', 'cancel',
     'stock_adjustment', 'status_change', 'document_generate', 'document_regenerate',
     'login', 'login_failed', 'permission_denied',
-    'password_changed', 'password_change_failed', 'password_reset', 'password_set_for_member'
+    'password_changed', 'password_change_failed', 'password_reset', 'password_set_for_member',
+    'account_deleted', 'workspace_deletion_requested'
   )
 );
+
+-- An anonymised account has no password: `deleteOwnAccount` clears the
+-- hash rather than leaving a live credential attached to a name that is no
+-- longer anybody's. The column was already nullable (a membership can be
+-- created for an email that has not set one yet), so this is a note rather
+-- than a change -- but the login path's `if (!user.password_hash)` is what
+-- makes a deleted account unreachable, and that is worth writing down next
+-- to the constraint rather than leaving as a coincidence.
+
+-- `users.deleted_at` -- an account that has been deleted, said explicitly.
+--
+-- Anonymising the row (name replaced, email rewritten to an unroutable
+-- address, password cleared) is what removes the personal data, but it
+-- leaves no reliable way to *ask* whether an account is gone: the closest
+-- thing is pattern-matching an email domain, which is the kind of check
+-- that works until somebody changes the domain. An Owner is offered "Set
+-- password" against every member, and against a deleted one that would be
+-- an offer to bring the account back.
+alter table users add column if not exists deleted_at timestamptz;
+
+create index if not exists users_active_idx on users (id) where deleted_at is null;

@@ -156,6 +156,46 @@ The cost is one indexed lookup per authenticated request, next to the
 several every handler already makes. That is the price of a session that
 can be ended.
 
+### 3b. Deleting an account
+
+Google Play requires an in-app route to delete an account for any app that
+lets one be created, and it is a fair requirement. It is also not
+`delete from users`: a person's name is on GRNs they approved, invoices
+they issued, and `audit_logs` rows that exist precisely so those actions
+can be traced. Dropping the row would either fail on a foreign key or
+destroy the warehouse's own evidence of who did what.
+
+So `POST /auth/delete-account` removes the person and keeps the record.
+The `users` row is anonymised in place — name replaced, email rewritten to
+`deleted-<id>@removed.invalid` (derived from the id because the column is
+unique and two deletions would otherwise collide), mobile and password
+cleared, `deleted_at` set, `session_epoch` bumped so every open session
+dies — and each membership is disabled. What is left is a foreign key
+pointing at "Deleted user", which is what the trail of a departed employee
+should look like. It asks for the password again first: this is the one
+irreversible action in the product, and an unlocked laptop on a warehouse
+floor is ordinary rather than exceptional.
+
+Two refusals matter. The **last active Owner** of a workspace cannot delete
+themselves — an ownerless workspace is a support ticket nobody can resolve
+from inside the product — and the message says to promote someone else or
+close the workspace instead. And an Owner cannot set a password on a
+**deleted** account (`deleted_at` is what makes that answerable without
+pattern-matching an email domain): issuing one there would be an offer to
+bring the account back, which is not the Owner's to make.
+
+`POST /company/deletion-request` is the workspace-level version, for an
+Owner closing a pilot. It disables every sign-in immediately and records
+the request; it does not drop the data, because a stock ledger and issued
+invoices are statutory records and how long they are kept after a closure
+is a decision for whoever operates the service. The response says exactly
+that rather than implying the data is gone.
+
+The public pages a store listing points at — `/privacy` and
+`/delete-account` — are served by the web app itself rather than a separate
+marketing site, so they describe what the code does rather than drifting
+from it the first time the code changes.
+
 ## 4. Authorization (RBAC)
 
 - `roles` + `permissions` + `role_permissions` implement the granular

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, App, Button, Card, Form, Input, Result, Typography } from 'antd';
+import { Alert, App, Button, Card, Divider, Form, Input, Modal, Result, Space, Typography } from 'antd';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useSession } from '../lib/session';
@@ -254,6 +254,97 @@ export function AccountSettings() {
           Change password
         </Button>
       </Form>
+
+      <Divider />
+      <DeleteAccount />
     </Card>
+  );
+}
+
+/**
+ * Deleting your own account, which Google Play requires any app that lets
+ * one be created to offer from inside the app.
+ *
+ * The copy is the honest version rather than the reassuring one: the
+ * sign-in goes, the work does not. A warehouse is legally required to keep
+ * the receipts and invoices someone's name is on, and saying "everything
+ * will be deleted" would be a promise the product breaks the moment a tax
+ * inspector asks the operator for records.
+ */
+function DeleteAccount() {
+  const { signOut } = useSession();
+  const { message, modal } = App.useApp();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [form] = Form.useForm();
+
+  return (
+    <>
+      <Typography.Title level={5}>Delete your account</Typography.Title>
+      <Typography.Paragraph type="secondary">
+        Your sign-in is removed and every session ends immediately. Work you did — receipts you
+        booked, dispatches you released, invoices you issued — stays with the workspace, which is
+        required to keep it, with your name replaced by “Deleted user”.
+      </Typography.Paragraph>
+      <Button danger onClick={() => setOpen(true)}>
+        Delete my account
+      </Button>
+
+      <Modal
+        open={open}
+        title="Delete your account"
+        okText="Delete my account"
+        okButtonProps={{ danger: true, loading: busy }}
+        onCancel={() => setOpen(false)}
+        style={{ maxWidth: 'calc(100vw - 32px)' }}
+        onOk={async () => {
+          // See the same guard on Settings' close-workspace modal: an async
+          // `onOk` that lets antd's validation rejection escape reports it
+          // to the window as an unhandled error.
+          let values: { currentPassword: string };
+          try {
+            values = await form.validateFields();
+          } catch {
+            return;
+          }
+          setBusy(true);
+          try {
+            const result = await api<{ workspaces: number; message: string }>('/auth/delete-account', {
+              method: 'POST',
+              body: { currentPassword: values.currentPassword },
+            });
+            setOpen(false);
+            signOut();
+            navigate('/login');
+            // A plain toast is too small for the last thing this account
+            // will ever be told.
+            modal.info({ title: 'Your account has been deleted', content: result.message });
+          } catch (error) {
+            message.error(error instanceof ApiError ? error.message : 'Could not delete the account');
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Alert
+            type="error"
+            showIcon
+            message="This cannot be undone"
+            description="You will not be able to sign in again, and the same email cannot be reused for a new account."
+          />
+          <Form form={form} layout="vertical">
+            <Form.Item
+              name="currentPassword"
+              label="Your password, to confirm it is you"
+              rules={[{ required: true }]}
+            >
+              <Input.Password autoComplete="current-password" />
+            </Form.Item>
+          </Form>
+        </Space>
+      </Modal>
+    </>
   );
 }

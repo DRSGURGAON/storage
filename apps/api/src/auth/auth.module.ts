@@ -6,6 +6,7 @@ import { AuditModule } from '../audit/audit.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { EmailChannel } from '../notifications/channels/email.channel';
+import { AccountDeletionService } from './account-deletion.service';
 import { PasswordService } from './password.service';
 import { JwtStrategy } from './jwt.strategy';
 
@@ -27,7 +28,7 @@ import { JwtStrategy } from './jwt.strategy';
   // password reset is not a tenant notification (the account can belong to
   // several workspaces), so routing it through the notifications table
   // would file a reset under whichever tenant happened to be guessed.
-  providers: [AuthService, JwtStrategy, PasswordService, EmailChannel],
-  exports: [PasswordService],
+  providers: [AuthService, JwtStrategy, PasswordService, AccountDeletionService, EmailChannel],
+  exports: [PasswordService, AccountDeletionService],
 })
 export class AuthModule {}

@@ -217,12 +217,17 @@ export class PasswordService {
     // SECURITY, so this join on the bare connection matches zero rows and
     // the route answers 404 for a member who plainly exists. (It did,
     // first run.)
-    const [member] = await withTenant(this.sql, actor.tenantId, (tx) => tx<{ user_id: string; email: string }[]>`
-      select tu.user_id, u.email
+    const [member] = await withTenant(this.sql, actor.tenantId, (tx) => tx<{ user_id: string; email: string; deleted_at: string | null }[]>`
+      select tu.user_id, u.email, u.deleted_at
       from tenant_users tu join users u on u.id = tu.user_id
       where tu.id = ${tenantUserId} and tu.tenant_id = ${actor.tenantId}
     `);
     if (!member) throw new NotFoundException('No such member of this workspace');
+    if (member.deleted_at) {
+      // Setting a password on a deleted account is an offer to bring it
+      // back, which is not an Owner's to make: the person deleted it.
+      throw new BadRequestException('That account has been deleted. Invite the person again instead.');
+    }
     if (member.user_id === actor.userId) {
       throw new BadRequestException('Change your own password from your account settings, with the current one');
     }
@@ -239,6 +244,19 @@ export class PasswordService {
       ipAddress,
     });
     return { email: member.email };
+  }
+
+  /**
+   * Verifies a password without changing anything. Used by account
+   * deletion, which asks for it again before doing the one thing in this
+   * product that cannot be undone.
+   */
+  async verifyCurrentPassword(userId: string, password: string): Promise<boolean> {
+    const [row] = await this.sql<{ password_hash: string | null }[]>`
+      select password_hash from users where id = ${userId}
+    `;
+    if (!row?.password_hash) return false;
+    return argon2.verify(row.password_hash, password);
   }
 
   /**

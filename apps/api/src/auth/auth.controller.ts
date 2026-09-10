@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Ip, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Ip, Post, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import type postgres from 'postgres';
 import { PG_CONNECTION } from '../db/db.module';
@@ -6,7 +6,13 @@ import { withTenant } from '../db/tenant-context';
 import { positiveNumber, ThrottlePerCredential } from '../throttling';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
-import { ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/password.dto';
+import { AccountDeletionService } from './account-deletion.service';
+import {
+  ChangePasswordDto,
+  DeleteAccountDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from './dto/password.dto';
 import { LoginDto } from './dto/login.dto';
 import { PasswordService } from './password.service';
 import { SignupDto } from './dto/signup.dto';
@@ -23,6 +29,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly passwords: PasswordService,
+    private readonly accountDeletion: AccountDeletionService,
     @Inject(PG_CONNECTION) private readonly sql: postgres.Sql,
   ) {}
 
@@ -85,6 +92,30 @@ export class AuthController {
   @Post('reset-password')
   resetPassword(@Body() dto: ResetPasswordDto, @Ip() ip: string) {
     return this.passwords.reset(dto.token, dto.newPassword, ip);
+  }
+
+  /**
+   * Deleting your own account (Google Play requires an in-app route to,
+   * for any app that lets an account be created).
+   *
+   * The password is asked for again because this is the one irreversible
+   * thing in the product and an unlocked laptop on a warehouse floor is
+   * ordinary. What it actually does is in `AccountDeletionService`: the
+   * personal data goes, the records a warehouse is legally required to keep
+   * stay, with the name replaced.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: AUTH_LIMIT })
+  @Post('delete-account')
+  async deleteAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: DeleteAccountDto,
+    @Ip() ip: string,
+  ) {
+    if (!(await this.passwords.verifyCurrentPassword(user.userId, dto.currentPassword))) {
+      throw new UnauthorizedException('That is not your password');
+    }
+    return this.accountDeletion.deleteOwnAccount(user, ip);
   }
 
   /** An authenticated session polling its own identity is not the shape the limits exist for. */

@@ -1496,6 +1496,58 @@ headers checked on a live response. The build itself should be run once on
 a machine with registry access before a deploy is trusted to it — said here
 rather than left to be discovered.
 
+## Phase 23 — deleting an account, honestly (blocker)
+
+Google Play requires an in-app route to delete an account for any app that
+lets one be created. The naive reading of that requirement — erase
+everything — is impossible here and would be a lie if promised: a person's
+name is on GRNs they approved and invoices they issued, records the
+warehouse is legally required to keep, and `audit_logs` holds foreign keys
+to them for exactly that reason.
+
+So the person goes and the record stays. The `users` row is anonymised in
+place, every membership is disabled, and `session_epoch` moves so open
+sessions die at once; what is left behind is a foreign key pointing at
+"Deleted user". The copy on the screen says so in those words rather than
+the reassuring version, because the reassuring version is the one the
+product breaks the first time a tax inspector asks the operator for
+records.
+
+The refusals are where the thinking is. The **last active Owner** cannot
+delete themselves — an ownerless workspace is a support ticket nobody can
+resolve from inside the product — and is told to promote someone else or
+close the workspace. Closing the workspace is the other route, gated on
+typing its name: it is the only action in the product that takes a whole
+company offline, and a misclick on a phone should not manage it.
+
+`users.deleted_at` exists because "has this account been deleted?" needed
+to be answerable without pattern-matching an email domain. It is what stops
+an Owner setting a password on a deleted account, which would be an offer
+to bring it back — not theirs to make.
+
+`/privacy` and `/delete-account` are public pages in the app itself, which
+is what a store listing points at. They live here rather than on a
+marketing site so they describe what the code does; a policy hosted
+elsewhere drifts the first time the code changes.
+
+Three things the browser found that the tests would not have:
+
+- **The Role column on Settings → Users had been blank for four phases.**
+  The API returns `role: { code, name }`; the screen read `roleName`.
+  Exactly the drift `tools/contract-audit.mjs` exists for, caught here by
+  reading the rendered table.
+- **A deleted member was still offered "Set password"** — and the API would
+  have taken it.
+- **Two modals reported "Object: Object" to the window**, because an async
+  antd `onOk` that lets `validateFields` reject hands its error-fields
+  object straight to the page.
+
+Verified in a browser end to end: both public pages with no session, a
+member deleting their own account and being locked out, the Owner seeing
+them as *Deleted* rather than merely disabled, the wrong workspace name
+refused, the right one closing every sign-in including the Owner's own,
+and both pages at 390px. Full suite: 41 suites, 329 tests.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

@@ -95,6 +95,13 @@ browser's requests are same-origin.
 installable: Android and iOS can add it to a home screen, and a Play Store
 listing built as a Trusted Web Activity reads exactly those fields.
 
+The two URLs a listing asks for are served by the app itself: `/privacy`
+and `/delete-account`, both public. Set `VITE_OPERATOR_NAME` and
+`VITE_OPERATOR_CONTACT` at build time so they name the company running the
+deployment rather than a placeholder — those are facts about the operator,
+not about the software. Account deletion itself is in the app, under
+Settings → Your account (`tenancy-and-security.md` §3b).
+
 A TWA additionally needs the site served over HTTPS on a domain you
 control, and `/.well-known/assetlinks.json` on that domain carrying your
 signing key's fingerprint. Neither exists until the app is deployed
@@ -120,10 +127,6 @@ Named rather than implied:
 - **A payment gateway.** `DECISIONS.md` §13. V1 runs on the seeded Free
   plan with upgrades arranged offline, and the upgrade prompt says so
   rather than inventing a tier.
-- **Account deletion.** Google Play requires a route to delete an account
-  for any app that lets one be created in it. Deleting a workspace whose
-  invoices and stock ledger are legal records is a product decision, not a
-  `DELETE` statement, and it has not been made.
 - **A second API instance.** Nothing in the code prevents it — the
   numbering engine takes row locks, the entitlement engine is idempotent —
   but the attachments directory would have to become shared storage first.

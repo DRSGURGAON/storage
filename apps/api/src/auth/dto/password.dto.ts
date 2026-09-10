@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 /**
  * Eight characters, the same floor `SignupDto` sets, and no composition
@@ -39,4 +39,25 @@ export class SetMemberPasswordDto {
   @IsString()
   @MinLength(8, { message: 'The password must be at least 8 characters' })
   newPassword!: string;
+}
+
+/**
+ * Deleting your own account asks for the password again.
+ *
+ * Not ceremony: this is the one irreversible action in the product, and an
+ * unlocked laptop on a warehouse floor is the normal case rather than the
+ * exception. Everything else a stranger at that laptop could do leaves a
+ * record and can be undone.
+ */
+export class DeleteAccountDto {
+  @IsString()
+  currentPassword!: string;
+}
+
+/** An Owner closing the workspace. The reason is optional and goes into the audit row. */
+export class RequestWorkspaceDeletionDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
 }

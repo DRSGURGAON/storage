@@ -26,11 +26,12 @@ interface MemberRow {
   warehouse_ids: string[] | null;
   customer_id: string | null;
   created_at: Date;
+  deleted_at: Date | null;
 }
 
 const MEMBER_SELECT = `
   tu.id, tu.user_id, u.email, u.full_name, r.code as role_code, r.name as role_name,
-  tu.status, tu.warehouse_ids, tu.customer_id, tu.created_at`;
+  tu.status, tu.warehouse_ids, tu.customer_id, tu.created_at, u.deleted_at`;
 const MEMBER_FROM = `
   from tenant_users tu
   join users u on u.id = tu.user_id
@@ -229,5 +230,8 @@ function toApi(m: MemberRow) {
     warehouseIds: m.warehouse_ids ?? [],
     customerId: m.customer_id,
     createdAt: m.created_at,
+    // So a workspace can tell "this person left" from "this person is
+    // suspended". Both are `status: 'disabled'`; only one can be undone.
+    deletedAt: m.deleted_at,
   };
 }

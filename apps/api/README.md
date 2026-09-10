@@ -697,6 +697,12 @@ provider said.
   were already open. See `tenancy-and-security.md` §3a; the reset link
   needs `SMTP_URL` and `PUBLIC_WEB_URL`, and without them the Owner-issued
   path is the way back in.
+- `POST /auth/delete-account` and `POST /company/deletion-request`
+  (`manage_company_settings`) — what Google Play requires of any app that
+  lets an account be created, done honestly: the personal data is removed
+  and the statutory record is kept, with the name replaced. The last active
+  Owner of a workspace is refused, and so is setting a password on an
+  account that has been deleted. `tenancy-and-security.md` §3b.
 - `GET /plan/usage` (`view_plan_usage`) — §13, one `checkEntitlement` per
   metered feature, the same read a paywall makes.
 - `GET /plan/upgrade/:featureCode` (`view_plan_usage`) — §11's "what does
@@ -829,7 +835,7 @@ document is rendered by a real browser) and the fonts a rupee sign needs,
 and applies migrations and the system seed before it serves anything. See
 [`../../docs/architecture/deployment.md`](../../docs/architecture/deployment.md).
 
-**41 suites, 327 tests**, all against the real local database
+**41 suites, 329 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,

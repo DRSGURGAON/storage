@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Modal,
   Progress,
   Row,
   Select,
@@ -226,7 +227,102 @@ export function CompanySettings() {
         writePermission="manage_company_settings"
         emptyText="No letterhead images yet. A logo prints in the header of every document; a signature and a seal print above the authorised-signatory line."
       />
+      <CloseWorkspace />
     </Space>
+  );
+}
+
+/**
+ * Closing the workspace: the other half of what a store listing has to
+ * offer, and the one an Owner needs when a pilot ends.
+ *
+ * Deliberately at the bottom of Company rather than a menu item of its
+ * own, deliberately requiring the workspace's name to be typed, and
+ * deliberately honest that this ends access rather than erasing records --
+ * a warehouse's stock ledger and issued invoices are statutory documents,
+ * and a button cannot make that untrue.
+ */
+function CloseWorkspace() {
+  const { session } = useSession();
+  const { message, modal } = App.useApp();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [form] = Form.useForm();
+  const legalName = session?.tenant.legalName ?? '';
+
+  return (
+    <Card title="Close this workspace">
+      <Typography.Paragraph type="secondary">
+        Every sign-in for <strong>{legalName}</strong> is disabled immediately, for everyone. The
+        records it holds — the stock ledger, the documents it has issued, the invoices — are kept
+        for the statutory retention period and then removed. Ask us first if you want an export.
+      </Typography.Paragraph>
+      <Button danger onClick={() => setOpen(true)}>
+        Close workspace
+      </Button>
+      <Modal
+        open={open}
+        title="Close this workspace"
+        okText="Close the workspace"
+        okButtonProps={{ danger: true, loading: busy }}
+        onCancel={() => setOpen(false)}
+        style={{ maxWidth: 'calc(100vw - 32px)' }}
+        onOk={async () => {
+          // antd rejects `validateFields` with its own error-fields object,
+          // and an async `onOk` hands that rejection straight to the window
+          // as an unhandled "Object: Object". The fields already show the
+          // message; there is nothing to do here but stop.
+          let values: { confirm: string; reason?: string };
+          try {
+            values = await form.validateFields();
+          } catch {
+            return;
+          }
+          setBusy(true);
+          try {
+            const result = await api<{ message: string }>('/company/deletion-request', {
+              method: 'POST',
+              body: values.reason ? { reason: values.reason } : {},
+            });
+            setOpen(false);
+            modal.info({ title: 'The workspace is closed', content: result.message });
+          } catch (error) {
+            message.error(error instanceof ApiError ? error.message : 'Could not close the workspace');
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Everyone loses access, at once"
+          description="This is not only your own account: every operator, manager and customer login in this workspace stops working immediately."
+        />
+        <Form form={form} layout="vertical">
+          <Form.Item
+            name="confirm"
+            label={`Type the workspace name to confirm: ${legalName}`}
+            rules={[
+              { required: true },
+              // Typing the name is the friction. It is the only action in
+              // the product that takes a whole company offline, and a
+              // misclick on a phone should not be able to do it.
+              () => ({
+                validator: (_, value) =>
+                  value === legalName ? Promise.resolve() : Promise.reject(new Error('That is not the workspace name')),
+              }),
+            ]}
+          >
+            <Input autoComplete="off" />
+          </Form.Item>
+          <Form.Item name="reason" label="Why? (optional, recorded in the audit log)">
+            <Input.TextArea rows={2} maxLength={500} />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </Card>
   );
 }
 
@@ -234,10 +330,15 @@ interface Member {
   id: string;
   email: string;
   fullName: string;
-  roleCode: string;
-  roleName: string;
+  // The API returns the role as an object. This screen read `roleName` for
+  // four phases and the Role column was simply blank -- exactly the shape
+  // of drift `tools/contract-audit.mjs` exists to catch, found here by
+  // reading the rendered table rather than the code.
+  role: { code: string; name: string };
   status: string;
   customerId: string | null;
+  /** Set when the person deleted their own account: disabled, and not comeback-able. */
+  deletedAt: string | null;
 }
 
 export function UserSettings() {
@@ -259,14 +360,16 @@ export function UserSettings() {
         columns={[
           { title: 'Name', dataIndex: 'fullName', render: (name) => <strong>{name}</strong> },
           { title: 'Email', dataIndex: 'email' },
-          { title: 'Role', dataIndex: 'roleName', width: 200, render: (name) => <Tag>{name}</Tag> },
+          { title: 'Role', width: 200, render: (_, row) => <Tag>{row.role.name}</Tag> },
           {
             title: 'Status',
             dataIndex: 'status',
             width: 130,
             render: (status: string, row) => (
               <Space>
-                <Tag color={status === 'active' ? 'success' : 'default'}>{humanise(status)}</Tag>
+                <Tag color={status === 'active' ? 'success' : 'default'}>
+                  {row.deletedAt ? 'Deleted' : humanise(status)}
+                </Tag>
                 {row.email === session?.user.email && <Tag>you</Tag>}
               </Space>
             ),
@@ -278,7 +381,10 @@ export function UserSettings() {
               // Not offered for your own row: your own password is changed
               // where you have to type the current one. The API refuses it
               // there too -- this only avoids offering a button that 400s.
-              row.email === session?.user.email ? null : (
+              // Nor for an account its owner deleted: issuing a password
+              // there is an offer to bring it back, which is not an Owner's
+              // to make. The API refuses it too.
+              row.email === session?.user.email || row.deletedAt ? null : (
                 <Button size="small" onClick={() => setResetting(row)}>
                   Set password
                 </Button>
