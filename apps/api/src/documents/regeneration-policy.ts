@@ -44,6 +44,8 @@ export const PROVISIONAL_SOURCE_STATUSES: Record<string, readonly string[]> = {
   // A statement is reissued freely -- each issue is a fresh reading of the
   // balance, and the previous one is superseded by design.
   stock_statement: ['issued'],
+  release_order: ['draft', 'approved'],
+  pick_list: ['pending', 'in_progress'],
 };
 
 /**

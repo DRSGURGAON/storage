@@ -619,6 +619,21 @@ so a corrected GRN can be raised.
 
 ## Phase 6 — Release Order, Reservation, Pick, Pack, Dispatch, Loading, Gate Pass, POD
 
+**Status: Release Order and Pick List landed** (`apps/api/src/release-orders/`,
+`pick-lists/`). Reservation is where the allocation policy actually runs
+— `stock_lots.reserved_qty` is per lot, so reserving means choosing lots
+(`DECISIONS.md` §40) — with FIFO/LIFO/FEFO from `stock.allocation_policy`
+or the request, or explicit `manual` lot allocations. Only shelved lots
+are eligible, the reservation is all or nothing with both the shelved
+and unallocated figures in the refusal, and the pick list is generated
+from the `RESERVE` ledger rows and records the policy used. Picks are
+capped at the reservation, roll up to `partially_picked`/`picked`, and
+cancellation before dispatch mirrors every `RESERVE` with an `UNRESERVE`.
+§79's "reserve 20 → available 40" and "cancel reservation restores
+available" are asserted in `release-orders.spec.ts`; the Release Order
+and Pick List are the twelfth and thirteenth templates. Packing List,
+Dispatch, Loading Sheet, Gate Pass (`OUTWARD`), POD and returns follow.
+
 - Schema: `schema/50_outbound.sql`.
 - Docs: `stock-engine.md` §2/§6 (reservation + allocation policy),
   `workflow-and-statuses.md` (Release Order status machine).

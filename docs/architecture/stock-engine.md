@@ -110,7 +110,7 @@ document, not a mutation of a single row's `warehouse_id`.
 
 ---
 
-## Implemented (Phase 5, in progress)
+## Implemented (Phases 5–6, in progress)
 
 `apps/api/src/stock/` — `StockService.postWithin()` is the only code
 path in the repository that writes `stock_lots`. Callers pass their own
@@ -132,6 +132,8 @@ Wired in so far:
 | Stock transfer, warehouse to warehouse | `TRANSFER_OUT` at `dispatch`, `TRANSFER_IN` at `complete` | `stock_transfer:{id}:out` / `:in` |
 | Stock adjustment posting (§27) | one signed `ADJUSTMENT` per line, at `post` | `stock_adjustment:{id}:post` |
 | GRN reversal (§3.5) | one offsetting `INWARD` (`qty_out`, `reversal_of_id`) per original row | `grn:{id}:reverse` |
+| Release order reservation (§30) | one `RESERVE` (`+reserved_delta`) per lot the policy chose, shelved lots only | `release_order:{id}:reserve` |
+| Release order cancellation | one `UNRESERVE` mirroring each `RESERVE` row | `release_order:{id}:unreserve` |
 
 Three things the implementation settled that this document left open:
 
@@ -167,5 +169,12 @@ structural: there is no code path from a count to a balance. Its
 discrepancies become an approved `ADJUSTMENT` or they change nothing at
 all.
 
-Not yet built: the reservation types (`RESERVE`/`UNRESERVE`, which
-Phase 6's Release Order owns) and `OUTWARD` (gate-out).
+**Reservation chooses lots**, because `reserved_qty` is a per-lot
+balance — so §6's allocation policy runs at `POST /release-orders/:id/reserve`,
+not at pick-list generation, and the pick list is built from the
+`RESERVE` rows rather than re-choosing (`DECISIONS.md` §40). Only
+shelved lots (`location_id` not null) are eligible, and a shortfall
+refuses the whole order with both the shelved and the unallocated
+figure in the message. Picking posts nothing, as §2 requires.
+
+Not yet built: `OUTWARD` (gate-out).

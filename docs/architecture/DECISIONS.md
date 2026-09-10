@@ -1416,3 +1416,51 @@ applied to the whole quantity. That is a FIFO assumption and it is written
 down rather than hidden, because it is also the *conservative* reading: in
 a storage-charge dispute the customer is told the age of the oldest goods
 they have not yet taken out, not an average that flatters the newest.
+
+## §40 — allocation runs at reservation, over shelved stock only, all or nothing
+
+`stock-engine.md` §6 describes the allocation policy (FIFO/LIFO/FEFO,
+§31) as the Pick List's concern, and the schema agrees: `pick_lists`
+carries `allocation_policy`, `release_orders` does not. Building it
+moved the decision one step earlier, and the reason is a column.
+`stock_lots.reserved_qty` is a *per-lot* balance. The moment a Release
+Order reserves, some specific lot's reserved quantity goes up, so the
+reservation has already chosen lots — and choosing lots *is* the
+allocation policy. Running it again at pick time could only disagree
+with what is already reserved. So `POST /release-orders/:id/reserve`
+takes the policy (or falls back to the tenant's `stock.allocation_policy`,
+default FIFO, or accepts explicit lot allocations as `manual`), posts one
+`RESERVE` row per lot chosen, and records which policy it used in its
+audit row. The pick list is generated from those `RESERVE` rows and
+copies the policy onto its own row for the printed sheet; it never
+re-chooses. The schema column is still where the blueprint put it; only
+the moment of decision moved.
+
+Three further choices that the tests pin:
+
+- **Only shelved lots are eligible** (`location_id` not null). A pick
+  list line has to send a picker somewhere, and goods still awaiting
+  put-away are not anywhere a picker can go. The refusal says both
+  numbers — "70 requested but only 60 available in shelved locations (a
+  further 40 is unallocated, awaiting put-away)" — so the fix is obvious
+  from the message: put it away, then reserve.
+- **Reservation is all or nothing per order.** Reserving 15 of 20 and
+  calling the order reserved is an under-fulfilment the customer
+  discovers at the dock. §79's "reserve unavailable stock is impossible"
+  is satisfied by refusing with the numbers, and the refusal rolls the
+  whole transition back — no partial `RESERVE` rows, order still
+  `approved`.
+- **Age for FIFO/LIFO comes from the batch, else from the lot's first
+  inward ledger row.** The obvious proxy for a non-batch lot,
+  `stock_lots.updated_at`, was the first cut and it is wrong: every
+  reservation and release bumps it, so a lot that had been reserved and
+  released once became "newer" than one that had sat untouched, and the
+  test that reserved across two bins picked them in the wrong order. The
+  earliest `qty_in > 0` row for the lot's key is what "first received"
+  actually means, and it never moves.
+
+Picking, as `stock-engine.md` §2 says, moves nothing physically; it
+changes `pick_qty` and the order's `picked_qty`, with a pick refused above
+the reservation it draws on (§79 step 7). A picked order that is cancelled
+releases its reservation in full: nothing left the shelf, so there is
+nothing to put back in the ledger, only in the staging bay.

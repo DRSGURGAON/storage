@@ -404,6 +404,32 @@ rows with no error at all.
   corrected GRN can be raised. Refused while a warehouse receipt is issued
   and once a put-away has moved the stock — the unallocated lot is shared
   across receipts, so "would it go negative" was the wrong guard (§39).
+- `POST/GET/PATCH /release-orders[/:id]` (`create_release_order` — stops at
+  Warehouse Manager; an Operator does not raise outbound orders) plus
+  `/approve` (`approve_release_order`), `/reserve` (`reserve_stock`),
+  `/cancel`, `/document[/preview]`. Creation snapshots the chosen delivery
+  address so a later master edit cannot re-route an order already placed;
+  only a draft is editable. **Reserve is where the allocation policy
+  runs** (`DECISIONS.md` §40): the body's `allocationPolicy`
+  (`fifo|lifo|fefo|manual`) or the tenant's `stock.allocation_policy`
+  chooses lots — shelved lots only, aged by batch or by the lot's first
+  inward — and one `RESERVE` ledger row is posted per lot. A shortfall
+  refuses the whole order with both numbers ("70 requested but only 60
+  available in shelved locations (a further 40 is unallocated, awaiting
+  put-away)"). `manual` takes explicit `{releaseOrderLineId, stockLotId,
+  quantity}` allocations, and names an unallocated lot as the reason when
+  one is offered. Cancel from any pre-dispatch state mirrors every
+  `RESERVE` with an `UNRESERVE` — §79's "cancel reservation restores
+  available".
+- `POST/GET /pick-lists[/:id]` and `/cancel`, `/document[/preview]`
+  (`create_pick_list`); `/confirm`, `/complete` (`confirm_pick`) — both
+  reach the Operator, picking is floor work. A pick list is generated from
+  the order's `RESERVE` rows (one line per lot, location first, minus what
+  earlier completed lists already took), records the policy the
+  reservation used, and one may be open per order at a time. A pick above
+  the line's reservation is refused; completion rolls `picked_qty` up to
+  the order, which becomes `picked` only when every line is fully picked,
+  else `partially_picked`. Picking posts nothing to stock.
 - `GET /stock?customerId=&warehouseId=&productId=&locationId=&includeEmpty=`
   (`view_stock`) and `GET /stock/ledger?...&txnType=&sourceType=&sourceId=`
   (`view_stock_ledger`) — current balances and the append-only movement
@@ -688,6 +714,24 @@ All against the real local database (`DATABASE_URL`), not mocks:
   each resolved count line pointing back at the adjustment that fixed it;
   the tenth template rendering differently blank versus completed; and
   reject/cancel plus tenant isolation.
+- `release-orders/release-orders.spec.ts` — an order snapshotting its
+  delivery address and keeping it after the master is edited, editable
+  only as a draft; §79's reservation case walked with the numbers (100
+  physical, 20 reserved from the FIFO bin, 80 available), the pick list
+  generated from that reservation with a pick of 21 against 20 refused,
+  a partial pick leaving the order `partially_picked` and a second list
+  carrying only the outstanding 8, `picked` once it is all taken, stock
+  untouched throughout, then cancellation restoring 100 available with
+  `RESERVE`/`UNRESERVE` mirrored; 70 against 60 shelved + 40 unallocated
+  refused with both figures **and nothing partial leaked** (no ledger
+  rows, still `approved`); FIFO spanning two bins 40+10 in receipt
+  order — the case that caught `updated_at` as the wrong age proxy (§40)
+  — and a manual allocation refusing the unallocated lot by name then
+  reserving from the named bin; FEFO choosing the sooner-expiring batch
+  that arrived later, per request and then via the tenant setting, with
+  an invalid policy value refused; the twelfth and thirteenth templates
+  rendering, committing and verifying; the Operator refused to raise,
+  approve or reserve but allowed to pick; filters and tenant isolation.
 - `stock-transfers/stock-transfers.spec.ts` — a kind that contradicts its
   warehouses refused both ways, a location outside its own warehouse and a
   same-bin move refused; a bin-to-bin transfer moving nothing until it is

@@ -42,7 +42,19 @@ export const TENANT_SETTINGS: readonly SettingDefinition[] = [
       'Day ranges the ageing report groups stock into, computed from ' +
       'batches.first_received_at (§26). A reporting-time computation, so changing ' +
       'this never needs a backfill.',
-    readBy: '',
+    readBy: 'ReportsService.ageing',
+  },
+  {
+    key: 'stock.allocation_policy',
+    type: 'string',
+    default: 'fifo',
+    allowed: ['fifo', 'lifo', 'fefo'],
+    description:
+      'Which shelved lots a release order reserves first when the reservation does ' +
+      'not name lots explicitly: oldest received (fifo, §30 default), newest received ' +
+      '(lifo), or earliest expiry (fefo, expiry-less lots last). A reservation may ' +
+      'override it per order, or pass manual allocations.',
+    readBy: 'ReleaseOrdersService.reserve (stock-engine.md §5)',
   },
   {
     key: 'workflow.outward_posting_point',
@@ -62,7 +74,7 @@ export const TENANT_SETTINGS: readonly SettingDefinition[] = [
     description:
       'Require a second, Owner-level approval on a stock adjustment on top of the ' +
       "manager's (§50).",
-    readBy: '',
+    readBy: 'StockAdjustmentsService.approve',
   },
 ] as const;
 

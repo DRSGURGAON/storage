@@ -8,6 +8,8 @@ import { InwardDocumentTemplate } from './templates/inward-document.template';
 import { PutawayDocumentTemplate } from './templates/putaway-document.template';
 import { QuotationDocumentTemplate } from './templates/quotation-document.template';
 import { StockTransferDocumentTemplate } from './templates/stock-transfer-document.template';
+import { PickListDocumentTemplate } from './templates/pick-list-document.template';
+import { ReleaseOrderDocumentTemplate } from './templates/release-order-document.template';
 import { StockStatementDocumentTemplate } from './templates/stock-statement-document.template';
 import { StockVerificationDocumentTemplate } from './templates/stock-verification-document.template';
 import { WarehouseReceiptDocumentTemplate } from './templates/warehouse-receipt-document.template';
@@ -34,6 +36,8 @@ export class DocumentTemplateRegistry {
     stockTransferTemplate: StockTransferDocumentTemplate,
     stockVerificationTemplate: StockVerificationDocumentTemplate,
     stockStatementTemplate: StockStatementDocumentTemplate,
+    releaseOrderTemplate: ReleaseOrderDocumentTemplate,
+    pickListTemplate: PickListDocumentTemplate,
   ) {
     this.templates.set(quotationTemplate.documentType, quotationTemplate);
     this.templates.set(agreementTemplate.documentType, agreementTemplate);
@@ -46,6 +50,8 @@ export class DocumentTemplateRegistry {
     this.templates.set(stockTransferTemplate.documentType, stockTransferTemplate);
     this.templates.set(stockVerificationTemplate.documentType, stockVerificationTemplate);
     this.templates.set(stockStatementTemplate.documentType, stockStatementTemplate);
+    this.templates.set(releaseOrderTemplate.documentType, releaseOrderTemplate);
+    this.templates.set(pickListTemplate.documentType, pickListTemplate);
   }
 
   get(documentType: string): DocumentTemplate {
