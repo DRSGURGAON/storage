@@ -102,8 +102,8 @@ export class UsersService {
         if (!userId) {
           userId = randomUUID();
           await tx`
-            insert into users (id, email, full_name, password_hash)
-            values (${userId}, ${dto.email}, ${dto.fullName}, ${passwordHash})
+            insert into users (id, email, full_name, mobile, password_hash)
+            values (${userId}, ${dto.email}, ${dto.fullName}, ${dto.mobile ?? null}, ${passwordHash})
           `;
         }
         const membershipId = randomUUID();

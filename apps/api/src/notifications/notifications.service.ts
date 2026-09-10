@@ -26,10 +26,14 @@ export interface EmitNotificationParams {
  * is also what makes adding an emit call safe before anyone has decided
  * who should receive it.
  *
- * Only `in_app` is delivered in V1, exactly as §56 scopes it: email,
- * WhatsApp and SMS are integration points, and a rule that lists them
- * still produces the in-app row (the others are skipped with a log rather
- * than silently dropped, so nobody believes an email went out).
+ * All four of §56's channels are delivered. `in_app` is written `sent`
+ * here, inside the caller's transaction, because it *is* the delivery --
+ * the row is the notification. Email, WhatsApp and SMS are written
+ * `pending` and handed to `NotificationDispatcherService`, which sends
+ * them after the commit: an SMTP conversation inside a database
+ * transaction holds a connection open for the length of someone else's
+ * outage, and a send that succeeded inside a transaction that then rolled
+ * back cannot be taken back.
  *
  * Emission never fails its caller. A notification is a courtesy on top of
  * a transaction that has already been decided; a GRN must not fail to
@@ -53,11 +57,8 @@ export class NotificationsService {
         order by tenant_id nulls last limit 1
       `;
       if (!rule) return 0;
-      const undelivered = rule.channels.filter((c) => c !== 'in_app');
-      if (undelivered.length > 0) {
-        this.logger.debug(`${params.ruleCode}: ${undelivered.join('/')} not delivered in V1 (§56 integration point)`);
-      }
-      if (!rule.channels.includes('in_app')) return 0;
+      const channels = rule.channels.filter((c) => ['in_app', 'email', 'whatsapp', 'sms'].includes(c));
+      if (channels.length === 0) return 0;
 
       const roles = rule.audience_role_codes ?? [];
       const recipients = await tx<{ user_id: string }[]>`
@@ -70,11 +71,17 @@ export class NotificationsService {
                or cardinality(tu.warehouse_ids) = 0 or ${params.warehouseId ?? null} = any(tu.warehouse_ids))
       `;
       for (const recipient of recipients) {
-        await tx`
-          insert into notifications (id, tenant_id, rule_code, recipient_user_id, title, body, entity_type, entity_id, severity, channel, delivery_status)
-          values (gen_random_uuid(), ${tenantId}, ${params.ruleCode}, ${recipient.user_id}, ${params.title}, ${params.body ?? null},
-                  ${params.entityType ?? null}, ${params.entityId ?? null}, ${params.severity ?? 'info'}, 'in_app', 'sent')
-        `;
+        for (const channel of channels) {
+          // One row per (recipient, channel): the schema already keys delivery
+          // that way, and it is what lets an operator answer "the email
+          // bounced but they saw it in the app" instead of one blurred status.
+          await tx`
+            insert into notifications (id, tenant_id, rule_code, recipient_user_id, title, body, entity_type, entity_id, severity, channel, delivery_status)
+            values (gen_random_uuid(), ${tenantId}, ${params.ruleCode}, ${recipient.user_id}, ${params.title}, ${params.body ?? null},
+                    ${params.entityType ?? null}, ${params.entityId ?? null}, ${params.severity ?? 'info'}, ${channel},
+                    ${channel === 'in_app' ? 'sent' : 'pending'})
+          `;
+        }
       }
       return recipients.length;
     } catch (error) {
@@ -92,8 +99,12 @@ export class NotificationsService {
   async list(actor: AuthenticatedUser, query: { unreadOnly?: boolean; limit: number; offset: number }) {
     const unreadOnly = query.unreadOnly ?? false;
     return withTenant(this.sql, actor.tenantId, async (tx) => {
+      // `in_app` only: a rule that also mails or texts writes one row per
+      // channel, and the bell in the corner should show the event once, not
+      // once per way it was sent.
       const where = tx`
         where tenant_id = ${actor.tenantId} and recipient_user_id = ${actor.userId}
+          and channel = 'in_app'
           and (${!unreadOnly}::boolean or read_at is null)`;
       const rows = await tx<Record<string, any>[]>`
         select id, rule_code, title, body, entity_type, entity_id, severity, read_at, created_at
@@ -102,7 +113,8 @@ export class NotificationsService {
       const [{ count }] = await tx<{ count: string }[]>`select count(*)::text as count from notifications ${where}`;
       const [{ unread }] = await tx<{ unread: string }[]>`
         select count(*)::text as unread from notifications
-        where tenant_id = ${actor.tenantId} and recipient_user_id = ${actor.userId} and read_at is null
+        where tenant_id = ${actor.tenantId} and recipient_user_id = ${actor.userId}
+          and channel = 'in_app' and read_at is null
       `;
       return {
         items: rows.map((r) => ({
@@ -129,7 +141,8 @@ export class NotificationsService {
   async markAllRead(actor: AuthenticatedUser) {
     const rows = await withTenant(this.sql, actor.tenantId, (tx) => tx<{ id: string }[]>`
       update notifications set read_at = now(), delivery_status = 'read'
-      where tenant_id = ${actor.tenantId} and recipient_user_id = ${actor.userId} and read_at is null
+      where tenant_id = ${actor.tenantId} and recipient_user_id = ${actor.userId}
+        and channel = 'in_app' and read_at is null
       returning id
     `);
     return { markedRead: rows.length };

@@ -822,6 +822,8 @@ Phase 8 ended with three named gaps and Phase 9's audit found two more.
 This phase closes them; it exists because "named in a document" is not the
 same as fixed.
 
+**Status: complete.** 35 suites, 280 tests.
+
 **a. The portal's database-level isolation.**
 `schema/98_portal_row_level_security.sql` adds a **restrictive** policy,
 `portal_customer_isolation`, to every table with a `customer_id` and to
@@ -876,7 +878,42 @@ that hop `via: 'stock_ledger'`, because "the same goods" is a different
 claim from "the same paperwork". `document-engine.md` §8 has the full
 design and its limitations.
 
-**d. Notification delivery.** The channel adapters — see below.
+**d. Notification delivery.** Blueprint §56 lists four channels and V1
+delivered one. The other three were never a design problem —
+`notification_rules.channels` already said which to use and
+`notifications.channel` already recorded which was tried — they were an
+integration problem: nothing knew how to hand a message to an SMTP server.
+
+- `EmailChannel` is real SMTP through `nodemailer`, configured with one
+  connection string (`SMTP_URL`), because one URL is what a provider
+  actually gives you and splitting it into five variables only creates five
+  ways to get it half-right.
+- `WhatsappChannel`/`SmsChannel` POST a documented JSON envelope to a
+  configured endpoint. Provider-agnostic on purpose: no provider is chosen
+  (`DECISIONS.md` §13), every candidate in this market takes an HTTPS POST
+  with a destination and a text, and hard-coding one of their field
+  shapes now would be guessing.
+- `NotificationDispatcherService` owns everything the channels do not:
+  who to send to, when, how often, what to record. `emitWithin` still runs
+  in the caller's transaction and writes `pending` for the non-in-app
+  channels; the worker drains them after the commit. Network I/O inside a
+  database transaction holds a connection open for the length of someone
+  else's outage, and a send that succeeds inside a transaction that then
+  rolls back cannot be taken back.
+- `schema/99_notification_delivery.sql` adds `attempt_count`, `last_error`
+  and `sent_at`. `delivery_status = 'failed'` with no reason attached is a
+  column that looks like observability and provides none; `attempt_count`
+  is also what makes the retry loop terminate.
+
+An unconfigured channel leaves its rows **pending, visibly** rather than
+marking them sent — a deployment with no SMTP server is the normal case in
+development and a real one in production, and the one thing a delivery
+worker must never do is claim it delivered something.
+
+The tests send over a real SMTP session (a socket server that speaks enough
+of RFC 5321 to accept a message) and a real HTTP POST, then assert the
+retry, the give-up, the recorded provider error, and that draining one
+tenant never sends another's.
 
 ## Cross-cutting, not a phase
 

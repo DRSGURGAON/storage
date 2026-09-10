@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MinLength,
 } from 'class-validator';
 
@@ -47,6 +48,17 @@ export class AddMemberDto {
 
   @IsIn(MEMBER_ROLE_CODES)
   roleCode!: (typeof MEMBER_ROLE_CODES)[number];
+
+  /**
+   * Optional, and only meaningful for a new account: it is where the SMS
+   * and WhatsApp channels deliver to (`notification-dispatcher.service.ts`).
+   * A member with no number simply never receives on those channels, and
+   * the dispatcher records that as the permanent failure it is rather than
+   * retrying it forever.
+   */
+  @IsOptional()
+  @Matches(/^[0-9+][0-9 -]{7,19}$/, { message: 'mobile must be a plausible phone number' })
+  mobile?: string;
 
   /** Required for `roleCode: 'customer'`, and refused for every other role. */
   @IsOptional() @IsUUID() customerId?: string;

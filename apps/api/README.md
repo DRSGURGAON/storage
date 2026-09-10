@@ -41,10 +41,10 @@ What that covers, in the order the phases built it:
 - **Phase 8 — the surfaces around it.** Customer portal, dashboard, global
   search, in-app notifications, the audit viewer, Plan & Usage, the public
   pricing page, and a demo workspace seeded by driving the real API.
-- **Phase 9 — proof.** 33 test suites, 269 tests, all green against a live
-  PostgreSQL database; an end-to-end acceptance walkthrough
-  (`src/acceptance/`); a from-scratch database proof; and a documentation
-  reconciliation pass.
+- **Phase 9 — proof.** An end-to-end acceptance walkthrough
+  (`src/acceptance/`), a from-scratch database proof, and a documentation
+  reconciliation pass. **35 test suites, 280 tests**, all green against a
+  live PostgreSQL database.
 
 The document engine now carries **all twenty-four** templates of
 `document-engine.md` §2: Quotation, Agreement, Gate Entry, Inward, GRN,
@@ -54,13 +54,20 @@ List, Packing List, Dispatch Note, Loading Sheet, Gate Pass, POD, Return
 Inward, Tax Invoice, Credit Note, Debit Note, Payment Receipt, and Customer
 Account Statement.
 
-**Known gaps**, listed rather than glossed: no frontend; no signed
-time-limited document URLs (attachments are served through the
-authenticated API off the local filesystem); no portal-specific RLS policy
-(portal isolation is service-layer, and tested); no email/WhatsApp/SMS
-delivery for notifications; no payment gateway; `getDocumentRelations` from
-`document-engine.md` §8 is unbuilt; and `tenants.is_demo` is set but read by
-nothing. `../../docs/architecture/test-plan.md` §5 is the full list.
+- **Phase 10 — closing the open items.** The portal's database-level
+  isolation (a restrictive RLS policy, so a query that forgets its customer
+  filter still cannot see another customer), signed and expiring document
+  links, `getDocumentRelations` (Created From / Related Documents / the §68
+  chain, read off the schema itself), and notification delivery over real
+  SMTP and HTTP.
+
+**Known gaps**, listed rather than glossed: no frontend; no object store
+(attachments are on the local filesystem behind an interface — the signed
+links exist, the S3 adapter does not); no payment gateway; `billing_runs`
+is outside the document-relations graph because it has no number; and
+`tenants.is_demo` is set by the demo seed but read by nothing, so a demo
+workspace is billed and counted like a real one.
+`../../docs/architecture/test-plan.md` §5 is the full list.
 
 ## Stack
 
@@ -87,16 +94,18 @@ npm run start:dev              # http://localhost:3000
 `../../docs/architecture/schema/*.sql` directly — that directory is the
 single source of truth for the data model (see its own `README.md` for
 conventions). This app does not keep a second, duplicated copy of the
-schema; adding a new domain means adding a file there, not here. **Nine** of
-those eighteen files (`85`, `90`–`97`) are fixes for real bugs found only by
-building and load-testing this app against the schema, not by review — see
+schema; adding a new domain means adding a file there, not here. **Eleven**
+of those twenty files (`85`, `90`–`99`) were added after the domain model,
+each one found by building on the schema rather than by reading it — see
 `docs/architecture/DECISIONS.md` §16–§22, §25, §31 and §44 if you're
 wondering why they exist. `96_stock_lots_balance_key.sql` is the sharpest
 example: `stock_lots`' unique constraint has three nullable columns, so it
 enforced nothing for the commonest lot in the system, and every stock
 posting would have fragmented "current stock" into duplicate rows with no
-error at all. The most recent, `97_payment_idempotency.sql`, adds the column
-that makes a retried "Record Payment" click harmless.
+error at all. `97_payment_idempotency.sql` adds the column that makes a
+retried "Record Payment" click harmless; `98` is the portal's restrictive
+RLS policy; `99` gives notification delivery somewhere to record what the
+provider said.
 
 ## Endpoints so far
 
@@ -683,7 +692,7 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-**33 suites, 269 tests**, all against the real local database
+**35 suites, 280 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,

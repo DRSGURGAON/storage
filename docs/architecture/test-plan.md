@@ -7,7 +7,7 @@ runnable checklist. Every row maps to a real integration test: the
 **Proven by** column names the spec file and the test that covers it. All
 of them run against a live PostgreSQL database — there are no mocked
 repositories in this suite — and the whole set is
-**34 suites, 275 tests, green** (`cd apps/api && npm test`).
+**35 suites, 280 tests, green** (`cd apps/api && npm test`).
 
 Two files carry most of the cross-module rows:
 
@@ -107,6 +107,7 @@ Every row below is covered. "Proven by" names the file and the test.
 | Multiple warehouses keep separate balances for one SKU | `acceptance.spec.ts` *"two warehouses and two batches of one SKU keep separate balances"* |
 | Two batches of one SKU never merge | same test — and it goes further: a FEFO reservation of 25 draws entirely from the sooner-expiring batch rather than from a merged pool |
 | Document relationships resolve from the graph, not a hand-written list | `documents/document-relations.spec.ts` — a real inbound chain (gate entry → inward → GRN → put-away → warehouse receipt) and a real outbound one (release order → pick list → dispatch → gate pass → POD), asserting "Created From"/"Related" off the actual foreign keys, the §68-ordered chain from the far end, the `stock_ledger` hop that joins the two halves, cross-tenant 404, and a 400 naming the known types for a table that is not a record |
+| Notifications reach the other three channels | `notifications/notification-delivery.spec.ts` — a real SMTP session against an in-process socket server and a real HTTP POST against an in-process endpoint, plus one row per channel, the bell showing the event once, retry-then-give-up with the provider's own error recorded, an unconfigured channel left pending rather than marked sent, and per-tenant draining |
 | The audit log records the critical changes | `acceptance.spec.ts` (GRN `create` + `status_change`, and `document_generate` rows); `auth/auth.spec.ts` (signup, login, `login_failed` with the IP); `console/console.spec.ts` (the viewer, filtered, and hidden from those who may not read it) |
 
 ## 3. Non-functional checks (Phase 9, from §69–§70, §64)
@@ -146,8 +147,6 @@ Named here rather than left as silent gaps in the grid above:
   `portal.spec.ts`: minting, an unauthenticated fetch, a tampered
   signature, an expired link, and one scoped to the wrong customer or
   tenant.
-- **Email/WhatsApp/SMS notification delivery** — notifications are written
-  and read in-app only; there is no adapter to test.
 - **Fault injection** (killing a process mid-transaction) and **load
   testing**. Concurrency is tested where it decides correctness — numbering
   and entitlement both run genuine parallel races — but nothing here

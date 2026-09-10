@@ -331,8 +331,14 @@ export const SYSTEM_CHARGE_TYPES = [
  * (`tenant_id is null`) like roles and charge types, and overridable per
  * tenant by inserting a row with the same code. `audience_role_codes`
  * is what decides who hears about an event -- data, not a switch
- * statement in the emitter -- and `channels` is `{in_app}` for every V1
- * rule, since email/WhatsApp/SMS are integration points only (§56).
+ * statement in the emitter.
+ *
+ * `channels` is `{in_app}` on every seeded rule. That is now a *default*,
+ * not a limit: email, WhatsApp and SMS are delivered
+ * (`notification-dispatcher.service.ts`), and a tenant that wants the
+ * overdue-payment rule emailed adds `'email'` to its own row. Defaulting
+ * the other way would mean a fresh workspace starts mailing its staff
+ * before anyone chose to.
  */
 export const SYSTEM_NOTIFICATION_RULES = [
   { code: 'grn_pending_approval', channels: ['in_app'], audience: ['owner', 'admin', 'warehouse_manager'] },

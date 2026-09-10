@@ -48,6 +48,13 @@ closes the one item that was blocking Phase 1 from starting.
   batches, gateway webhook retries — BullMQ is still the choice, and this
   row stands as the decision for that day rather than a description of
   today.
+- **Background jobs (again), Phase 10:** notification delivery is a second
+  scheduled worker, and it is still `@nestjs/schedule`, not a queue. It
+  drains `notifications` rows that are already durable in the database, so
+  the retry state a queue would hold is on the row (`attempt_count`,
+  `last_error`) where an operator can read it. A queue earns its keep when
+  work must survive outside the database or fan out across workers; this
+  does neither yet.
 - **File storage: local filesystem, not S3.** Attachments go through an
   `AttachmentStorage` interface whose only implementation is
   `LocalFilesystemAttachmentStorage` (`DECISIONS.md` §24). The interface is

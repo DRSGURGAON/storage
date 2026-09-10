@@ -1,4 +1,7 @@
 import { Global, Module } from '@nestjs/common';
+import { EmailChannel } from './channels/email.channel';
+import { SmsChannel, WhatsappChannel } from './channels/webhook.channel';
+import { NotificationDispatcherService } from './notification-dispatcher.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 
@@ -11,7 +14,7 @@ import { NotificationsService } from './notifications.service';
 @Global()
 @Module({
   controllers: [NotificationsController],
-  providers: [NotificationsService],
-  exports: [NotificationsService],
+  providers: [NotificationsService, NotificationDispatcherService, EmailChannel, WhatsappChannel, SmsChannel],
+  exports: [NotificationsService, NotificationDispatcherService],
 })
 export class NotificationsModule {}
