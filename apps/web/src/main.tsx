@@ -8,6 +8,13 @@ import { AppShell } from './components/AppShell';
 import { SessionProvider, useSession } from './lib/session';
 import { Login } from './screens/Login';
 import { Dashboard } from './screens/Dashboard';
+import { Onboarding } from './screens/Onboarding';
+import { Customers } from './screens/masters/Customers';
+import { CustomerDetail } from './screens/masters/CustomerDetail';
+import { Warehouses, WarehouseDetail } from './screens/masters/Warehouses';
+import { Products } from './screens/masters/Products';
+import { Transport } from './screens/masters/Transport';
+import { RateCards, RateCardDetail } from './screens/masters/RateCards';
 import 'antd/dist/reset.css';
 
 /**
@@ -39,6 +46,15 @@ createRoot(document.getElementById('root')!).render(
                 <Route element={<RequireSession />}>
                   <Route element={<AppShell />}>
                     <Route index element={<Dashboard />} />
+                    <Route path="onboarding" element={<Onboarding />} />
+                    <Route path="customers" element={<Customers />} />
+                    <Route path="customers/:id" element={<CustomerDetail />} />
+                    <Route path="warehouses" element={<Warehouses />} />
+                    <Route path="warehouses/:id" element={<WarehouseDetail />} />
+                    <Route path="products" element={<Products />} />
+                    <Route path="transport" element={<Transport />} />
+                    <Route path="rate-cards" element={<RateCards />} />
+                    <Route path="rate-cards/:id" element={<RateCardDetail />} />
                   </Route>
                 </Route>
               </Routes>
