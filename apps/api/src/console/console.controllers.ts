@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { IsDateString, IsInt, IsOptional, IsString, IsUUID, Max, Min, MinLength } from 'class-validator';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -70,6 +70,18 @@ export class PlatformController {
   @RequirePermission('view_plan_usage')
   usage(@CurrentUser() user: AuthenticatedUser) {
     return this.plans.usage(user);
+  }
+
+  /**
+   * §11's upgrade prompt asks this after a 402: what does the next plan up
+   * give for the feature that just ran out? Same permission as Plan &
+   * Usage -- it is the same question, asked from the modal rather than
+   * from the settings page.
+   */
+  @Get('plan/upgrade/:featureCode')
+  @RequirePermission('view_plan_usage')
+  upgradeOptions(@CurrentUser() user: AuthenticatedUser, @Param('featureCode') featureCode: string) {
+    return this.plans.upgradeOptions(user, featureCode);
   }
 
   @Get('audit-logs')

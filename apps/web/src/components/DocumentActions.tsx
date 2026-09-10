@@ -4,6 +4,7 @@ import { FilePdfOutlined, LinkOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiError, getToken } from '../lib/api';
 import { useSession } from '../lib/session';
+import { usePaywall } from './Paywall';
 
 interface DocumentActionsProps {
   /** The source record's own path, e.g. `/grns/7f3…`. */
@@ -18,6 +19,14 @@ interface CommittedDocument {
   id: string;
   documentNumber: string;
   versionNo: number;
+  /** What this generation spent, when it spent anything (ux-system.md §12). */
+  entitlement: {
+    featureName: string;
+    planName: string | null;
+    limit: number | null;
+    used: number;
+    remaining: number | null;
+  } | null;
 }
 
 /**
@@ -31,13 +40,39 @@ interface CommittedDocument {
  * one document (`tenancy-and-security.md` §5).
  *
  * A 402 is not an error here. It is the entitlement paywall
- * (`ux-system.md` §11), and it says which feature ran out; passing the
- * API's message straight through says "You have used both free GRN copies"
- * rather than "Request failed".
+ * (`ux-system.md` §11): `usePaywall` raises the upgrade prompt, which is
+ * built from the 402's own body -- which feature ran out, on which plan,
+ * and what a larger plan would allow.
+ *
+ * A success can be worth saying something about too. §12 allows a nudge
+ * at exactly two moments -- after the first use of a lifetime-limited
+ * feature and at the limit -- and nowhere else, so a workspace on an
+ * unmetered plan never sees one, and one on the free plan is told before
+ * the block rather than by it.
  */
+/**
+ * §12 again, in one function: a nudge on the first unit spent and on the
+ * last one, and silence in between. "3 of 12 used" every time is how a
+ * usage figure becomes noise people stop reading -- which matters most on
+ * the one occasion it is about to block them.
+ */
+function usageNudge(entitlement: CommittedDocument['entitlement']): string | null {
+  if (!entitlement || entitlement.limit === null) return null;
+  const { used, limit, featureName, planName } = entitlement;
+  const plan = planName ? `${planName} plan` : 'plan';
+  if (entitlement.remaining === 0) {
+    return `${used} of ${limit} free ${featureName.toLowerCase()} copies used — that was the last one on the ${plan}.`;
+  }
+  if (used === 1) {
+    return `1 of ${limit} free ${featureName.toLowerCase()} copies used on the ${plan}.`;
+  }
+  return null;
+}
+
 export function DocumentActions({ basePath, permission, disabledReason }: DocumentActionsProps) {
   const { can } = useSession();
-  const { message, modal } = App.useApp();
+  const { message } = App.useApp();
+  const { showPaywall } = usePaywall();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
 
@@ -54,17 +89,12 @@ export function DocumentActions({ basePath, permission, disabledReason }: Docume
       const committed = await api<CommittedDocument>(`${basePath}/document`, { method: 'POST', body: {} });
       await queryClient.invalidateQueries({ queryKey: ['/documents'] });
       message.success(`${committed.documentNumber} ready`);
+      const nudge = usageNudge(committed.entitlement);
+      if (nudge) message.info(nudge, 6);
       await open(committed.id);
     } catch (error) {
-      if (error instanceof ApiError && error.isPaywall) {
-        modal.info({
-          title: 'Free copies used up',
-          content: error.message,
-          okText: 'See plans',
-        });
-      } else {
-        message.error(error instanceof ApiError ? error.message : 'Could not generate the document');
-      }
+      if (showPaywall(error)) return;
+      message.error(error instanceof ApiError ? error.message : 'Could not generate the document');
     } finally {
       setBusy(false);
     }

@@ -211,6 +211,26 @@ on read-only/lower-tier functionality). Copy is templated per feature
 (`"You've used your {limit} free {featureName} documents."`), not
 hand-written per module, pulling `featureName` from `feature_keys.name`.
 
+> **Implemented**: `PaywallProvider` / `usePaywall` in the web app, raised
+> by any 402. Every part of it is server data: the headline sentence is
+> the 402 body's own `message` (built in `entitlement/paywall.ts` from
+> `feature_keys.name` and the tenant's plan), and the checklist is
+> `GET /plan/upgrade/:featureCode`. Two departures from the text above,
+> both because the alternative would have been a lie on the one screen
+> that asks someone to pay:
+>
+> - `[View Plans]` goes to **Settings → Plan & Usage**, not the public
+>   pricing page — a signed-in person asking "what happens now?" is asking
+>   about their own workspace, and the pricing page cannot answer that.
+> - v1 publishes one plan (`v1-scope-specification.md` §12: upgrades are
+>   arranged with the vendor, since no gateway is chosen). With nothing to
+>   sell, the prompt says so and the action reads "See plan & usage"
+>   instead of promising plans that do not exist.
+>
+> The prompt also says what the block does *not* do — every document
+> already generated stays openable and re-printable — because "used up"
+> is otherwise easily read as "taken away".
+
 ## 12. Usage Indicators & Nudges (§41, §42)
 
 Inline nudges appear only at two moments: after the first consumption of a
@@ -219,6 +239,15 @@ limit ("2 of 2 free GRN generations used — [View Plans]"). No screen shows
 a permanent usage badge by default — that lives in the Plan & Usage page
 (§13) instead, keeping the day-to-day UI uncluttered per the design
 direction in §34.
+
+> **Implemented**: `POST /<record>/document` returns an `entitlement`
+> block — feature, plan, limit, used, remaining — on the one call that
+> actually spends a unit, and `null` on a repeat click, which spends
+> nothing. The nudge is drawn from that, so the figure a person is shown
+> is the same evaluation that let the render happen rather than a second
+> read that could see someone else's consumption. `usageNudge()` in
+> `DocumentActions.tsx` is the whole of §12's "only at two moments" rule:
+> the first unit, the last one, silence in between.
 
 ## 13. Plan & Usage Page (§43)
 

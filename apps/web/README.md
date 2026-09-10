@@ -70,6 +70,15 @@ The Agreement screen carries §15's eleven-step wizard, drawn from the
 API's own definition, each step saving on its own and showing what is
 still outstanding before the agreement can be submitted.
 
+Running out of free copies is a screen of its own (`components/Paywall.tsx`,
+ux-system §11): the sentence, the figures and the list of what a larger
+plan would give all come from the API — the 402's own body and
+`GET /plan/upgrade/:featureCode` — so the page that asks someone to pay
+cannot promise something the entitlement engine does not enforce. Where
+there is nothing to sell yet, it says that instead. Generating a document
+that *does* fit within the plan nudges once at the first copy and once at
+the last (§12), and never in between.
+
 ## Checking the screens against the API
 
 `node tools/contract-audit.mjs` (with `TOKEN=` a bearer token and a server
@@ -130,5 +139,5 @@ that is a bare array where a page was expected — and every one of those
 was found this way. It misses what a component test would catch: a
 rendering regression in one component, with no API involved. If this app
 grows a piece of genuinely tricky client-side logic, that piece should get
-a unit test; today the tricky logic is all on the server, and it has 320
+a unit test; today the tricky logic is all on the server, and it has 321
 of them.

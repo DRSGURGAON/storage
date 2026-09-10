@@ -241,15 +241,39 @@ describe('Document engine', () => {
     const chargeTypes = await api().get('/charge-types').set('Authorization', `Bearer ${paywallOwner}`).expect(200);
     const chargeTypeId = chargeTypes.body.find((c: { code: string }) => c.code === 'STORAGE').id;
 
-    // Use up the 2 free copies.
+    // Use up the 2 free copies. Each commit reports what it spent, which is
+    // what ux-system.md §12's nudge ("1 of 2 free copies used") is drawn
+    // from -- the same evaluation that allowed the render, not a later read.
+    const spent: { used: number; remaining: number | null }[] = [];
     for (let i = 0; i < 2; i++) {
       const quotationId = await createQuotation(paywallOwner, paywallCustomer, chargeTypeId);
-      await api()
+      const committed = await api()
         .post(`/quotations/${quotationId}/document`)
         .set('Authorization', `Bearer ${paywallOwner}`)
         .send({})
         .expect(201);
+      expect(committed.body.entitlement).toMatchObject({
+        featureCode: 'QUOTATION_GENERATION',
+        featureName: 'Quotation generation',
+        planName: 'Free',
+        limit: 2,
+      });
+      spent.push(committed.body.entitlement);
+
+      // A repeat click on the same source is the no-op commit: it spends
+      // nothing, so there is nothing to nudge about either.
+      const repeat = await api()
+        .post(`/quotations/${quotationId}/document`)
+        .set('Authorization', `Bearer ${paywallOwner}`)
+        .send({})
+        .expect(201);
+      expect(repeat.body.id).toBe(committed.body.id);
+      expect(repeat.body.entitlement).toBeNull();
     }
+    expect(spent.map((s) => [s.used, s.remaining])).toEqual([
+      [1, 1],
+      [2, 0],
+    ]);
 
     // Third source: both preview and commit are blocked before any PDF is built.
     const thirdQuotationId = await createQuotation(paywallOwner, paywallCustomer, chargeTypeId);
@@ -261,9 +285,21 @@ describe('Document engine', () => {
     expect(previewBlocked.body).toMatchObject({
       paywall: true,
       featureCode: 'QUOTATION_GENERATION',
+      featureName: 'Quotation generation',
+      planCode: 'FREE',
+      planName: 'Free',
       reason: 'LIMIT_REACHED',
+      limit: 2,
       remaining: 0,
+      upgradeRequired: true,
     });
+    // The sentence itself, not just the figures: a client that reads only
+    // `message` -- this API's convention for every other error, and what
+    // the web client surfaces -- used to get "Request failed (402)" here,
+    // at the one moment the product is asking someone to pay.
+    expect(previewBlocked.body.message).toBe(
+      'You have used your 2 free quotation generation copies on the Free plan.',
+    );
 
     const commitBlocked = await api()
       .post(`/quotations/${thirdQuotationId}/document`)

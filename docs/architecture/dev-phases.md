@@ -1300,6 +1300,61 @@ four headings, a change round-tripping through the API and flipping
 `source` to `tenant`, "Use default" putting it back, and the page fitting
 390px without sideways scroll.
 
+## Phase 19 — the paywall, and the nudge before it (§11, §12)
+
+The entitlement engine has blocked a third free document since Phase 3,
+and the 402 it raises has always carried the feature, the plan, the limit
+and what is used. The web client showed **"Request failed (402)"**.
+
+Nest's convention — the one this API follows everywhere else and the one
+`lib/api.ts` reads — is that the useful sentence lives in `message`, and
+the paywall body was the single exception that had no `message` at all.
+So the client fell back to its generic string on the one screen whose
+whole job is to ask someone to pay. That is the defect this phase exists
+to fix; everything else here follows from doing it properly.
+
+**The sentence is built once, on the server.** `entitlement/paywall.ts`
+turns a `CheckEntitlementResult` plus the feature and plan names into
+"You have used your 2 free quotation generation copies on the Free plan."
+— §11's own template, filled from `feature_keys.name` and the tenant's
+plan, not from copy written per module. The structured fields stay beside
+it, because the prompt wants both.
+
+**The prompt is §11's, with two deliberate departures.** A value-forward
+headline, what is used of what, a checklist of what unlocking buys, and
+two actions. But `[View Plans]` goes to Settings → Plan & Usage rather
+than the public pricing page — someone signed in and blocked is asking
+about *their* workspace — and v1 publishes exactly one plan, so when
+`GET /plan/upgrade/:featureCode` honestly returns no options the prompt
+says "there is no self-serve upgrade yet" and the button reads "See plan
+& usage". Inventing a Pro tier there would be the one lie in the product
+a customer is guaranteed to test.
+
+**What the upgrade list says is derived, never written.** The endpoint
+reads the same `plan_feature_limits` rows the engine enforces and keeps
+only plans that offer *more of this feature*: unlimited beats a count, a
+bigger count beats a smaller one, and a missing row is `disabled` — so a
+plan that merely costs more, or that forgot the row, is never advertised
+as the answer to "I ran out of GRN copies".
+
+**The nudge comes before the block.** `POST /<record>/document` now
+returns what the call spent, on the one call that spends anything; a
+repeat click on the same source is still the no-op commit and reports
+`null`. §12 allows a nudge at exactly two moments — the first unit and
+the last one — and the client obeys that, because "3 of 12 used" on every
+save is how a usage figure becomes noise people stop reading, which
+matters most on the occasion it is about to stop them.
+
+The prompt also says what the limit does **not** do: every document
+already generated stays openable and re-printable. "Free copies used up"
+is otherwise easily read as "taken away".
+
+Verified in a browser: the two nudges fire in order on a fresh workspace,
+the third generation raises the prompt, both its states (no options, and
+one seeded higher plan) render, and the modal fits a 390px phone — which
+it did not at first, because antd's `width` is a fixed pixel width and 520
+of them is wider than the screen it was being read on.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

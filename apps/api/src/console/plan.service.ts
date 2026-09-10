@@ -87,6 +87,84 @@ export class PlanService {
   }
 
   /**
+   * `ux-system.md` §11's "short checklist of what unlocking buys", for the
+   * one feature that just blocked someone.
+   *
+   * Derived, not written: the plans above the current one and what each of
+   * them allows *for this feature*, read from the same
+   * `plan_feature_limits` rows `checkEntitlement` enforces. Hand-written
+   * upgrade copy would be a second description of the product, and the
+   * first thing a customer holds you to is the one on the screen that
+   * asked them to pay.
+   *
+   * A plan is only an option if it actually offers more of this feature:
+   * unlimited beats any count, a bigger count beats a smaller one, and a
+   * more expensive plan that meters this feature exactly the same is not
+   * an answer to "I ran out of GRN copies".
+   */
+  async upgradeOptions(actor: AuthenticatedUser, featureCode: string) {
+    const [feature] = await this.sql<{ code: string; name: string; module: string }[]>`
+      select code, name, module from feature_keys where code = ${featureCode}
+    `;
+    if (!feature) throw new NotFoundException('No such feature');
+
+    const current = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const [row] = await tx<{ plan_id: string; plan_code: string; plan_name: string; sort_order: number }[]>`
+        select p.id as plan_id, p.code as plan_code, p.name as plan_name, p.sort_order
+        from tenant_subscriptions ts join plans p on p.id = ts.plan_id
+        where ts.tenant_id = ${actor.tenantId}
+      `;
+      return row ?? null;
+    });
+
+    const check = await this.entitlements.checkEntitlement(actor.tenantId, featureCode);
+    const currentLimit = current
+      ? (
+          await this.sql<{ limit_type: string; limit_value: number | null }[]>`
+            select limit_type, limit_value from plan_feature_limits
+            where plan_id = ${current.plan_id} and feature_code = ${featureCode}
+          `
+        )[0] ?? null
+      : null;
+
+    const candidates = await this.sql<Record<string, any>[]>`
+      select p.code, p.name, p.description, p.trial_days, p.price_monthly, p.price_yearly, p.currency,
+             p.sort_order, pfl.limit_type, pfl.limit_value
+      from plans p left join plan_feature_limits pfl
+        on pfl.plan_id = p.id and pfl.feature_code = ${featureCode}
+      where p.is_public and p.is_active
+        and (${current?.sort_order ?? null}::int is null or p.sort_order > ${current?.sort_order ?? null}::int)
+      order by p.sort_order, p.price_monthly nulls first
+    `;
+
+    const better = candidates.filter((p) => offersMore(currentLimit, p.limit_type, p.limit_value));
+
+    return {
+      feature: { code: feature.code, name: feature.name, module: feature.module },
+      current: {
+        planCode: current?.plan_code ?? null,
+        planName: current?.plan_name ?? null,
+        // entitlement-engine.md §3: an absent row is disabled, fail-closed, never unlimited.
+        limitType: currentLimit?.limit_type ?? 'disabled',
+        limit: check.limit,
+        used: check.used,
+        remaining: check.remaining,
+      },
+      options: better.map((p) => ({
+        code: p.code,
+        name: p.name,
+        description: p.description,
+        trialDays: p.trial_days,
+        priceMonthly: p.price_monthly === null ? null : Number(p.price_monthly),
+        priceYearly: p.price_yearly === null ? null : Number(p.price_yearly),
+        currency: p.currency,
+        limitType: p.limit_type ?? 'disabled',
+        limit: p.limit_value ?? null,
+      })),
+    };
+  }
+
+  /**
    * Public: no tenant, no auth. The comparison table is built by pivoting
    * `plan_feature_limits` across the public plans, so adding a plan or
    * changing a limit changes this page with no code edit -- §14's "final
@@ -129,7 +207,7 @@ export class PlanService {
     };
   }
 
-  /** ux-system.md §12's nudge data, and the one query the audit viewer's sibling screens need. */
+  /** §57's audit viewer, and the one query its sibling screens need. */
   async auditLog(actor: AuthenticatedUser, query: { entityType?: string; entityId?: string; action?: string; userId?: string; from?: string; to?: string; limit: number; offset: number }) {
     const entityType = query.entityType ?? null;
     const entityId = query.entityId ?? null;
@@ -163,4 +241,24 @@ export class PlanService {
       };
     });
   }
+}
+
+/**
+ * Whether `plan` allows strictly more of a feature than `current` does.
+ * `unlimited` beats everything, a bigger count beats a smaller one, and a
+ * missing row is `disabled` -- the same fail-closed reading the engine
+ * itself uses, so a plan that simply forgot the row is never advertised as
+ * an upgrade.
+ */
+function offersMore(
+  current: { limit_type: string; limit_value: number | null } | null,
+  planLimitType: string | null,
+  planLimitValue: number | null,
+): boolean {
+  const type = planLimitType ?? 'disabled';
+  if (type === 'disabled') return false;
+  if (type === 'unlimited') return current?.limit_type !== 'unlimited';
+  if (current?.limit_type === 'unlimited') return false;
+  if (!current || current.limit_type === 'disabled') return true;
+  return (planLimitValue ?? 0) > (current.limit_value ?? 0);
 }

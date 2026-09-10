@@ -689,6 +689,13 @@ provider said.
   (`view_audit_log`, Owner/Admin) — §57's viewer over `audit_logs`.
 - `GET /plan/usage` (`view_plan_usage`) — §13, one `checkEntitlement` per
   metered feature, the same read a paywall makes.
+- `GET /plan/upgrade/:featureCode` (`view_plan_usage`) — §11's "what does
+  unlocking buy me?", asked by the upgrade prompt after a 402. The plans
+  above the current one that genuinely allow *more of this feature*
+  (unlimited beats a count, a bigger count beats a smaller one, a missing
+  row is `disabled` and never an upgrade), read from the same
+  `plan_feature_limits` rows the engine enforces. On v1's single published
+  plan the honest answer is an empty list, and the prompt says so.
 - `GET /pricing` — §14, **public and unauthenticated**, pivoted from
   `plan_feature_limits` across every public plan so it cannot drift from
   what the entitlement engine enforces. A feature with no row reads as
@@ -807,7 +814,7 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-**40 suites, 320 tests**, all against the real local database
+**40 suites, 321 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,

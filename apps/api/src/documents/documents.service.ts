@@ -9,12 +9,29 @@ import { PG_CONNECTION } from '../db/db.module';
 import { loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { EntitlementService } from '../entitlement/entitlement.service';
+import { loadPaywallContext } from '../entitlement/paywall';
 import { inlineImages, loadCompanyContext } from './company-context';
 import { DocumentTemplateRegistry } from './document-template.registry';
 import { PaywallException } from './paywall.exception';
 import { PdfRendererService } from './pdf-renderer.service';
 import { QrService } from './qr.service';
 import { elevatedPermissionForRegeneration } from './regeneration-policy';
+
+/**
+ * What a commit spent, returned alongside the document so the screen can
+ * say "1 of 2 free copies used" without a second round trip that would be
+ * answering a slightly different question (ux-system.md §12).
+ * `limit: null` means the plan does not meter this feature -- there is
+ * nothing to nudge about.
+ */
+export interface DocumentEntitlementInfo {
+  featureCode: string;
+  featureName: string;
+  planName: string | null;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+}
 
 interface DocumentRow {
   id: string;
@@ -94,7 +111,7 @@ export class DocumentEngineService {
       if (!existing) {
         const check = await this.entitlement.checkEntitlement(actor.tenantId, template.featureCode);
         if (!check.allowed) {
-          throw new PaywallException(template.featureCode, await this.featureName(tx, template.featureCode), check);
+          throw new PaywallException(await loadPaywallContext(tx, actor.tenantId, template.featureCode), check);
         }
       }
 
@@ -119,8 +136,14 @@ export class DocumentEngineService {
     ipAddress?: string,
   ) {
     const template = this.registry.get(documentType);
-
-    const row = await withTenant(this.sql, actor.tenantId, async (tx) => {
+    // The transaction hands back the ux-system.md §12 nudge figures beside
+    // the row, rather than the caller reading them afterwards: what the
+    // screen is told ("1 of 2 free copies used") has to be the same
+    // evaluation that decided to let this render happen. A second read
+    // after the commit could see a concurrent request's consumption and
+    // report a number this click did not produce.
+    const { row, entitlement } = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      let entitlement: DocumentEntitlementInfo | null = null;
       const [existing] = await tx<DocumentRow[]>`
         select ${tx.unsafe(SELECT_COLUMNS)} from documents
         where tenant_id = ${actor.tenantId} and document_type = ${documentType}
@@ -131,7 +154,7 @@ export class DocumentEngineService {
       // document-engine.md §7: "a retried Generate click on a request that timed out produces
       // exactly one documents row" -- a plain (non-regenerate) commit on an already-committed
       // source is a no-op that returns the existing row, never a second render.
-      if (existing && !opts.regenerate) return existing;
+      if (existing && !opts.regenerate) return { row: existing, entitlement };
       if (!existing && opts.regenerate) {
         throw new BadRequestException('Cannot regenerate: no existing document for this source yet');
       }
@@ -155,9 +178,18 @@ export class DocumentEngineService {
           documentType,
           idempotencyKey,
         });
+        const paywallContext = await loadPaywallContext(tx, actor.tenantId, template.featureCode);
         if (!consumeResult.allowed) {
-          throw new PaywallException(template.featureCode, await this.featureName(tx, template.featureCode), consumeResult);
+          throw new PaywallException(paywallContext, consumeResult);
         }
+        entitlement = {
+          featureCode: template.featureCode,
+          featureName: paywallContext.featureName,
+          planName: paywallContext.planName,
+          limit: consumeResult.limit,
+          used: consumeResult.used,
+          remaining: consumeResult.remaining,
+        };
       }
 
       const qrToken = randomUUID();
@@ -209,7 +241,7 @@ export class DocumentEngineService {
               and source_id = ${sourceId} and is_latest
           `;
           if (!winner) throw err;
-          return winner;
+          return { row: winner, entitlement };
         }
         throw err;
       }
@@ -220,7 +252,7 @@ export class DocumentEngineService {
           where id = ${existing.id}
         `;
       }
-      return inserted;
+      return { row: inserted, entitlement };
     });
 
     await this.audit.record({
@@ -234,7 +266,7 @@ export class DocumentEngineService {
       ipAddress,
     });
 
-    return toApi(row);
+    return { ...toApi(row), entitlement };
   }
 
   async get(actor: AuthenticatedUser, id: string) {
@@ -375,8 +407,4 @@ export class DocumentEngineService {
     }
   }
 
-  private async featureName(tx: postgres.TransactionSql, featureCode: string): Promise<string> {
-    const [row] = await tx<{ name: string }[]>`select name from feature_keys where code = ${featureCode}`;
-    return row?.name ?? featureCode;
-  }
 }

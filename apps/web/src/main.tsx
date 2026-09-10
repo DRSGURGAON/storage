@@ -10,6 +10,7 @@ import { Login } from './screens/Login';
 import { Dashboard } from './screens/Dashboard';
 import { Onboarding } from './screens/Onboarding';
 import { NotBuilt } from './screens/NotBuilt';
+import { PaywallProvider } from './components/Paywall';
 import { Customers } from './screens/masters/Customers';
 import { CustomerDetail } from './screens/masters/CustomerDetail';
 import { Warehouses, WarehouseDetail } from './screens/masters/Warehouses';
@@ -131,6 +132,13 @@ createRoot(document.getElementById('root')!).render(
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
             <SessionProvider>
+              {/*
+                Inside the router (it navigates to Plan & Usage) and inside
+                the session (it asks whether this person may see a plan at
+                all), but outside the routes, so a limit hit on any screen
+                raises the same prompt.
+              */}
+              <PaywallProvider>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route element={<RequireSession />}>
@@ -212,6 +220,7 @@ createRoot(document.getElementById('root')!).render(
                   </Route>
                 </Route>
               </Routes>
+              </PaywallProvider>
             </SessionProvider>
           </BrowserRouter>
         </QueryClientProvider>

@@ -11,6 +11,26 @@
  */
 const TOKEN_KEY = 'warehouse.token';
 
+/**
+ * The 402 body the API sends when a plan limit is hit
+ * (`documents/paywall.exception.ts`). Structured rather than a bare
+ * sentence because `ux-system.md` §11's prompt names the feature, shows
+ * what is used of what, and asks what the next plan up gives.
+ */
+export interface PaywallBody {
+  paywall: true;
+  message: string;
+  featureCode: string;
+  featureName: string;
+  planCode: string | null;
+  planName: string | null;
+  reason: string | null;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  upgradeRequired: boolean;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -23,6 +43,17 @@ export class ApiError extends Error {
   /** 402 is the entitlement paywall (`ux-system.md` §11), not a generic failure. */
   get isPaywall(): boolean {
     return this.status === 402;
+  }
+
+  /**
+   * The paywall body, or null for every other failure. The `paywall: true`
+   * flag is checked rather than the status alone: a 402 without it is some
+   * other payment-required condition, and rendering an upgrade prompt from
+   * a body that carries no feature would produce a dialog full of blanks.
+   */
+  get paywall(): PaywallBody | null {
+    const body = this.body as PaywallBody | null;
+    return this.status === 402 && body?.paywall === true ? body : null;
   }
 
   get isForbidden(): boolean {

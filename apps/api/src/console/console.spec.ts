@@ -214,6 +214,57 @@ describe('Console: dashboard, search, notifications, audit, plan and pricing', (
     expect(feature.byPlan.find((b: { planCode: string }) => b.planCode === 'FREE')).toMatchObject({ limitType: 'counted', limit: 2 });
   });
 
+  it('answers "what does upgrading buy me?" from the same limit rows the engine enforces', async () => {
+    // On FREE alone -- the only plan v1 ships (v1-scope-specification.md
+    // §12: upgrades are arranged offline) -- there is honestly nothing to
+    // offer, and the endpoint says so rather than inventing a tier.
+    const onlyFree = await api().get('/plan/upgrade/GRN_GENERATION').set(auth(owner)).expect(200);
+    expect(onlyFree.body).toMatchObject({
+      feature: { code: 'GRN_GENERATION', name: 'GRN generation' },
+      current: { planCode: 'FREE', planName: 'Free', limitType: 'counted', limit: 2 },
+      options: [],
+    });
+
+    // Publish two higher plans: one that genuinely gives more GRN copies,
+    // and one that is more expensive but meters this feature exactly the
+    // same. Only the first is an answer to "I ran out of GRN copies".
+    const growth = randomUUID();
+    const sidegrade = randomUUID();
+    await sql`
+      insert into plans (id, code, name, description, is_public, is_active, trial_days, price_monthly, price_yearly, currency, sort_order)
+      values (${growth}, ${'GROWTH-' + suffix}, 'Growth', 'more', true, true, 14, 2999, 29990, 'INR', 10),
+             (${sidegrade}, ${'SIDE-' + suffix}, 'Sideways', 'same', true, true, 0, 4999, 49990, 'INR', 20)
+    `;
+    await sql`
+      insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value)
+      values (gen_random_uuid(), ${growth}, 'GRN_GENERATION', 'counted', 500),
+             (gen_random_uuid(), ${sidegrade}, 'GRN_GENERATION', 'counted', 2)
+    `;
+    try {
+      const options = await api().get('/plan/upgrade/GRN_GENERATION').set(auth(owner)).expect(200);
+      expect(options.body.options).toHaveLength(1);
+      expect(options.body.options[0]).toMatchObject({
+        name: 'Growth',
+        priceMonthly: 2999,
+        currency: 'INR',
+        limitType: 'counted',
+        limit: 500,
+        trialDays: 14,
+      });
+
+      // A feature the higher plan has no row for is disabled there, not
+      // unlimited (entitlement-engine.md §3), so it is not an upgrade.
+      const unrelated = await api().get('/plan/upgrade/INVOICE_GENERATION').set(auth(owner)).expect(200);
+      expect(unrelated.body.options).toEqual([]);
+    } finally {
+      await sql`delete from plan_feature_limits where plan_id in (${growth}, ${sidegrade})`;
+      await sql`delete from plans where id in (${growth}, ${sidegrade})`;
+    }
+
+    await api().get('/plan/upgrade/GRN_GENERATION').set(auth(operator)).expect(403);
+    await api().get('/plan/upgrade/NOT_A_FEATURE').set(auth(owner)).expect(404);
+  });
+
   it('pages and filters the Document Centre instead of returning everything', async () => {
     const first = await api().get('/documents?limit=1').set(auth(owner)).expect(200);
     expect(first.body).toMatchObject({ limit: 1, offset: 0 });
