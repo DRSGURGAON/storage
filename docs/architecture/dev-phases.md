@@ -645,7 +645,19 @@ sheet freezes the note's lines; the POD derives its status from what
 the consignee signed for and moves no stock. §79's "dispatch 40 → stock
 60" and "prevent dispatch above available" are asserted in
 `outbound.spec.ts`, under both posting points; five more templates
-(fourteenth to eighteenth). Returns (§37) remain.
+(fourteenth to eighteenth).
+
+**Returns landed** (`apps/api/src/returns/`), which closes the phase:
+Return Request (held to what the original dispatch carried, less what
+earlier requests already claim; approval rides `approve_grn`), Return
+Inward (the arrival and inspection gate, one open per request), and the
+goods re-entering through the ordinary GRN with `returnInwardId` --
+defaults from the return, `RETURN` rows on approval, the same reversal
+handing the arrival back to `inspected` (`DECISIONS.md` §42). The
+Return Inward note is the nineteenth template. Every transaction type
+in `stock-engine.md` §2 now has a writer.
+
+**Status: complete.**
 
 - Schema: `schema/50_outbound.sql`.
 - Docs: `stock-engine.md` §2/§6 (reservation + allocation policy),

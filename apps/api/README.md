@@ -279,7 +279,13 @@ rows with no error at all.
   raise and submit a GRN but not sign it off. Passing `inwardId` requires
   that inward to be `'received'`, copies its header and maps every
   `inward_items` row into a GRN item (each carrying `inwardItemId` back
-  to its origin), and flips the inward to `'grn_created'`.
+  to its origin), and flips the inward to `'grn_created'`. Passing
+  `returnInwardId` instead (§37) takes the customer, warehouse and
+  transport from the return inward and the lines from its request
+  (expected = received = accepted, for the desk to correct), links the
+  GRN to the arrival, and makes `approve` post `RETURN` rows where it
+  would post `INWARD` — the same chain, the same reversal
+  (`DECISIONS.md` §42).
   `shortQty`/`excessQty` are derived server-side from expected vs.
   received, and `hasDiscrepancy` is recomputed from the item rows on
   every write. `accepted + rejected > received` is rejected as a readable
@@ -466,6 +472,18 @@ rows with no error at all.
   received is refused; status is derived (`delivered`/`short`/`damaged`/
   `rejected`), the dispatch completes, and the order completes once every
   note against it has. Moves no stock.
+- `POST/GET /return-requests[/:id]` and `/cancel` (`create_return_request`),
+  `/approve`, `/reject` (`approve_grn`) — §37. With `originalDispatchId`,
+  every line must be on that dispatch, for its customer, in no more than
+  it carried less what earlier live requests already claim; without one
+  the request is unbounded. Cannot be cancelled while a return inward is
+  open against it.
+- `POST/GET /return-inwards[/:id]`, `/inspect`, `/cancel`,
+  `/document[/preview]` (`create_grn`) — the arrival against an approved
+  request, one open per request, optionally linked to an inward gate
+  entry, vehicle and driver. It carries no lines: the GRN raised from it
+  says what came back. `grn_posted` is set by that GRN's approval;
+  reversal hands it back to `inspected`.
 - `GET /stock?customerId=&warehouseId=&productId=&locationId=&includeEmpty=`
   (`view_stock`) and `GET /stock/ledger?...&txnType=&sourceType=&sourceId=`
   (`view_stock_ledger`) — current balances and the append-only movement
@@ -750,6 +768,23 @@ All against the real local database (`DATABASE_URL`), not mocks:
   each resolved count line pointing back at the adjustment that fixed it;
   the tenth template rendering differently blank versus completed; and
   reject/cancel plus tenant isolation.
+- `returns/returns.spec.ts` — 100 in and 40 out through the whole
+  outbound chain first, so there is a dispatch to return against; a
+  request for 41 refused with "carried 40", one for another customer
+  refused, the Operator refused to raise one; then 10 back: nothing
+  arriving against an unapproved request, approval refused to the
+  Operator and taken by the Owner, a second request for 31 refused with
+  the 30 still unclaimed named, one open arrival per request, the request
+  uncancellable under it, the blank note rendering, inspection, the GRN
+  refusing both an `inwardId` and a `returnInwardId`, defaulting
+  customer/warehouse/lines from the return and refused twice for one
+  arrival, then submit/check/approve moving stock 60 → 70 as exactly one
+  `RETURN` row (unallocated), the arrival `grn_posted` and the request
+  `received`, the posted arrival uncancellable, the nineteenth template
+  committing and verifying; reversal back to 60 with `RETURN` mirrored by
+  `RETURN`, the arrival back to `inspected` with its `grnId` cleared and a
+  corrected GRN raised from it; plus reject, cancel, filters and tenant
+  isolation.
 - `outbound/outbound.spec.ts` — the whole chain on one order: nothing
   dispatchable or packable from a draft; the packing list defaulting to
   picked quantities with weight from the product master; dispatch of 41

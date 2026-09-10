@@ -24,6 +24,7 @@ import { OutboundModule } from './outbound/outbound.module';
 import { PickListsModule } from './pick-lists/pick-lists.module';
 import { ReleaseOrdersModule } from './release-orders/release-orders.module';
 import { ReportsModule } from './reports/reports.module';
+import { ReturnsModule } from './returns/returns.module';
 import { StockModule } from './stock/stock.module';
 import { StockAdjustmentsModule } from './stock-adjustments/stock-adjustments.module';
 import { StockTransfersModule } from './stock-transfers/stock-transfers.module';
@@ -73,6 +74,7 @@ import { ScopedThrottlerGuard, throttlerConfig } from './throttling';
     ReleaseOrdersModule,
     PickListsModule,
     OutboundModule,
+    ReturnsModule,
     WarehouseReceiptsModule,
   ],
   controllers: [HealthController],

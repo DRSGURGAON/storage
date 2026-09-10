@@ -23,6 +23,7 @@ import {
   PackingListDocumentTemplate,
   PodDocumentTemplate,
 } from './templates/outbound-document.templates';
+import { ReturnInwardDocumentTemplate } from './templates/return-inward-document.template';
 import { ReleaseOrderDocumentTemplate } from './templates/release-order-document.template';
 import { StockStatementDocumentTemplate } from './templates/stock-statement-document.template';
 import { StockVerificationDocumentTemplate } from './templates/stock-verification-document.template';
@@ -55,6 +56,7 @@ import { VerifyController, VerifyService } from './verify.controller';
     LoadingSheetDocumentTemplate,
     GatePassDocumentTemplate,
     PodDocumentTemplate,
+    ReturnInwardDocumentTemplate,
     VerifyService,
   ],
   exports: [DocumentEngineService],

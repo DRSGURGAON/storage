@@ -55,6 +55,8 @@ export const PROVISIONAL_SOURCE_STATUSES: Record<string, readonly string[]> = {
   gate_pass: ['pending'],
   // A captured POD carries a signature; a blank one is a form.
   pod: ['pending'],
+  // Until its GRN posts, a return inward is an arrival note; after, it is the record of what came back.
+  return_inward: ['draft', 'inspected'],
 };
 
 /**

@@ -1516,3 +1516,47 @@ And one on the release order: it may be cancelled while `picked`
 while a dispatch note is open against it — the note has to be cancelled
 first, so no reservation is released out from under a consignment
 someone is loading.
+
+## §42 — a return is a GRN with a different ledger type, not a second inbound path
+
+Blueprint §37 and `schema/50_outbound.sql` already say it — "stock
+re-enters via a GRN with source flag" — and the build keeps to it
+literally. A Return Request says what the customer wants to send back; a
+Return Inward is the arrival and the inspection gate; and the goods come
+onto the books through `POST /grns` with `returnInwardId`, which is the
+same GRN, the same submit → check → approve chain, the same Operator →
+Manager split (§50), the same reversal. Two things differ. The defaults
+come from the return (customer, warehouse, transport, and the request's
+lines as expected = received = accepted, for the desk to correct), and
+approval posts `RETURN` rows instead of `INWARD`. Nothing else does:
+returned goods land unallocated and go through put-away like any
+receipt, and ageing (§39) counts a `RETURN` as a receipt because it is
+one.
+
+The alternative — a return-specific posting endpoint — was rejected
+because every control the inbound chain has (accepted versus received,
+damaged and rejected quantities, serials per unit, the discrepancy flag,
+the manager's sign-off) would have had to be rebuilt or, more likely,
+skipped. Goods that were ours once are not exempt from being counted on
+the way back in.
+
+Two guards on the request, both about the dispatch it points at:
+
+- **A request against a dispatch is held to what that dispatch carried**,
+  per product and batch, less what earlier live requests against the
+  same dispatch already claim — so ten bags cannot be returned twice.
+  The customer on the request must be the customer the dispatch went to.
+  A request with no dispatch (goods returned from somewhere the system
+  did not ship to) is allowed and simply unbounded, which is what "no
+  dispatch" means.
+- **Reversing a return GRN** puts the return inward back to `inspected`
+  and the request back to `approved`, and clears `grn_id`, so a corrected
+  GRN can be raised — the same shape as an ordinary GRN reversal handing
+  the inward back to `received` (§39). The offsetting rows are `RETURN`
+  with `qty_out`, mirroring what was posted, on the same reasoning that
+  keeps a GRN reversal `INWARD` rather than `ADJUSTMENT`.
+
+Approving a return request rides `approve_grn`. The matrix has only
+`create_return_request` for this module, and the approval is a receiving
+decision — "will we take these goods back" is the same authority as
+"will we sign for these goods", and it stops at the same role.

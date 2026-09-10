@@ -22,6 +22,7 @@ interface GrnRow {
   supplier_id: string | null;
   supplier_name: string | null;
   inward_id: string | null;
+  return_inward_id: string | null;
   gate_entry_id: string | null;
   vehicle_id: string | null;
   vehicle_number: string | null;
@@ -72,7 +73,7 @@ interface GrnItemRow {
 }
 
 const SELECT_COLUMNS = `
-  id, number, grn_date, warehouse_id, customer_id, supplier_id, supplier_name, inward_id, gate_entry_id,
+  id, number, grn_date, warehouse_id, customer_id, supplier_id, supplier_name, inward_id, return_inward_id, gate_entry_id,
   vehicle_id, vehicle_number, driver_id, driver_name, driver_mobile, transporter_id, transporter_name,
   lr_number, lr_date, invoice_number, invoice_date, eway_bill_number, po_number, remarks, status,
   submitted_at, checked_at, approved_at, stock_posted_at, has_discrepancy, created_at, updated_at`;
@@ -92,6 +93,7 @@ function toApi(row: GrnRow, items?: (GrnItemRow & { serial_nos?: string[] })[]) 
     supplierId: row.supplier_id,
     supplierName: row.supplier_name,
     inwardId: row.inward_id,
+    returnInwardId: row.return_inward_id,
     gateEntryId: row.gate_entry_id,
     vehicleId: row.vehicle_id,
     vehicleNumber: row.vehicle_number,
@@ -251,6 +253,70 @@ export class GrnsService {
   }
 
   /** Blueprint §18's "Auto-fill from Inward" -- header *and* items, resolved server-side. */
+  /**
+   * Blueprint §37: returned goods re-enter through a GRN, so the same
+   * receipt, check and approval apply -- what differs is the ledger row it
+   * posts (`RETURN`, not `INWARD`) and where the defaults come from: the
+   * return inward's transport block and the return request's lines.
+   */
+  private async loadReturnInwardDefaults(tx: postgres.TransactionSql, tenantId: string, returnInwardId: string): Promise<InwardDefaults> {
+    const [ri] = await tx<
+      { status: string; grn_id: string | null; warehouse_id: string; customer_id: string; gate_entry_id: string | null; vehicle_id: string | null; driver_id: string | null; return_request_id: string | null; vehicle_number: string | null; driver_name: string | null; driver_mobile: string | null; transporter_id: string | null; transporter_name: string | null }[]
+    >`
+      select ri.status, ri.grn_id, ri.warehouse_id, ri.customer_id, ri.gate_entry_id, ri.vehicle_id, ri.driver_id, ri.return_request_id,
+             v.vehicle_number, d.name as driver_name, d.mobile as driver_mobile, v.transporter_id, t.name as transporter_name
+      from return_inwards ri left join vehicles v on v.id = ri.vehicle_id left join drivers d on d.id = ri.driver_id
+      left join transporters t on t.id = v.transporter_id
+      where ri.id = ${returnInwardId} and ri.tenant_id = ${tenantId}
+    `;
+    if (!ri) throw new NotFoundException('Return inward not found');
+    if (!['draft', 'inspected'].includes(ri.status)) {
+      throw new BadRequestException(`Cannot create a GRN from a return inward in '${ri.status}' status`);
+    }
+    if (ri.grn_id) {
+      const [existing] = await tx<{ number: string; status: string }[]>`select number, status from grns where id = ${ri.grn_id} and tenant_id = ${tenantId}`;
+      if (existing && !['rejected', 'cancelled', 'reversed'].includes(existing.status)) {
+        throw new BadRequestException(`GRN ${existing.number} already exists for this return inward`);
+      }
+    }
+    const lines = ri.return_request_id
+      ? await tx<{ product_id: string; batch_no: string | null; mfg_date: string | null; expiry_date: string | null; quantity: string }[]>`
+          select rrl.product_id, b.batch_no, b.mfg_date, b.expiry_date, rrl.quantity
+          from return_request_lines rrl left join batches b on b.id = rrl.batch_id
+          where rrl.tenant_id = ${tenantId} and rrl.return_request_id = ${ri.return_request_id} order by rrl.id
+        `
+      : [];
+    return {
+      warehouseId: ri.warehouse_id,
+      customerId: ri.customer_id,
+      supplierId: null,
+      supplierName: null,
+      gateEntryId: ri.gate_entry_id,
+      vehicleId: ri.vehicle_id,
+      vehicleNumber: ri.vehicle_number,
+      driverId: ri.driver_id,
+      driverName: ri.driver_name,
+      driverMobile: ri.driver_mobile,
+      transporterId: ri.transporter_id,
+      transporterName: ri.transporter_name,
+      lrNumber: null,
+      lrDate: null,
+      invoiceNumber: null,
+      invoiceDate: null,
+      ewayBillNumber: null,
+      poNumber: null,
+      items: lines.map((l) => ({
+        productId: l.product_id,
+        batchNo: l.batch_no ?? undefined,
+        mfgDate: l.mfg_date ?? undefined,
+        expiryDate: l.expiry_date ?? undefined,
+        expectedQty: Number(l.quantity),
+        receivedQty: Number(l.quantity),
+        acceptedQty: Number(l.quantity),
+      })),
+    };
+  }
+
   private async loadInwardDefaults(
     tx: postgres.TransactionSql,
     tenantId: string,
@@ -462,7 +528,12 @@ export class GrnsService {
   async create(actor: AuthenticatedUser, dto: CreateGrnDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
       const scope = await loadWarehouseScope(tx, actor);
-      const inwardDefaults = dto.inwardId ? await this.loadInwardDefaults(tx, actor.tenantId, dto.inwardId) : null;
+      if (dto.inwardId && dto.returnInwardId) throw new BadRequestException('A GRN comes from an inward or a return inward, not both');
+      const inwardDefaults = dto.inwardId
+        ? await this.loadInwardDefaults(tx, actor.tenantId, dto.inwardId)
+        : dto.returnInwardId
+          ? await this.loadReturnInwardDefaults(tx, actor.tenantId, dto.returnInwardId)
+          : null;
 
       const warehouseId = dto.warehouseId ?? inwardDefaults?.warehouseId;
       const customerId = dto.customerId ?? inwardDefaults?.customerId;
@@ -488,7 +559,7 @@ export class GrnsService {
 
       const items = dto.items ?? inwardDefaults?.items;
       if (!items?.length) {
-        throw new BadRequestException('items are required (directly, or via an inwardId whose own items are copied)');
+        throw new BadRequestException('items are required (directly, or via an inwardId or returnInwardId whose own lines are copied)');
       }
 
       const refs = await this.resolveTransportRefs(tx, actor.tenantId, dto, inwardDefaults);
@@ -498,13 +569,13 @@ export class GrnsService {
       await tx`
         insert into grns (
           id, tenant_id, number, grn_date, warehouse_id, customer_id, supplier_id, supplier_name,
-          inward_id, gate_entry_id, vehicle_id, vehicle_number, driver_id, driver_name, driver_mobile,
+          inward_id, return_inward_id, gate_entry_id, vehicle_id, vehicle_number, driver_id, driver_name, driver_mobile,
           transporter_id, transporter_name, lr_number, lr_date, invoice_number, invoice_date,
           eway_bill_number, po_number, remarks, created_by, updated_by
         ) values (
           ${id}, ${actor.tenantId}, ${number}, ${dto.grnDate ?? new Date().toISOString().slice(0, 10)},
           ${warehouseId}, ${customerId}, ${supplierId}, ${dto.supplierName ?? inwardDefaults?.supplierName ?? null},
-          ${dto.inwardId ?? null}, ${gateEntryId}, ${refs.vehicleId}, ${refs.vehicleNumber}, ${refs.driverId},
+          ${dto.inwardId ?? null}, ${dto.returnInwardId ?? null}, ${gateEntryId}, ${refs.vehicleId}, ${refs.vehicleNumber}, ${refs.driverId},
           ${refs.driverName}, ${refs.driverMobile}, ${refs.transporterId}, ${refs.transporterName},
           ${dto.lrNumber ?? inwardDefaults?.lrNumber ?? null}, ${dto.lrDate ?? inwardDefaults?.lrDate ?? null},
           ${dto.invoiceNumber ?? inwardDefaults?.invoiceNumber ?? null},
@@ -519,6 +590,9 @@ export class GrnsService {
 
       if (dto.inwardId) {
         await tx`update inwards set status = 'grn_created' where id = ${dto.inwardId} and tenant_id = ${actor.tenantId}`;
+      }
+      if (dto.returnInwardId) {
+        await tx`update return_inwards set grn_id = ${id} where id = ${dto.returnInwardId} and tenant_id = ${actor.tenantId}`;
       }
 
       const fetched = await this.fetchWithItems(tx, actor.tenantId, id);
@@ -753,6 +827,13 @@ export class GrnsService {
             stock_posted_at = now()
         where id = ${id} and tenant_id = ${actor.tenantId}
       `;
+      if (before.return_inward_id) {
+        await tx`update return_inwards set status = 'grn_posted', grn_id = ${id} where id = ${before.return_inward_id} and tenant_id = ${actor.tenantId}`;
+        await tx`
+          update return_requests set status = 'received'
+          where tenant_id = ${actor.tenantId} and id = (select return_request_id from return_inwards where id = ${before.return_inward_id})
+        `;
+      }
     });
   }
 
@@ -807,7 +888,7 @@ export class GrnsService {
       }
 
       const base = {
-        txnType: 'INWARD' as const,
+        txnType: (grn.return_inward_id ? 'RETURN' : 'INWARD') as 'RETURN' | 'INWARD',
         customerId: grn.customer_id,
         warehouseId: grn.warehouse_id,
         locationId: null,
@@ -904,12 +985,13 @@ export class GrnsService {
           qty_in: string;
           uom_code: string;
           source_line_id: string | null;
+          txn_type: 'INWARD' | 'RETURN';
         }[]
       >`
-        select id, location_id, product_id, batch_id, serial_no, qty_in, uom_code, source_line_id
+        select id, txn_type, location_id, product_id, batch_id, serial_no, qty_in, uom_code, source_line_id
         from stock_ledger
         where tenant_id = ${actor.tenantId} and source_type = 'grn' and source_id = ${id}
-          and txn_type = 'INWARD' and reversal_of_id is null
+          and txn_type in ('INWARD', 'RETURN') and reversal_of_id is null
         order by txn_at, id
       `;
 
@@ -919,7 +1001,7 @@ export class GrnsService {
           sourceId: id,
           idempotencyKey: `grn:${id}:reverse`,
           movements: posted.map((row) => ({
-            txnType: 'INWARD' as const,
+            txnType: row.txn_type,
             customerId: before.customer_id,
             warehouseId: before.warehouse_id,
             locationId: row.location_id,
@@ -950,6 +1032,13 @@ export class GrnsService {
         await tx`
           update inwards set status = 'received'
           where id = ${before.inward_id} and tenant_id = ${actor.tenantId} and status = 'grn_created'
+        `;
+      }
+      if (before.return_inward_id) {
+        await tx`update return_inwards set status = 'inspected', grn_id = null where id = ${before.return_inward_id} and tenant_id = ${actor.tenantId}`;
+        await tx`
+          update return_requests set status = 'approved'
+          where tenant_id = ${actor.tenantId} and id = (select return_request_id from return_inwards where id = ${before.return_inward_id})
         `;
       }
     });

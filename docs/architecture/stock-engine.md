@@ -134,6 +134,7 @@ Wired in so far:
 | GRN reversal (§3.5) | one offsetting `INWARD` (`qty_out`, `reversal_of_id`) per original row | `grn:{id}:reverse` |
 | Release order reservation (§30) | one `RESERVE` (`+reserved_delta`) per lot the policy chose, shelved lots only | `release_order:{id}:reserve` |
 | Release order cancellation | one `UNRESERVE` mirroring each `RESERVE` row | `release_order:{id}:unreserve` |
+| GRN approval, for a GRN raised from a return inward (§37) | one `RETURN` per accepted quantity, `location_id` null, same shape as `INWARD` | `grn:{id}:approve` |
 | Gate-out (§35), or dispatch `confirm` when `workflow.outward_posting_point` is `dispatch` | one `OUTWARD` per lot the reservation named: `qty_out` and `-reserved_delta` in the same row | `dispatch:{id}:outward` |
 
 Three things the implementation settled that this document left open:
@@ -185,4 +186,10 @@ other posts nothing (`DECISIONS.md` §41). Lines draw against the order's
 `RESERVE` rows, so the lot -- location, batch, serial -- that leaves is
 the one that was promised.
 
-Not yet built: `RETURN` (Return Inward, §37).
+**`RETURN` is the GRN's** (`DECISIONS.md` §42): a GRN raised with
+`returnInwardId` posts `RETURN` where it would post `INWARD`, through
+the same approval and with the same reversal. There is no separate
+return posting path, so every inbound control applies to goods on the
+way back.
+
+Every transaction type in §2 now has a writer.

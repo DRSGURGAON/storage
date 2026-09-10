@@ -256,6 +256,7 @@ export const METERED_FEATURE_KEYS = [
   { code: 'STOCK_TRANSFER', module: 'stock', name: 'Stock transfer' },
   { code: 'STOCK_VERIFICATION', module: 'stock', name: 'Physical stock verification' },
   { code: 'PACKING_LIST', module: 'operations', name: 'Packing list' },
+  { code: 'RETURN_INWARD', module: 'operations', name: 'Return inward' },
 ] as const;
 
 export const UNMETERED_FEATURE_KEYS = [

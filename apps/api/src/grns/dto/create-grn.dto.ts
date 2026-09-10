@@ -10,6 +10,8 @@ export class CreateGrnDto {
   @IsOptional() @IsDateString() grnDate?: string;
 
   @IsOptional() @IsUUID() inwardId?: string;
+  /** Blueprint §37: a return re-enters through a GRN; lines default to the return request's. */
+  @IsOptional() @IsUUID() returnInwardId?: string;
   @IsOptional() @IsUUID() gateEntryId?: string;
 
   @IsOptional() @IsUUID() supplierId?: string;
