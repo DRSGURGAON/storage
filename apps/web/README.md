@@ -41,8 +41,8 @@ Centre with its relationship graph; the **reports library** (one screen
 built from the API's own catalogue, so a report added on the server
 appears here with its filters and column types and no frontend change);
 notifications; settings (company,
-users, notification rules, number series, plan and usage, audit log); and the **customer
-portal**, which a `customer` login lands in instead of the staff app.
+users, notification rules, number series, operations, plan and usage, audit
+log); and the **customer portal**, which a `customer` login lands in instead of the staff app.
 
 A route the navigation offers but that has no screen yet renders an
 explicit "not built yet" page. The navigation is generated from what the
@@ -130,5 +130,5 @@ that is a bare array where a page was expected — and every one of those
 was found this way. It misses what a component test would catch: a
 rendering regression in one component, with no API involved. If this app
 grows a piece of genuinely tricky client-side logic, that piece should get
-a unit test; today the tricky logic is all on the server, and it has 283
+a unit test; today the tricky logic is all on the server, and it has 320
 of them.

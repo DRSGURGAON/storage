@@ -888,3 +888,215 @@ export function NumberSeriesSettings() {
     </>
   );
 }
+
+interface TenantSetting {
+  key: string;
+  type: 'boolean' | 'string' | 'number' | 'string[]';
+  value: unknown;
+  default: unknown;
+  source: 'tenant' | 'default';
+  description: string;
+  allowed?: string[];
+}
+
+/** The four prefixes `tenant-settings.registry.ts` groups its keys under. */
+const SETTING_GROUPS: { prefix: string; title: string; help: string }[] = [
+  {
+    prefix: 'stock.',
+    title: 'Stock',
+    help: 'How the stock engine behaves when it is asked to do something it would otherwise refuse, and how it chooses which lot to give out.',
+  },
+  {
+    prefix: 'workflow.',
+    title: 'Workflow',
+    help: 'Where in the outbound chain the goods actually leave the books.',
+  },
+  {
+    prefix: 'billing.',
+    title: 'Billing',
+    help: 'The conventions a billing run applies when the arithmetic is a matter of policy rather than of fact.',
+  },
+  {
+    prefix: 'approvals.',
+    title: 'Approvals',
+    help: 'Who has to sign off before a correction posts.',
+  },
+];
+
+const SETTING_LABELS: Record<string, string> = {
+  'stock.allow_negative': 'Allow a balance to go negative',
+  'stock.ageing_buckets': 'Ageing bands',
+  'stock.allocation_policy': 'Which lot is picked first',
+  'workflow.outward_posting_point': 'Stock leaves the books at',
+  'billing.partial_month_policy': 'A part month is charged',
+  'billing.default_tax_rate_code': 'Default tax rate',
+  'approvals.stock_adjustment.owner_required': "An adjustment needs the Owner's approval",
+};
+
+const settingText = (value: unknown): string =>
+  Array.isArray(value) ? value.join(', ') : typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value);
+
+/**
+ * The seven settings that change how the engines behave —
+ * `tenant-settings.registry.ts`, `GET/PUT/DELETE /company/settings`. They
+ * have decided real behaviour since Phase 5 (whether a balance may go
+ * negative, whether FEFO or FIFO picks the lot, whether stock leaves at
+ * the gate pass or at the dispatch) and there has never been a screen: the
+ * only way to change one was a `PUT` by hand.
+ *
+ * Each row says whether the value is this workspace's own choice or the
+ * shipped default, and a workspace's own value can be handed back — which
+ * is not the same as setting it to the same value, because the default
+ * itself may change in a later release.
+ */
+export function OperationsSettings() {
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ['/company/settings'],
+    queryFn: () => api<TenantSetting[]>('/company/settings'),
+  });
+
+  const save = useMutation({
+    mutationFn: ({ key, value }: { key: string; value: unknown }) =>
+      api(`/company/settings/${key}`, { method: 'PUT', body: { value } }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/company/settings'] });
+      message.success('Saved — it applies to the next operation, not to history');
+    },
+    onError: (error) => message.error(error instanceof ApiError ? error.message : 'Could not save that setting'),
+  });
+
+  const reset = useMutation({
+    mutationFn: (key: string) => api(`/company/settings/${key}`, { method: 'DELETE' }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/company/settings'] });
+      message.success('Back to the shipped default');
+    },
+    onError: (error) => message.error(error instanceof ApiError ? error.message : 'Could not reset that setting'),
+  });
+
+  const control = (setting: TenantSetting) => {
+    const busy = save.isPending && save.variables?.key === setting.key;
+    if (setting.type === 'boolean') {
+      return (
+        <Switch
+          checked={Boolean(setting.value)}
+          loading={busy}
+          onChange={(value) => save.mutate({ key: setting.key, value })}
+        />
+      );
+    }
+    if (setting.allowed) {
+      return (
+        <Select
+          value={String(setting.value)}
+          style={{ minWidth: 200 }}
+          loading={busy}
+          onChange={(value) => save.mutate({ key: setting.key, value })}
+          options={setting.allowed.map((option) => ({ value: option, label: humanise(option) }))}
+        />
+      );
+    }
+    if (setting.type === 'string[]') {
+      return (
+        <Select
+          mode="tags"
+          value={(setting.value as string[]) ?? []}
+          style={{ minWidth: 320 }}
+          loading={busy}
+          tokenSeparators={[',']}
+          onChange={(value) => save.mutate({ key: setting.key, value })}
+        />
+      );
+    }
+    if (setting.type === 'number') {
+      return (
+        <InputNumber
+          defaultValue={Number(setting.value)}
+          onBlur={(event) => {
+            const value = Number(event.target.value);
+            if (!Number.isNaN(value) && value !== Number(setting.value)) save.mutate({ key: setting.key, value });
+          }}
+        />
+      );
+    }
+    return (
+      <Input
+        defaultValue={String(setting.value)}
+        style={{ maxWidth: 240 }}
+        onBlur={(event) => {
+          if (event.target.value !== String(setting.value)) save.mutate({ key: setting.key, value: event.target.value });
+        }}
+      />
+    );
+  };
+
+  return (
+    <Space direction="vertical" size={16} style={{ display: 'flex' }}>
+      <Card
+        loading={isLoading}
+        title={<Typography.Title level={4} style={{ margin: 0 }}>Operations</Typography.Title>}
+      >
+        <Alert
+          type="info"
+          showIcon
+          message="These change what the software does next, never what it did"
+          description="A change to how stock is allocated, or to where the outward movement is posted, applies to the next operation. Documents already issued and stock already posted are history, and stay as they were."
+        />
+      </Card>
+
+      {SETTING_GROUPS.map((group) => {
+        const settings = (data ?? []).filter((setting) => setting.key.startsWith(group.prefix));
+        if (settings.length === 0) return null;
+        return (
+          <Card key={group.prefix} title={group.title} loading={isLoading}>
+            <Typography.Paragraph type="secondary">{group.help}</Typography.Paragraph>
+            <Table<TenantSetting>
+              size="small"
+              rowKey="key"
+              pagination={false}
+              showHeader={false}
+              scroll={{ x: 'max-content' }}
+              dataSource={settings}
+              columns={[
+                {
+                  title: 'Setting',
+                  render: (_, setting) => (
+                    <Space direction="vertical" size={2} style={{ maxWidth: 560 }}>
+                      <Space size={6} wrap>
+                        <strong>{SETTING_LABELS[setting.key] ?? humanise(setting.key.split('.').pop() ?? setting.key)}</strong>
+                        {setting.source === 'tenant' ? (
+                          <Tag color="blue">Yours</Tag>
+                        ) : (
+                          <Tag>Default</Tag>
+                        )}
+                      </Space>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {setting.description}
+                      </Typography.Text>
+                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                        <code>{setting.key}</code> · ships as {settingText(setting.default)}
+                      </Typography.Text>
+                    </Space>
+                  ),
+                },
+                { title: 'Value', width: 340, render: (_, setting) => control(setting) },
+                {
+                  title: '',
+                  width: 110,
+                  render: (_, setting) =>
+                    setting.source === 'tenant' ? (
+                      <Button size="small" loading={reset.isPending} onClick={() => reset.mutate(setting.key)}>
+                        Use default
+                      </Button>
+                    ) : null,
+                },
+              ]}
+            />
+          </Card>
+        );
+      })}
+    </Space>
+  );
+}

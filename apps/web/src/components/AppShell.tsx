@@ -128,6 +128,7 @@ const NAV: NavItem[] = [
       { key: '/settings/users', label: 'Users', permissions: ['manage_users_and_roles'] },
       { key: '/settings/notifications', label: 'Notifications', permissions: ['manage_company_settings'] },
       { key: '/settings/number-series', label: 'Number series', permissions: ['manage_company_settings'] },
+      { key: '/settings/operations', label: 'Operations', permissions: ['manage_company_settings'] },
       { key: '/settings/plan', label: 'Plan & usage', permissions: ['view_plan_usage'] },
       { key: '/settings/audit', label: 'Audit log', permissions: ['view_audit_log'] },
     ],

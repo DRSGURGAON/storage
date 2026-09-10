@@ -1255,6 +1255,51 @@ because a format string is an abstraction until you see the number it
 makes — and shows per-warehouse series read-only, since those are created
 by allocating against a warehouse rather than configured here.
 
+## Phase 18 — the operational settings, on a screen (§61)
+
+Seven `tenant_settings` keys have decided real engine behaviour since
+Phase 5 — whether a posting may take a balance negative, which lots a
+release order reserves first, whether outward stock leaves at gate-out or
+at dispatch, how a part-month storage charge is treated, the tax rate a
+rate card line without one falls back to, the ageing report's buckets, and
+whether a stock adjustment needs a second Owner approval. `GET`, `PUT` and
+`DELETE /company/settings` have existed just as long. There was no screen:
+the only way for a workspace to change one was a `PUT` by hand.
+
+Settings → Operations is that screen, and needed no API change — the
+registry (`tenant-settings.registry.ts`) already carries each key's type,
+default, allowed values and a description of what reads it, so the screen
+draws its control from the declaration rather than from a second list that
+would drift: a `boolean` becomes a switch, a key with `allowed` becomes a
+select of exactly those values, a `string[]` becomes a tag input, and
+anything else an input that saves on blur. A key added to the registry
+appears here with the right control and no frontend change, the same
+property the reports library has.
+
+Three things the screen has to say out loud, because they are true of the
+engine and invisible in a form:
+
+- **A change applies to the next operation, never to history.** Switching
+  the allocation policy to `fefo` does not re-allocate what is already
+  reserved, and changing the ageing buckets does re-group every past
+  batch — because ageing is computed at report time from
+  `batches.first_received_at`, while a reservation is a row that was
+  written once. The save confirmation says which kind it is.
+- **"Use default" is not the same as re-setting the value.** `DELETE`
+  removes the tenant's row so the key falls back to the shipped default
+  and `source` flips from `tenant` to `default`; setting it by hand to
+  today's default value keeps the row, and a later release that changes
+  the default will not reach it. The screen offers both and shows which
+  state each key is in.
+- **The description is the setting.** Each row prints the registry's own
+  sentence, including where the value is read. A setting whose effect you
+  have to guess at is one people change once and then distrust.
+
+Verified in a browser against a live workspace: all seven listed under
+four headings, a change round-tripping through the API and flipping
+`source` to `tenant`, "Use default" putting it back, and the page fitting
+390px without sideways scroll.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not
