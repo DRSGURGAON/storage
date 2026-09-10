@@ -430,6 +430,42 @@ rows with no error at all.
   the line's reservation is refused; completion rolls `picked_qty` up to
   the order, which becomes `picked` only when every line is fully picked,
   else `partially_picked`. Picking posts nothing to stock.
+- `POST/GET /packing-lists[/:id]` and `/document[/preview]`
+  (`create_dispatch`) — §32's box list. No status, moves nothing, lines
+  default to the order's picked quantities with weight from the product
+  master; package and weight totals sum the lines when not stated.
+- `POST/GET/PATCH /dispatches[/:id]`, `/cancel`, `/document[/preview]`
+  (`create_dispatch`) and `/confirm` (`confirm_gate_out`) — §33's Dispatch
+  Note against a picked order. The transport block is snapshotted as text
+  (vehicle number, driver, transporter); lines default to picked − already
+  dispatched − what other open notes claim, and a line above that is
+  refused by name (§79 "prevent dispatch above available", first wall).
+  Only a draft is editable, and its lines are frozen while a loading sheet
+  is open. `confirm` is "the goods have left" for a tenant whose
+  `workflow.outward_posting_point` is `dispatch`; under the default it is
+  refused with the setting named. Cancel (draft/loaded) cancels the sheet
+  and pending pass with it.
+- `POST/GET /loading-sheets[/:id]`, `/confirm`, `/complete`, `/cancel`,
+  `/document[/preview]` (`create_loading_sheet`) — §34's dock tick-list,
+  one per dispatch, lines copied from the note. `complete` needs every
+  line ticked and makes the dispatch `loaded`.
+- `POST/GET /gate-passes[/:id]`, `/cancel`, `/document[/preview]`
+  (`create_gate_pass`) and `/gate-out` (`confirm_gate_out`) — §35. One per
+  dispatch, seal copied from a loaded sheet, transport and LR/e-way from
+  the note. **Gate-out is where physical stock leaves**: one `OUTWARD` row
+  per lot the reservation named, `qty_out` and `-reserved_delta` together,
+  through the single writer in `outbound-posting.service.ts` keyed
+  `dispatch:{id}:outward` — so a pass issued after a dispatch-posting
+  tenant's `confirm` posts nothing and says so in `stockPostedAt`
+  (`DECISIONS.md` §41). Rolls `dispatched_qty` up to the order, which
+  becomes `dispatched` once every line is fully out.
+- `POST/GET /pods[/:id]`, `/capture`, `/document[/preview]`
+  (`capture_pod`) — §36, raised once the dispatch is `gate_out`, lines
+  defaulting to the dispatched quantities. `capture` takes what the
+  consignee signed for; received above dispatched or damaged above
+  received is refused; status is derived (`delivered`/`short`/`damaged`/
+  `rejected`), the dispatch completes, and the order completes once every
+  note against it has. Moves no stock.
 - `GET /stock?customerId=&warehouseId=&productId=&locationId=&includeEmpty=`
   (`view_stock`) and `GET /stock/ledger?...&txnType=&sourceType=&sourceId=`
   (`view_stock_ledger`) — current balances and the append-only movement
@@ -714,6 +750,32 @@ All against the real local database (`DATABASE_URL`), not mocks:
   each resolved count line pointing back at the adjustment that fixed it;
   the tenth template rendering differently blank versus completed; and
   reject/cancel plus tenant isolation.
+- `outbound/outbound.spec.ts` — the whole chain on one order: nothing
+  dispatchable or packable from a draft; the packing list defaulting to
+  picked quantities with weight from the product master; dispatch of 41
+  against 40 picked refused by name and the default note taking all 40
+  with the transport block snapshotted; a second note for the same goods
+  refused; `confirm` refused under the default posting point; the loading
+  sheet refusing completion with a line unticked (naming the SKU), one
+  sheet per dispatch, the dispatch turning `loaded`; the gate pass
+  carrying the sheet's seal with **nothing moved yet**; then §79's
+  gate-out — physical 100 → 60, reservation 40 → 0, one `OUTWARD` row with
+  both `qtyOut` and `reservedDelta` and the stored balances — the order
+  `dispatched`, a second gate-out and a cancellation of the dispatched
+  order both refused; the POD refusing received above dispatched and
+  damaged above received, deriving `damaged` from 38 received / 2 damaged,
+  completing the dispatch and the order, and leaving stock untouched; all
+  five templates rendering, committing and verifying. Then the other
+  posting point: `confirm` posting at dispatch (60 → 48 with 8 still
+  reserved), the gate pass afterwards posting nothing (`stockPostedAt`
+  null, still one ledger row), a second note defaulting to the 8
+  remaining and a third refused, the order `dispatched` after the
+  remainder. Then a draft note edited (and a second note refused for what
+  it claims), its lines frozen under an open sheet with header edits
+  still allowed, cancelled together with its sheet and pass, the goods
+  freed for a new note and the one-per-dispatch keys released; the order
+  refusing to cancel while a note is open and cancelling once it is gone;
+  filters and tenant isolation.
 - `release-orders/release-orders.spec.ts` — an order snapshotting its
   delivery address and keeping it after the master is edited, editable
   only as a draft; §79's reservation case walked with the numbers (100

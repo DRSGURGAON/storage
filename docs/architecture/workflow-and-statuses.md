@@ -65,6 +65,10 @@ Release Order:  Draft → Approved → Reserved → Partially Picked → Picked
                        → Dispatched → Completed
                 any pre-Dispatched state ──► Cancelled (releases reservation, §30)
 
+Dispatch:       Draft → Loaded (loading sheet complete) → Gate Out (gate pass, or
+                       dispatch confirm when the tenant posts there) → Completed (POD)
+                Draft/Loaded ──► Cancelled (sheet and pending pass cancelled with it)
+
 Invoice:        Draft → Pending Approval → Approved → Issued
                        → Partially Paid → Paid
                 Issued/Partially Paid ──(overdue crossing due_date)──► Overdue

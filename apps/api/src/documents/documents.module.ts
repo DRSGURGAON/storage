@@ -16,6 +16,13 @@ import { PutawayDocumentTemplate } from './templates/putaway-document.template';
 import { QuotationDocumentTemplate } from './templates/quotation-document.template';
 import { StockTransferDocumentTemplate } from './templates/stock-transfer-document.template';
 import { PickListDocumentTemplate } from './templates/pick-list-document.template';
+import {
+  DispatchNoteDocumentTemplate,
+  GatePassDocumentTemplate,
+  LoadingSheetDocumentTemplate,
+  PackingListDocumentTemplate,
+  PodDocumentTemplate,
+} from './templates/outbound-document.templates';
 import { ReleaseOrderDocumentTemplate } from './templates/release-order-document.template';
 import { StockStatementDocumentTemplate } from './templates/stock-statement-document.template';
 import { StockVerificationDocumentTemplate } from './templates/stock-verification-document.template';
@@ -43,6 +50,11 @@ import { VerifyController, VerifyService } from './verify.controller';
     StockStatementDocumentTemplate,
     ReleaseOrderDocumentTemplate,
     PickListDocumentTemplate,
+    PackingListDocumentTemplate,
+    DispatchNoteDocumentTemplate,
+    LoadingSheetDocumentTemplate,
+    GatePassDocumentTemplate,
+    PodDocumentTemplate,
     VerifyService,
   ],
   exports: [DocumentEngineService],

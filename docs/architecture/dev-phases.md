@@ -631,8 +631,21 @@ capped at the reservation, roll up to `partially_picked`/`picked`, and
 cancellation before dispatch mirrors every `RESERVE` with an `UNRESERVE`.
 §79's "reserve 20 → available 40" and "cancel reservation restores
 available" are asserted in `release-orders.spec.ts`; the Release Order
-and Pick List are the twelfth and thirteenth templates. Packing List,
-Dispatch, Loading Sheet, Gate Pass (`OUTWARD`), POD and returns follow.
+and Pick List are the twelfth and thirteenth templates.
+
+**Packing List, Dispatch, Loading Sheet, Gate Pass and POD landed**
+(`apps/api/src/outbound/`). `OUTWARD` has exactly one writer, fired
+from gate-out or -- for a tenant whose `workflow.outward_posting_point`
+is `dispatch` -- from dispatch confirmation, keyed per dispatch so the
+second trigger posts nothing (`DECISIONS.md` §41). Each dispatch line
+draws against the order's own `RESERVE` rows, taking physical stock and
+releasing the reservation in the same ledger row. Dispatch above what
+is picked and not already on a note is refused at creation; a loading
+sheet freezes the note's lines; the POD derives its status from what
+the consignee signed for and moves no stock. §79's "dispatch 40 → stock
+60" and "prevent dispatch above available" are asserted in
+`outbound.spec.ts`, under both posting points; five more templates
+(fourteenth to eighteenth). Returns (§37) remain.
 
 - Schema: `schema/50_outbound.sql`.
 - Docs: `stock-engine.md` §2/§6 (reservation + allocation policy),

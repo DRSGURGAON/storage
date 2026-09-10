@@ -65,7 +65,7 @@ export const TENANT_SETTINGS: readonly SettingDefinition[] = [
       'When physical stock actually leaves: at gate-out (§35/§68 default) or at ' +
       'dispatch confirmation, for a tenant that does not gate-track outbound ' +
       'vehicles. The schema supports either; only the trigger point differs.',
-    readBy: '',
+    readBy: 'OutboundPostingService.postingPoint / DispatchesService.confirm',
   },
   {
     key: 'approvals.stock_adjustment.owner_required',

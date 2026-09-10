@@ -1464,3 +1464,55 @@ changes `pick_qty` and the order's `picked_qty`, with a pick refused above
 the reservation it draws on (§79 step 7). A picked order that is cancelled
 releases its reservation in full: nothing left the shelf, so there is
 nothing to put back in the ledger, only in the staging bay.
+
+## §41 — one `OUTWARD` writer, fired from whichever document says the goods left
+
+Blueprint §35 makes gate-out the moment physical stock leaves, and the
+schema's `tenant_settings['workflow.outward_posting_point']` lets a
+tenant that does not gate-track outbound vehicles post at dispatch
+instead. Two trigger points, so the obvious risk is two postings. The
+build puts the posting in one place — `OutboundPostingService.postOutward`
+— keyed `dispatch:{id}:outward`, and both transitions call it: the gate
+pass's `gate-out` always, the dispatch's `confirm` only when the setting
+says `dispatch`. Whichever fires first posts; the other finds the rows
+already in the ledger and posts nothing. The gate pass records which
+happened in `stock_posted_at`, so a pass issued after a dispatch-posting
+tenant's confirm reads as the paper record it is. `confirm` under the
+default setting is refused outright, with the message naming the setting:
+a dispatch declaring itself gone would be a second, unwitnessed way to say
+what the gate pass exists to witness.
+
+**Each dispatch line is drawn against the release order's own `RESERVE`
+rows**, not against the pick list. The pick list groups by location and
+batch and loses the serial; the reservation rows carry location, batch
+*and* serial, and they are what the goods were promised from. One
+`OUTWARD` per lot takes the physical quantity and releases the
+reservation in the same row (`qty_out` and `reserved_delta` together), so
+a lot's `reserved_qty` cannot outlive the stock it was reserving, and
+§79's "dispatch 40 → stock 60" holds at the lot as well as in the total.
+What earlier dispatches of the same order line already took from a lot is
+subtracted through `dispatch_lines.release_order_line_id`, so partial
+dispatches draw down the reservation in receipt order.
+
+Three more choices the tests pin:
+
+- **"Prevent dispatch above available" has two walls.** The dispatch line
+  is checked at creation against picked − dispatched − what other open
+  notes on the same line already claim, and refused by name. The ledger's
+  negative-stock and negative-reservation invariants stand behind that as
+  the backstop nobody should reach.
+- **A loading sheet freezes the dispatch lines.** Its lines are copies
+  (`loading_sheet_lines.dispatch_line_id`), and the first cut let a `PATCH`
+  replace the dispatch lines under an open sheet — a foreign-key 500, and
+  had it succeeded, a dock ticking a list that no longer matched the note.
+  Line edits are refused while a sheet is open; header edits are not.
+- **A POD changes no stock.** Short or damaged at the consignee is
+  recorded, derived into the POD's status rather than chosen, and left
+  there: the goods left the building, and what happens next is a return
+  (§37) or a claim, each its own record.
+
+And one on the release order: it may be cancelled while `picked`
+(nothing moved physically; the reservation releases in full), but not
+while a dispatch note is open against it — the note has to be cancelled
+first, so no reservation is released out from under a consignment
+someone is loading.

@@ -134,6 +134,7 @@ Wired in so far:
 | GRN reversal (§3.5) | one offsetting `INWARD` (`qty_out`, `reversal_of_id`) per original row | `grn:{id}:reverse` |
 | Release order reservation (§30) | one `RESERVE` (`+reserved_delta`) per lot the policy chose, shelved lots only | `release_order:{id}:reserve` |
 | Release order cancellation | one `UNRESERVE` mirroring each `RESERVE` row | `release_order:{id}:unreserve` |
+| Gate-out (§35), or dispatch `confirm` when `workflow.outward_posting_point` is `dispatch` | one `OUTWARD` per lot the reservation named: `qty_out` and `-reserved_delta` in the same row | `dispatch:{id}:outward` |
 
 Three things the implementation settled that this document left open:
 
@@ -177,4 +178,11 @@ shelved lots (`location_id` not null) are eligible, and a shortfall
 refuses the whole order with both the shelved and the unallocated
 figure in the message. Picking posts nothing, as §2 requires.
 
-Not yet built: `OUTWARD` (gate-out).
+**`OUTWARD` has one writer** (`outbound/outbound-posting.service.ts`),
+called from the gate pass and from dispatch confirmation alike; the
+idempotency key is per dispatch, so whichever fires first posts and the
+other posts nothing (`DECISIONS.md` §41). Lines draw against the order's
+`RESERVE` rows, so the lot -- location, batch, serial -- that leaves is
+the one that was promised.
+
+Not yet built: `RETURN` (Return Inward, §37).

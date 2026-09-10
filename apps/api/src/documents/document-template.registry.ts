@@ -9,6 +9,13 @@ import { PutawayDocumentTemplate } from './templates/putaway-document.template';
 import { QuotationDocumentTemplate } from './templates/quotation-document.template';
 import { StockTransferDocumentTemplate } from './templates/stock-transfer-document.template';
 import { PickListDocumentTemplate } from './templates/pick-list-document.template';
+import {
+  DispatchNoteDocumentTemplate,
+  GatePassDocumentTemplate,
+  LoadingSheetDocumentTemplate,
+  PackingListDocumentTemplate,
+  PodDocumentTemplate,
+} from './templates/outbound-document.templates';
 import { ReleaseOrderDocumentTemplate } from './templates/release-order-document.template';
 import { StockStatementDocumentTemplate } from './templates/stock-statement-document.template';
 import { StockVerificationDocumentTemplate } from './templates/stock-verification-document.template';
@@ -38,6 +45,11 @@ export class DocumentTemplateRegistry {
     stockStatementTemplate: StockStatementDocumentTemplate,
     releaseOrderTemplate: ReleaseOrderDocumentTemplate,
     pickListTemplate: PickListDocumentTemplate,
+    packingListTemplate: PackingListDocumentTemplate,
+    dispatchNoteTemplate: DispatchNoteDocumentTemplate,
+    loadingSheetTemplate: LoadingSheetDocumentTemplate,
+    gatePassTemplate: GatePassDocumentTemplate,
+    podTemplate: PodDocumentTemplate,
   ) {
     this.templates.set(quotationTemplate.documentType, quotationTemplate);
     this.templates.set(agreementTemplate.documentType, agreementTemplate);
@@ -52,6 +64,11 @@ export class DocumentTemplateRegistry {
     this.templates.set(stockStatementTemplate.documentType, stockStatementTemplate);
     this.templates.set(releaseOrderTemplate.documentType, releaseOrderTemplate);
     this.templates.set(pickListTemplate.documentType, pickListTemplate);
+    this.templates.set(packingListTemplate.documentType, packingListTemplate);
+    this.templates.set(dispatchNoteTemplate.documentType, dispatchNoteTemplate);
+    this.templates.set(loadingSheetTemplate.documentType, loadingSheetTemplate);
+    this.templates.set(gatePassTemplate.documentType, gatePassTemplate);
+    this.templates.set(podTemplate.documentType, podTemplate);
   }
 
   get(documentType: string): DocumentTemplate {

@@ -46,6 +46,15 @@ export const PROVISIONAL_SOURCE_STATUSES: Record<string, readonly string[]> = {
   stock_statement: ['issued'],
   release_order: ['draft', 'approved'],
   pick_list: ['pending', 'in_progress'],
+  // A packing list has no status: it describes boxes and travels with them,
+  // and is reissued freely -- the dispatch note is the document that binds.
+  packing_list: ['issued'],
+  dispatch_note: ['draft', 'loaded'],
+  loading_sheet: ['pending', 'in_progress'],
+  // Once gate-out has happened the pass is the record that the goods left.
+  gate_pass: ['pending'],
+  // A captured POD carries a signature; a blank one is a form.
+  pod: ['pending'],
 };
 
 /**

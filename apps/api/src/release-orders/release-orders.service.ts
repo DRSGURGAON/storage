@@ -434,7 +434,9 @@ export class ReleaseOrdersService {
 
   private async policyAllocations(tx: postgres.TransactionSql, tenantId: string, order: ReleaseOrderRow, line: LineRow, policy: string) {
     // The ordering *is* the policy (§31). Age comes from the batch where
-    // there is one, and otherwise from the lot's first inward ledger row:
+    // there is one -- a GRN *date*, so two batches received the same day
+    // tie and the lot's first inward ledger row breaks it -- and otherwise
+    // from that ledger row alone:
     // `stock_lots.updated_at` would be wrong here, since every reservation
     // and release bumps it and would silently make a churned lot "newest".
     // FEFO falls back to receipt order for lots with no expiry, so mixed
@@ -443,13 +445,14 @@ export class ReleaseOrdersService {
       select id, location_id, batch_id, serial_no, available from (
         select sl.id, sl.location_id, sl.batch_id, sl.serial_no, (sl.physical_qty - sl.reserved_qty)::text as available,
                b.expiry_date,
-               coalesce(b.first_received_at, (
+               b.first_received_at as batch_received_at,
+               (
                  select min(l.txn_at) from stock_ledger l
                  where l.tenant_id = sl.tenant_id and l.customer_id = sl.customer_id and l.warehouse_id = sl.warehouse_id
                    and l.location_id is not distinct from sl.location_id and l.product_id = sl.product_id
                    and l.batch_id is not distinct from sl.batch_id and l.serial_no is not distinct from sl.serial_no
                    and l.qty_in > 0
-               )) as received_at
+               ) as first_in_at
         from stock_lots sl
         left join batches b on b.id = sl.batch_id
         where sl.tenant_id = ${tenantId} and sl.customer_id = ${order.customer_id} and sl.warehouse_id = ${order.warehouse_id}
@@ -459,8 +462,9 @@ export class ReleaseOrdersService {
       ) q
       order by
         case when ${policy} = 'fefo' then expiry_date end asc nulls last,
-        case when ${policy} = 'lifo' then received_at end desc nulls last,
-        received_at asc nulls last, id asc
+        case when ${policy} = 'lifo' then coalesce(batch_received_at, first_in_at) end desc nulls last,
+        case when ${policy} = 'lifo' then first_in_at end desc nulls last,
+        coalesce(batch_received_at, first_in_at) asc nulls last, first_in_at asc nulls last, id asc
     `;
     let remaining = Number(line.requested_qty);
     const out: { locationId: string; batchId: string | null; serialNo: string | null; quantity: number }[] = [];
@@ -502,6 +506,10 @@ export class ReleaseOrdersService {
    */
   cancel(actor: AuthenticatedUser, id: string, reason: string, ipAddress?: string) {
     return this.transition(actor, id, ipAddress, ['draft', 'approved', 'reserved', 'partially_picked', 'picked'], async (tx, order) => {
+      const [open] = await tx<{ number: string }[]>`
+        select number from dispatches where tenant_id = ${actor.tenantId} and release_order_id = ${id} and status <> 'cancelled' limit 1
+      `;
+      if (open) throw new BadRequestException(`Dispatch ${open.number} is open against this order -- cancel it first`);
       await this.releaseReservation(tx, actor, order);
       await tx`
         update release_orders set status = 'cancelled', cancelled_at = now(), cancelled_by = ${actor.userId},
