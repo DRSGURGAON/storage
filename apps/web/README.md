@@ -85,6 +85,21 @@ there is nothing to sell yet, it says that instead. Generating a document
 that *does* fit within the plan nudges once at the first copy and once at
 the last (§12), and never in between.
 
+## Installing it on a phone
+
+`public/manifest.webmanifest` plus the icon set makes this installable:
+Android and iOS can add it to a home screen, and a Play Store listing
+built as a Trusted Web Activity reads exactly these fields. There is
+deliberately **no service worker yet** — an offline cache on an
+operational app means someone can be shown a stock figure that was true an
+hour ago, and choosing what may be served stale is a decision about
+warehouse practice, not a build setting.
+
+The production bundle is split so that Ant Design and React are cached
+separately from this app's own code: a release changes ~45 kB gzipped
+rather than ~494 kB, which is the difference that shows up on a phone
+inside a shed.
+
 ## Checking the screens against the API
 
 `node tools/contract-audit.mjs` (with `TOKEN=` a bearer token and a server
@@ -145,5 +160,5 @@ that is a bare array where a page was expected — and every one of those
 was found this way. It misses what a component test would catch: a
 rendering regression in one component, with no API involved. If this app
 grows a piece of genuinely tricky client-side logic, that piece should get
-a unit test; today the tricky logic is all on the server, and it has 321
+a unit test; today the tricky logic is all on the server, and it has 322
 of them.

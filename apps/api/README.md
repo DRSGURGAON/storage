@@ -817,7 +817,7 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-**40 suites, 321 tests**, all against the real local database
+**40 suites, 322 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,

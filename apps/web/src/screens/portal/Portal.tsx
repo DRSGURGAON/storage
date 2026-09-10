@@ -66,13 +66,25 @@ export function PortalShell() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Header style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 24, paddingInline: 24 }}>
-        <Typography.Text strong>{session?.tenant.legalName}</Typography.Text>
+      <Header style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 12, paddingInline: 16 }}>
+        {/*
+          Both of these need a shrink limit, and for the same reason: a flex
+          item defaults to `min-width: auto`, so it refuses to become
+          narrower than its own content. Without them the seven-item menu
+          stayed 591px wide on a 390px phone and pushed the whole page
+          sideways -- §64's rule broken on every portal screen, which is
+          the half of the product a *customer* opens, usually on a phone.
+          With `minWidth: 0` antd's own overflow takes over and folds the
+          tail of the menu into a "..." item.
+        */}
+        <Typography.Text strong ellipsis style={{ minWidth: 0, maxWidth: '40%' }}>
+          {session?.tenant.legalName}
+        </Typography.Text>
         <Menu
           mode="horizontal"
           selectedKeys={[items.map((i) => i.key).filter((key) => location.pathname === key).at(0) ?? '/portal']}
           items={items}
-          style={{ flex: 1, borderBottom: 'none' }}
+          style={{ flex: 1, minWidth: 0, borderBottom: 'none' }}
         />
         <a
           onClick={() => {

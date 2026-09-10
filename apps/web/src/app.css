@@ -19,3 +19,15 @@
 .ant-descriptions-item-content {
   word-break: break-word;
 }
+
+/*
+ * A Card title is `white-space: nowrap; overflow: hidden` by default, and a
+ * heading nested inside it brings its own overflow -- so a long one is cut
+ * off mid-word with no ellipsis to say it was. Found on the portal at
+ * 390px: "Acme Consumer Goods Pvt Ltd" ended at "Pvt Lt". A customer's own
+ * name is the last thing on that screen that should be truncated.
+ */
+.ant-card-head-title {
+  white-space: normal;
+  overflow: visible;
+}

@@ -21,5 +21,26 @@ export default defineConfig({
       },
     },
   },
-  build: { outDir: 'dist', sourcemap: true },
+  build: {
+    outDir: 'dist',
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        /*
+         * React and Ant Design are ~85% of the bundle and change only when
+         * a dependency is upgraded; the app's own code changes every
+         * release. Shipped as one file, a one-line fix makes a warehouse
+         * phone re-download half a megabyte over whatever signal it has
+         * inside a shed. Split, that download is the part that actually
+         * changed.
+         */
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('antd') || id.includes('@ant-design') || id.includes('rc-')) return 'antd';
+          if (id.includes('react') || id.includes('scheduler')) return 'react';
+          return 'vendor';
+        },
+      },
+    },
+  },
 });
