@@ -8,6 +8,14 @@ interface RecordPickerProps<T> {
   path: string;
   value?: string;
   onChange?: (value: string | undefined) => void;
+  /**
+   * Passed down by `Form.Item`, along with `value`/`onChange`. Forwarding
+   * it is what connects the field's `<label for=…>` to the input -- and
+   * what lets anything driving this app by field name (a test, a
+   * screen reader, a browser's autofill) find it at all. Dropped, antd
+   * falls back to an internal `rc_select_7`.
+   */
+  id?: string;
   label: (row: T) => string;
   placeholder?: string;
   allowClear?: boolean;
@@ -33,6 +41,7 @@ export function RecordPicker<T extends { id: string }>({
   path,
   value,
   onChange,
+  id,
   label,
   placeholder,
   allowClear = true,
@@ -56,6 +65,7 @@ export function RecordPicker<T extends { id: string }>({
 
   return (
     <Select
+      id={id}
       showSearch
       allowClear={allowClear}
       disabled={disabled}

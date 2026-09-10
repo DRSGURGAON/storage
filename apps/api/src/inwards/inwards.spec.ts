@@ -120,6 +120,36 @@ describe('Inwards', () => {
       .expect(404);
   });
 
+  it('takes the warehouse from the gate entry, and refuses one that disagrees with it', async () => {
+    const gateEntry = await api()
+      .post('/gate-entries')
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ warehouseId, direction: 'in', customerId, purpose: 'inward', vehicleNumber: 'HR26DK4321' })
+      .expect(201);
+
+    // A second warehouse, which this gate entry has nothing to do with.
+    const otherWarehouse = (
+      await api().post('/warehouses').set('Authorization', `Bearer ${owner}`).send({ code: 'WH02', name: 'Elsewhere' }).expect(201)
+    ).body.id;
+    const refused = await api()
+      .post('/inwards')
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ gateEntryId: gateEntry.body.id, warehouseId: otherWarehouse, items: [{ productId, expectedQty: 5 }] })
+      .expect(400);
+    expect(refused.body.message).toMatch(/different warehouse/);
+
+    // With no warehouse given at all, the gate entry's own is used -- the
+    // vehicle was let into exactly one place, and saying so twice only
+    // creates a way for the two to disagree.
+    const inward = await api()
+      .post('/inwards')
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ gateEntryId: gateEntry.body.id, items: [{ productId, expectedQty: 5, receivedQty: 5 }] })
+      .expect(201);
+    expect(inward.body.warehouseId).toBe(warehouseId);
+    expect(inward.body.customerId).toBe(customerId);
+  });
+
   it('requires a customerId directly or via a gate entry', async () => {
     await api()
       .post('/inwards')

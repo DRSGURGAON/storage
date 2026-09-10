@@ -288,10 +288,8 @@ export class InwardsService {
   async create(actor: AuthenticatedUser, dto: CreateInwardDto, ipAddress?: string) {
     const result = await withTenant(this.sql, actor.tenantId, async (tx) => {
       const scope = await loadWarehouseScope(tx, actor);
-      const [warehouse] = await tx`select 1 from warehouses where id = ${dto.warehouseId} and tenant_id = ${actor.tenantId}`;
-      if (!warehouse) throw new NotFoundException('Warehouse not found');
-      assertWarehouseInScope(scope, dto.warehouseId);
 
+      let warehouseId = dto.warehouseId ?? null;
       let customerId = dto.customerId ?? null;
       let gateEntryDefaults: GateEntryDefaults | null = null;
 
@@ -299,6 +297,7 @@ export class InwardsService {
         const [gateEntry] = await tx<
           {
             status: string;
+            warehouse_id: string;
             customer_id: string | null;
             vehicle_id: string | null;
             vehicle_number: string | null;
@@ -309,7 +308,7 @@ export class InwardsService {
             transporter_name: string | null;
           }[]
         >`
-          select status, customer_id, vehicle_id, vehicle_number, driver_id, driver_name, driver_mobile,
+          select status, warehouse_id, customer_id, vehicle_id, vehicle_number, driver_id, driver_name, driver_mobile,
                  transporter_id, transporter_name
           from gate_entries where id = ${dto.gateEntryId} and tenant_id = ${actor.tenantId}
         `;
@@ -317,6 +316,20 @@ export class InwardsService {
         if (gateEntry.status !== 'open') {
           throw new BadRequestException(`Cannot link a gate entry in '${gateEntry.status}' status (expected 'open')`);
         }
+        // The gate entry already says which warehouse the vehicle was let
+        // into, so the inward does not have to be told again -- and must not
+        // be allowed to disagree. Before this, `warehouseId` was required
+        // and unchecked: an inward could be recorded against a warehouse the
+        // vehicle never entered, and every later record in the chain (GRN,
+        // put-away, stock) would inherit the wrong one with nothing to catch
+        // it. Found by driving the real screen, which had no warehouse to
+        // offer after the gate entry was picked.
+        if (warehouseId && warehouseId !== gateEntry.warehouse_id) {
+          throw new BadRequestException(
+            'That gate entry was raised for a different warehouse; the goods cannot be received somewhere the vehicle never went',
+          );
+        }
+        warehouseId = warehouseId ?? gateEntry.warehouse_id;
         customerId = customerId ?? gateEntry.customer_id;
         gateEntryDefaults = {
           customerId: gateEntry.customer_id,
@@ -329,6 +342,13 @@ export class InwardsService {
           transporterName: gateEntry.transporter_name,
         };
       }
+      if (!warehouseId) {
+        throw new BadRequestException('warehouseId is required (directly, or via a gate entry)');
+      }
+      const [warehouse] = await tx`select 1 from warehouses where id = ${warehouseId} and tenant_id = ${actor.tenantId}`;
+      if (!warehouse) throw new NotFoundException('Warehouse not found');
+      assertWarehouseInScope(scope, warehouseId);
+
       if (!customerId) {
         throw new BadRequestException('customerId is required (directly, or via a gate entry that has one)');
       }
@@ -351,7 +371,7 @@ export class InwardsService {
           lr_number, lr_date, invoice_number, invoice_date, invoice_value, eway_bill_number, eway_bill_date,
           po_number, remarks, created_by, updated_by
         ) values (
-          ${id}, ${actor.tenantId}, ${number}, ${dto.inwardAt ?? new Date().toISOString()}, ${dto.warehouseId},
+          ${id}, ${actor.tenantId}, ${number}, ${dto.inwardAt ?? new Date().toISOString()}, ${warehouseId},
           ${customerId}, ${dto.supplierId ?? null}, ${dto.supplierName ?? null}, ${dto.gateEntryId ?? null},
           ${refs.vehicleId}, ${refs.vehicleNumber}, ${refs.driverId}, ${refs.driverName}, ${refs.driverMobile},
           ${refs.transporterId}, ${refs.transporterName}, ${dto.lrNumber ?? null}, ${dto.lrDate ?? null},

@@ -1780,3 +1780,29 @@ Two details the first version got wrong, both fixed:
   addresses behind, and the next seeding attempt fails signup with a bare
   409 from three layers down. The script now checks for an account with no
   membership and says exactly that.
+
+## §47 — the Inward's warehouse came from nowhere, and could disagree with the gate entry
+
+Found by building the screen. `POST /inwards` auto-filled customer,
+vehicle, driver and transporter from a linked gate entry (§28's
+required-or-via-gate-entry pattern) but required `warehouseId` separately
+and never checked it against the gate entry's own. So an inward could be
+recorded against warehouse B for a vehicle the security desk had let into
+warehouse A — and every record downstream (GRN, put-away, the stock lot
+itself) would inherit the wrong one, with nothing anywhere to catch it.
+
+Nothing in the UI made this visible either: the form offered a required
+Warehouse field that a user who had just picked a gate entry had no way to
+answer except by remembering. That is the shape of a field that should not
+have been asked for.
+
+`warehouseId` is now optional and behaves like `customerId`: taken from the
+gate entry when one is linked, required when one is not, and **refused when
+both are given and disagree** — "That gate entry was raised for a different
+warehouse; the goods cannot be received somewhere the vehicle never went."
+Refused rather than silently preferring one: if the two disagree, one of
+them is a mistake, and the caller is the only one who knows which.
+
+`inwards.spec.ts` covers both halves. The general lesson is the one
+`workflow-and-statuses.md` §1 already argues for auto-fill: a value the
+server can derive should not be a field the client is trusted to repeat.

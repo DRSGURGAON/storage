@@ -3,8 +3,12 @@ import { ArrayMinSize, IsArray, IsDateString, IsNumber, IsOptional, IsString, Is
 import { CreateInwardItemDto } from './create-inward-item.dto';
 
 export class CreateInwardDto {
-  @IsUUID()
-  warehouseId!: string;
+  /**
+   * Required directly, or auto-filled from `gateEntryId` -- the gate entry
+   * already names the warehouse the vehicle was let into, and an inward
+   * that disagreed with it is refused rather than silently believed.
+   */
+  @IsOptional() @IsUUID() warehouseId?: string;
 
   /** Required directly, or resolved from `gateEntryId`'s own customer (InwardsService.create's own check). */
   @IsOptional() @IsUUID() customerId?: string;

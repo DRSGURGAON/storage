@@ -15,6 +15,15 @@ import { Warehouses, WarehouseDetail } from './screens/masters/Warehouses';
 import { Products } from './screens/masters/Products';
 import { Transport } from './screens/masters/Transport';
 import { RateCards, RateCardDetail } from './screens/masters/RateCards';
+import { GateEntries, GateEntryDetail } from './screens/inbound/GateEntries';
+import { Inwards, InwardDetail } from './screens/inbound/Inwards';
+import { Grns, GrnDetail } from './screens/inbound/Grns';
+import {
+  Putaways,
+  PutawayDetail,
+  WarehouseReceipts,
+  WarehouseReceiptDetail,
+} from './screens/inbound/Putaways';
 import 'antd/dist/reset.css';
 
 /**
@@ -55,6 +64,16 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="transport" element={<Transport />} />
                     <Route path="rate-cards" element={<RateCards />} />
                     <Route path="rate-cards/:id" element={<RateCardDetail />} />
+                    <Route path="gate-entries" element={<GateEntries />} />
+                    <Route path="gate-entries/:id" element={<GateEntryDetail />} />
+                    <Route path="inwards" element={<Inwards />} />
+                    <Route path="inwards/:id" element={<InwardDetail />} />
+                    <Route path="grns" element={<Grns />} />
+                    <Route path="grns/:id" element={<GrnDetail />} />
+                    <Route path="putaways" element={<Putaways />} />
+                    <Route path="putaways/:id" element={<PutawayDetail />} />
+                    <Route path="warehouse-receipts" element={<WarehouseReceipts />} />
+                    <Route path="warehouse-receipts/:id" element={<WarehouseReceiptDetail />} />
                   </Route>
                 </Route>
               </Routes>
