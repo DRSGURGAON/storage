@@ -9,7 +9,7 @@ import {
   MinLength,
 } from 'class-validator';
 
-/** Staff roles only. 'customer' memberships belong to the portal (V1.1) and need a customer_id. */
+/** Staff roles. A `customer` membership is a portal login and needs a `customerId` -- see MEMBER_ROLE_CODES. */
 export const STAFF_ROLE_CODES = [
   'owner',
   'admin',
@@ -18,6 +18,9 @@ export const STAFF_ROLE_CODES = [
   'billing_executive',
   'accountant',
 ] as const;
+
+/** `customer` is the portal login (`tenancy-and-security.md` §2), and the only role that carries a `customerId`. */
+export const MEMBER_ROLE_CODES = [...STAFF_ROLE_CODES, 'customer'] as const;
 
 export class AddMemberDto {
   @IsEmail()
@@ -42,8 +45,11 @@ export class AddMemberDto {
   @MinLength(8, { message: 'password must be at least 8 characters' })
   password!: string;
 
-  @IsIn(STAFF_ROLE_CODES)
-  roleCode!: (typeof STAFF_ROLE_CODES)[number];
+  @IsIn(MEMBER_ROLE_CODES)
+  roleCode!: (typeof MEMBER_ROLE_CODES)[number];
+
+  /** Required for `roleCode: 'customer'`, and refused for every other role. */
+  @IsOptional() @IsUUID() customerId?: string;
 
   @IsOptional()
   @IsArray()

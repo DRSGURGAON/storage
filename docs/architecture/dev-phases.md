@@ -705,6 +705,19 @@ Statement) complete the §46/§76 list of twenty-four.
 
 ## Phase 8 — Customer Portal, Reports, Notifications, Audit, QR Verification
 
+**Status: the customer portal landed** (`apps/api/src/portal/`). A portal
+login is an ordinary `tenant_users` row with `role = customer` and a
+mandatory `customer_id`; `PortalGuard` re-reads that membership on every
+request, and `PortalService` hard-codes the customer filter into every
+query rather than passing one around. The portal shows the customer their
+own stock, goods receipts, dispatches with delivery status, release
+orders, invoices, account statement and documents (with the download
+re-checking ownership at issue time), and lets them raise a return
+request against a dispatch they actually received. The staff API is
+closed to portal sessions by the permission matrix and the portal to
+staff by its guard — the two halves are independent. Dashboard, search,
+notifications, the audit viewer, plan/usage and pricing follow.
+
 - Schema: `notification_rules`/`notifications`, `audit_logs`,
   `approval_chain_templates`/`approval_instances`/`approval_steps` from
   `schema/70_documents_governance.sql` (audit logging should really be wired

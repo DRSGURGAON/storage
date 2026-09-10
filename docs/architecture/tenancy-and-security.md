@@ -44,6 +44,27 @@ belt-and-braces way as tenant isolation:
   `customer_id = current_setting('app.customer_id')::uuid` when
   `current_setting('app.actor_kind') = 'customer_portal'`.
 
+> **Implemented** (`apps/api/src/portal/`, Phase 8): the service-layer half
+> in full. `PortalGuard` admits only an active `customer` membership and
+> re-reads its `customer_id` from `tenant_users` on **every** request --
+> a token is authentic but it is also a snapshot, so a portal login that
+> has been disabled or re-pointed stops working immediately rather than
+> when its token expires. `PortalService` then writes every query in one
+> file with `customer_id = ${customerId}` inline: none takes a customer
+> from the request, and none calls a staff service that could be handed a
+> different one. The portal's one write (a return request, per
+> `permissions-matrix.md`) has no `customerId` or `warehouseId` field in
+> its DTO at all — both come from the membership.
+>
+> The other direction is closed independently: the `customer` role is
+> seeded with **no permission codes**, so `PermissionsGuard` refuses every
+> staff endpoint before its handler runs, and staff are refused the portal
+> by the same guard that admits customers. Neither half relies on the
+> other. The RLS policy above (`app.customer_id` / `app.actor_kind`) is
+> the third layer and is **not yet added** — `schema/90_row_level_security.sql`
+> generates tenant policies only, and a portal-specific policy is still
+> outstanding.
+
 Document downloads (§53, §75) go through a signed, time-limited URL generated
 per request from `attachments.storage_key` — the object store is never
 publicly readable, and the sign step re-checks tenant/customer ownership at

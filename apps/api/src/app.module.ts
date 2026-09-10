@@ -24,6 +24,7 @@ import { PutawaysModule } from './putaways/putaways.module';
 import { InvoicingModule } from './invoicing/invoicing.module';
 import { OutboundModule } from './outbound/outbound.module';
 import { PickListsModule } from './pick-lists/pick-lists.module';
+import { PortalModule } from './portal/portal.module';
 import { ReleaseOrdersModule } from './release-orders/release-orders.module';
 import { ReceivablesModule } from './receivables/receivables.module';
 import { ReportsModule } from './reports/reports.module';
@@ -82,6 +83,7 @@ import { ScopedThrottlerGuard, throttlerConfig } from './throttling';
     ReturnsModule,
     InvoicingModule,
     ReceivablesModule,
+    PortalModule,
     WarehouseReceiptsModule,
   ],
   controllers: [HealthController],

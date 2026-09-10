@@ -21,6 +21,7 @@ interface MembershipRow {
   tenant_slug: string;
   legal_name: string;
   role_code: string;
+  customer_id: string | null;
 }
 
 /**
@@ -183,7 +184,7 @@ export class AuthService {
       await tx`select set_config('app.actor_user_id', ${user.id}, true)`;
       return tx<MembershipRow[]>`
         select tu.id as tenant_user_id, tu.tenant_id, t.slug as tenant_slug,
-               t.legal_name, r.code as role_code
+               t.legal_name, r.code as role_code, tu.customer_id
         from tenant_users tu
         join tenants t on t.id = tu.tenant_id
         join roles r on r.id = tu.role_id
@@ -231,6 +232,7 @@ export class AuthService {
       tenantId: chosen.tenant_id,
       tenantUserId: chosen.tenant_user_id,
       roleCode: chosen.role_code,
+      customerId: chosen.customer_id,
     });
 
     await this.audit.record({
@@ -247,6 +249,7 @@ export class AuthService {
       accessToken,
       tenant: { slug: chosen.tenant_slug, legalName: chosen.legal_name },
       role: chosen.role_code,
+      customerId: chosen.customer_id,
     };
   }
 

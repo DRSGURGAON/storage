@@ -501,6 +501,21 @@ rows with no error at all.
   "prevent duplicate invoice posting"); cancelling before issue hands the
   run back to `previewed` so the corrected invoice comes from the same
   computation.
+- **Customer portal** (`GET /portal/me`, `/stock`, `/goods-receipts`,
+  `/dispatches`, `/release-orders`, `/invoices`, `/statement`,
+  `/documents`, `/documents/:id/download`, and
+  `POST /portal/return-requests`) — blueprint §53. A portal login is a
+  `tenant_users` row with `roleCode: 'customer'` and a mandatory
+  `customerId` (`POST /users` enforces both halves: a customer membership
+  without one is a 400, a staff membership with one is a 400). `PortalGuard`
+  admits only an active customer membership and **re-reads its
+  `customer_id` from the database on every request**, so a disabled or
+  re-pointed portal login stops working immediately rather than when its
+  token expires. Every portal query hard-codes that filter in one file,
+  and the return-request DTO has no `customerId` or `warehouseId` field at
+  all. There is no `PermissionsGuard` on these routes by design: the
+  `customer` role holds no staff permission codes, which is also what
+  closes the staff API to portal sessions (`tenancy-and-security.md` §2).
 - `POST/GET /credit-debit-notes[/:id]`, `/submit`, `/cancel`
   (`create_credit_debit_note`), `/approve`, `/issue`
   (`approve_credit_debit_note`), `/document[/preview]` — §41, the only way
@@ -828,6 +843,19 @@ All against the real local database (`DATABASE_URL`), not mocks:
   each resolved count line pointing back at the adjustment that fixed it;
   the tenth template rendering differently blank versus completed; and
   reject/cancel plus tenant isolation.
+- `portal/portal.spec.ts` — two customers with real goods, documents and
+  dispatches behind them, then: a portal membership refused without a
+  customer, with an unknown customer, with warehouse scoping, and a staff
+  membership refused *with* a customer; the portal showing its own stock,
+  receipts, dispatches, release orders, statement and documents with the
+  numbers asserted; the other customer's portal seeing only its own, and
+  Acme's document id returning 404 to Bolt's portal rather than a file;
+  seven staff endpoints and a staff-side statement all 403 to a portal
+  session, and the portal 403 to staff; a return request refused above
+  what the dispatch carried and refused outright on another customer's
+  dispatch, then raised, appearing in the staff queue attributed to the
+  right customer, approved by staff and refused to the portal; and a
+  disabled membership killing a still-valid token on the next request.
 - `receivables/receivables.spec.ts` — two real issued invoices billed over
   their own weeks, then: a payment posted once however many times the
   button is clicked (the retry sends a **different amount** under the same

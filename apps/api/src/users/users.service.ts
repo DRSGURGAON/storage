@@ -24,12 +24,13 @@ interface MemberRow {
   role_name: string;
   status: string;
   warehouse_ids: string[] | null;
+  customer_id: string | null;
   created_at: Date;
 }
 
 const MEMBER_SELECT = `
   tu.id, tu.user_id, u.email, u.full_name, r.code as role_code, r.name as role_name,
-  tu.status, tu.warehouse_ids, tu.created_at`;
+  tu.status, tu.warehouse_ids, tu.customer_id, tu.created_at`;
 const MEMBER_FROM = `
   from tenant_users tu
   join users u on u.id = tu.user_id
@@ -65,6 +66,23 @@ export class UsersService {
     `;
     if (!role) throw new BadRequestException('Unknown role');
 
+    // tenancy-and-security.md §2: a portal login is a `customer` membership
+    // with a mandatory `customer_id`. Both halves are enforced here -- a
+    // customer membership without one would be a portal session that could
+    // see the whole tenant, and a staff membership with one would suggest a
+    // scoping that nothing applies.
+    if (dto.roleCode === 'customer') {
+      const portalCustomerId = dto.customerId;
+      if (!portalCustomerId) throw new BadRequestException('A customer (portal) membership needs a customerId');
+      const found = await withTenant(this.sql, actor.tenantId, (tx) => tx`
+        select 1 from customers where id = ${portalCustomerId} and tenant_id = ${actor.tenantId}
+      `);
+      if (found.length === 0) throw new NotFoundException('Customer not found');
+      if (dto.warehouseIds?.length) throw new BadRequestException('A portal membership is scoped by customer, not by warehouse');
+    } else if (dto.customerId) {
+      throw new BadRequestException(`customerId applies only to a 'customer' (portal) membership`);
+    }
+
     // users is global identity (no RLS); tenant_users is tenant-scoped.
     const [existing] = await this.sql<{ id: string }[]>`
       select id from users where email = ${dto.email}
@@ -90,9 +108,9 @@ export class UsersService {
         }
         const membershipId = randomUUID();
         await tx`
-          insert into tenant_users (id, tenant_id, user_id, role_id, warehouse_ids, status, invited_at)
+          insert into tenant_users (id, tenant_id, user_id, role_id, warehouse_ids, customer_id, status, invited_at)
           values (${membershipId}, ${actor.tenantId}, ${userId}, ${role.id},
-                  ${dto.warehouseIds ?? null}, 'active', now())
+                  ${dto.warehouseIds ?? null}, ${dto.customerId ?? null}, 'active', now())
         `;
         const [row] = await tx<MemberRow[]>`
           select ${tx.unsafe(MEMBER_SELECT)} ${tx.unsafe(MEMBER_FROM)}
@@ -197,7 +215,7 @@ export class UsersService {
 }
 
 function summarize(m: MemberRow) {
-  return { roleCode: m.role_code, status: m.status, warehouseIds: m.warehouse_ids };
+  return { roleCode: m.role_code, status: m.status, warehouseIds: m.warehouse_ids, customerId: m.customer_id };
 }
 
 function toApi(m: MemberRow) {
@@ -209,6 +227,7 @@ function toApi(m: MemberRow) {
     role: { code: m.role_code, name: m.role_name },
     status: m.status,
     warehouseIds: m.warehouse_ids ?? [],
+    customerId: m.customer_id,
     createdAt: m.created_at,
   };
 }
