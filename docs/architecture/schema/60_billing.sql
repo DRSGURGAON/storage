@@ -163,4 +163,7 @@ create table payment_allocations (
 -- ---------- Customer Statement (§43) ----------------------------------------
 -- No physical table: the statement is a computed view over invoices,
 -- credit_debit_notes and payment_receipts filtered by customer_id and date
--- range. See ../reporting.md §4 for the exact projection/query shape.
+-- range. Built as `buildCustomerStatement()` in
+-- apps/api/src/receivables/statements.service.ts, which is also what the
+-- Customer Statement document template renders from. (This comment used to
+-- point at a ../reporting.md that was never written.)

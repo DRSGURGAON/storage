@@ -15,6 +15,34 @@ alone.
 
 ## 1. Executive Recommendation
 
+> **Status, as of Phase 9 (this is now a historical record).** This document
+> was written before any code existed, as a scope-freeze pass over the two
+> architecture phases. It has since been overtaken by the build, and is kept
+> for the reasoning behind each in/out call rather than as a description of
+> the system. What changed:
+>
+> - The backend is built. `apps/api` is a NestJS + PostgreSQL application
+>   with ~40 modules covering Phases 1–8 and 33 integration-test suites;
+>   §9's "Backend service/API: Missing" column is false in every row, and
+>   §10's "no application code exists yet" and "technology stack is still
+>   not chosen" are both false (`DECISIONS.md` §0 was decided, and the whole
+>   stack is built on it).
+> - **Returns and the Customer Portal were not deferred.** §1 and §3 defer
+>   both to V1.1; both were built (`apps/api/src/returns/`,
+>   `apps/api/src/portal/`), as were the P1 items Debit Note, Stock
+>   Transfer, Stock Verification, standalone Packing List, Notifications,
+>   and the Stock Ageing report.
+> - Still genuinely not built, exactly as this document expected: the
+>   **payment gateway** (`DECISIONS.md` §13), a **full reports library**
+>   beyond the customer stock statement and ageing, and **any frontend at
+>   all** — `apps/` contains only `api`. Every screen-map row in §8
+>   describes a UI that does not exist; the API behind it does.
+>
+> Individual sections below carry inline corrections where a claim would
+> otherwise mislead. Where this document and `dev-phases.md` disagree about
+> what exists, `dev-phases.md` and the code are right.
+
+
 Ship V1 as: **customer onboarding → commercial terms → inward → stock →
 outward → billing**, exactly as this phase's closing philosophy states,
 with every document in that loop generated automatically from the
@@ -32,7 +60,9 @@ schema: **every V1 P0 item is already fully modeled** in
 `schema/00_core.sql` through `schema/80_subscription.sql`. Nothing here
 requires a new table or a schema migration. The entire gap is application
 code — no backend service, no API, no frontend screen exists yet (see
-§9). That means this scope freeze is a build-order and UI-complexity
+§9). *(That held when written. The backend half has since been built; nine
+schema fixes were needed after all, `schema/85`–`97`, each found by building
+on the model rather than reading it.)* That means this scope freeze is a build-order and UI-complexity
 decision, not a data-model decision, and every "defer" call below can be
 reversed later by building the missing UI against schema that's already
 there, not by re-architecting anything.
@@ -227,7 +257,9 @@ re-asking the user.
 
 Default free limit is **2, `period = 'lifetime'`**, for every metered
 document type below, seeded on the `FREE` plan per `entitlement-engine.md`
-§6. Rows marked "Not metered" are `feature_keys.is_meterable = false`
+§6. The seed (`apps/api/src/db/seed-data.ts`) holds **27 feature keys — 22
+metered, 5 unmetered** — matching this table since `RETURN_INWARD` was
+added to it, once Returns was built rather than deferred. Rows marked "Not metered" are `feature_keys.is_meterable = false`
 (schema already supports this — no change needed).
 
 | Feature | Feature key | Free limit | Usage event | Counts | Does not count | Subscription requirement past limit | Demo behavior |
@@ -253,6 +285,7 @@ document type below, seeded on the `FREE` plan per `entitlement-engine.md`
 | Stock Transfer (P1) | `STOCK_TRANSFER` | 2 | same | same | same | same | same |
 | Stock Verification (P1) | `STOCK_VERIFICATION` | 2 | same | same | same | same | same |
 | Packing List (P1, opt-in) | `PACKING_LIST` | 2 | same | same | same | same | same |
+| Return Inward | `RETURN_INWARD` | 2 | same | same | same | same | same |
 | Customer KYC | `CUSTOMER_KYC` | — | Not metered | — | — | Always available on every plan | Always available |
 | Rate Card | `RATE_CARD` | — | Not metered | — | — | Always available | Always available |
 | Stock Ledger | `STOCK_LEDGER` | — | Not metered | — | — | Always available | Always available |
@@ -277,41 +310,54 @@ these instead of leaving them fully open.
 | Billing | Storage/Handling Charges (billing run preview), Invoices, Credit Notes, Debit Notes (P1), Receipts, Customer Statements | Preview → Generate Invoice → Record Payment | Invoice ↔ Credit/Debit Note ↔ Receipt ↔ Statement | `create_invoice`, `approve_invoice`, etc. | Paywall on invoice/credit-note generate past free limit |
 | Reports | Stock Ledger, Customer Stock Statement, Customer Account Statement | Filter, export | n/a (these are the reports) | `view_reports` | Not metered |
 | Settings | Company, Number Series, Users & Roles, Plan & Usage | Configure | n/a | Owner/Admin only for most | Plan & Usage page itself is the usage-transparency surface |
-| Customer Portal | *(excluded from V1 — see §3)* | — | — | — | — |
+| Customer Portal | *(excluded from V1 — see §3; **built anyway**: `GET /portal/*` and `POST /portal/return-requests`)* | Read-only own stock, receipts, dispatches, invoices, documents | own records only | portal membership, not a staff role | — |
 
 No screen exists for Returns, full Reports library, Notifications config,
-or the Agreement wizard's 11 separate steps — deliberately, per §3.
+or the Agreement wizard's 11 separate steps — deliberately, per §3. *(The
+**APIs** for Returns, Notifications and the portal were built after all;
+what is missing for all of them, and for every row in this table, is the
+frontend, since none exists yet.)*
 
 ## 9. Existing Architecture vs. V1 Gap Analysis
 
+> **Superseded.** Every "Missing" in the *Backend service/API* column below
+> is now built; the module that implements each row is named in the Notes.
+> The *Frontend* column is still accurate — nothing has been built there.
+
 | Area | Schema | Backend service/API | Frontend | Notes |
 |---|---|---|---|---|
-| Tenancy, auth, RBAC | Already implemented (`schema/00_core.sql`) | Missing | Missing | No modification needed to the schema; this is pure build |
-| Entitlement/subscription engine | Already implemented (`schema/80_subscription.sql`) | Missing | Missing | `checkEntitlement`/`consumeEntitlement` are specified in `entitlement-engine.md` but not yet coded |
-| Numbering engine | Already implemented (`number_series` in `schema/00_core.sql`) | Missing | n/a | `allocateNumber()` spec is written, not built |
-| Masters (Customer/Warehouse/Product/Transport/Rate Card) | Already implemented (`schema/10_masters.sql`) | Missing | Missing | Includes KYC status fields already |
-| Commercial (Quotation, Agreement, Rate Card linkage) | Already implemented (`schema/20_commercial.sql`) | Missing | Missing | Wizard-vs-single-form is a frontend decision only, not a schema one |
-| Inbound (Gate Entry → Warehouse Receipt) | Already implemented (`schema/30_inbound.sql`, including the `inspections` table V1 won't use yet) | Missing | Missing | No modification needed |
-| Stock engine | Already implemented (`schema/40_stock.sql`) | Missing | Missing | Ledger-first invariants are specified in `stock-engine.md`, not yet coded |
-| Outbound (Release Order → POD, plus Returns/Packing List V1 won't build yet) | Already implemented (`schema/50_outbound.sql`) | Missing | Missing | Dispatch already carries `total_packages`/`total_weight_kg`, confirming Packing List can be safely deferred with zero schema risk |
-| Billing (Invoice, Debit/Credit Note, Payment) | Already implemented (`schema/60_billing.sql`) | Missing | Missing | No modification needed |
-| Document engine, QR, versioning, approvals (generic engine; V1 uses only its single-step case) | Already implemented (`schema/70_documents_governance.sql`) | Missing | Missing | The multi-step approval chain tables exist and are simply underused by V1's simpler config, not blocked by anything |
-| Document design system / PDF rendering | Specified (`document-engine.md` §3) | Missing (no renderer chosen/built) | Missing | Requires picking a PDF rendering approach when implementation starts — not a scope question, an implementation one |
+| Tenancy, auth, RBAC | Already implemented (`schema/00_core.sql`) | **Built** | Missing | `apps/api/src/auth/`, `db/tenant-context.ts`, `users/`; RLS in `schema/90`–`92` |
+| Entitlement/subscription engine | Already implemented (`schema/80_subscription.sql`) | **Built** | Missing | `apps/api/src/entitlement/entitlement.service.ts` — `checkEntitlement`/`consumeEntitlement`/`recordFailedAttempt` |
+| Numbering engine | Already implemented (`number_series` in `schema/00_core.sql`) | **Built** | n/a | `apps/api/src/numbering/numbering.service.ts`; needed `schema/93` to make its unique key real |
+| Masters (Customer/Warehouse/Product/Transport/Rate Card) | Already implemented (`schema/10_masters.sql`) | **Built** | Missing | `customers/`, `warehouses/`, `products/`, `transport/`, `billing/` |
+| Commercial (Quotation, Agreement, Rate Card linkage) | Already implemented (`schema/20_commercial.sql`) | **Built** | Missing | `quotations/`, `agreements/`; wizard-vs-single-form is still a frontend decision |
+| Inbound (Gate Entry → Warehouse Receipt) | Already implemented (`schema/30_inbound.sql`) | **Built** | Missing | `gate-entries/`, `inwards/`, `grns/`, `inspections/`, `discrepancy-reports/`, `putaways/`, `warehouse-receipts/` — `inspections` is used after all |
+| Stock engine | Already implemented (`schema/40_stock.sql`) | **Built** | Missing | `stock/`, `stock-transfers/`, `stock-verifications/`, `stock-adjustments/`; needed `schema/96` before the balance key was real |
+| Outbound (Release Order → POD, Returns, Packing List) | Already implemented (`schema/50_outbound.sql`) | **Built** | Missing | `release-orders/`, `pick-lists/`, `outbound/`, `returns/` — Returns and a standalone Packing List were built rather than deferred |
+| Billing (Invoice, Debit/Credit Note, Payment) | Already implemented (`schema/60_billing.sql`) | **Built** | Missing | `invoicing/`, `receivables/`; needed `schema/97` for payment idempotency |
+| Document engine, QR, versioning, approvals | Already implemented (`schema/70_documents_governance.sql`) | **Built** | Missing | `documents/` with 24 registered templates; needed `schema/95` for the public verify lookup. `getDocumentRelations` is the one specified piece still unbuilt |
+| Document design system / PDF rendering | Specified (`document-engine.md` §3) | **Built** | Missing | `documents/pdf-renderer.service.ts` + `documents/html/layout.ts` — headless Chromium via `puppeteer-core` (`DECISIONS.md` §24) |
 
-**Bottom line: nothing in this V1 scope requires a new entity, a new API
-shape, or a schema modification.** The gap is 100% "write the application,"
-none of it "redesign the data model" — a direct consequence of the previous
-two phases having already scoped the full functional and SaaS blueprints
-before any code was written.
+**Bottom line, as written: nothing in this V1 scope requires a new entity,
+a new API shape, or a schema modification.** The gap is 100% "write the
+application," none of it "redesign the data model."
+
+*How that held up:* mostly, and not entirely. No table was redesigned and
+no domain entity was added. But nine corrective schema files were needed
+(`schema/85`, `90`–`97`), and every one of them closed a constraint that
+looked right on the page and enforced nothing in practice — four instances
+of the same nullable-column uniqueness gap, two RLS lookups that had to
+exist before login and QR verification could work at all, and one missing
+idempotency column. Reviewing DDL is not the same as building on it.
 
 ## 10. Launch Blockers
 
-**P0 — launch blockers:**
-- No application code exists yet for any of the above; the full V1 P0 set
-  must be built (expected — this is the state after two architecture-only
-  phases, not a new finding).
-- Technology stack is still not chosen (`DECISIONS.md` §0) — this blocks
-  Phase 1 from starting at all and needs a decision immediately.
+**P0 — launch blockers** *(the first two are closed; see the banner in §1)*:
+- ~~No application code exists yet~~ — the backend is built through Phase 8.
+  What remains a launch blocker is that **no frontend exists**: every screen
+  in §8 is unbuilt, and the API alone is not a product a warehouse can use.
+- ~~Technology stack is still not chosen~~ — decided and built on
+  (`DECISIONS.md` §0): NestJS + TypeScript on PostgreSQL 16.
 - The Agreement template's legal wording needs actual legal review before
   any real tenant sends it to a real customer (blueprint's own explicit
   requirement) — engineering cannot close this, it needs a human legal
@@ -321,7 +367,9 @@ before any code was written.
   starts, since they shape how much UI gets built.
 
 **P1 — important, should land in or shortly after V1:**
-- Debit Note, Stock Transfer, Stock Verification, opt-in Packing List.
+- ~~Debit Note, Stock Transfer, Stock Verification, opt-in Packing List~~ —
+  all four built (`receivables/`, `stock-transfers/`, `stock-verifications/`,
+  and a standalone `packing_list` document type).
 - A minimal Plan & Usage page (already scoped in `ux-system.md` §13) —
   launching the entitlement engine without any visible usage page would
   make the paywall feel arbitrary to a real subscriber.

@@ -84,20 +84,36 @@ happened without scanning the ledger.
 the batch, and never updated. Ageing buckets
 (`tenant_settings['stock.ageing_buckets']`, default `0-30/31-60/61-90/91-180/180+`
 per §26) are computed as `now() - batches.first_received_at`, grouped by the
-configured bucket edges — a reporting-time computation (see
-`reporting.md`, not yet written — tracked as a Phase 8 deliverable in
-`dev-phases.md`), not a stored column, so changing the bucket configuration
-doesn't require a backfill.
+configured bucket edges — a reporting-time computation, not a stored
+column, so changing the bucket configuration doesn't require a backfill.
+Built as `GET /reports/ageing` (`apps/api/src/reports/`), which reads the
+tenant setting when one is present and falls back to the default edges. The
+`reporting.md` this section once pointed at was never written and is not
+planned: the two reports V1 needs (customer stock statement and ageing) live
+in that module and are documented by their own specs. `schema/60_billing.sql`
+still carries the same stale pointer in a comment.
 
 ## 6. Allocation policy for picking (§31)
 
-`pick_lists.allocation_policy` (`fifo` default, or `lifo`/`fefo`/
-`nearest_location`/`manual`) decides which `stock_lots` rows a Pick List
-proposes for a required quantity. FIFO/FEFO order by
-`batches.first_received_at` / `batches.expiry_date`; `nearest_location` orders
-by a configurable location-proximity ranking; `manual` leaves line-level
-location selection to the picker. The policy is a per-warehouse or per-tenant
-setting, never hard-coded, per blueprint §31's explicit requirement.
+The allocation policy (`fifo` default, or `lifo`/`fefo`/`manual`) decides
+which `stock_lots` rows are drawn on for a required quantity. FIFO/LIFO
+order by `batches.first_received_at` (falling back to the lot's earliest
+inward ledger row), FEFO by `batches.expiry_date`; `manual` takes an
+explicit lot choice from the caller. The policy is a per-request or
+per-tenant setting, never hard-coded, per blueprint §31's explicit
+requirement.
+
+Two corrections against the built code (`DECISIONS.md` §40):
+
+- **`nearest_location` is not supported.** It was listed here from §31's
+  wording, but there is no location-proximity ranking to order by — bins
+  carry a hierarchy code, not coordinates — so the API rejects it rather
+  than silently falling back to FIFO. It stays out of V1.
+- **The policy runs at reservation, not at pick-list generation.**
+  `POST /release-orders/:id/reserve` is where lots are chosen and `RESERVE`
+  rows are posted; the Pick List is then *generated from* those reservation
+  rows and chooses nothing. Deciding at pick time would mean the goods a
+  customer was promised could still be given away in between.
 
 ## 7. Multi-warehouse & multi-customer separation (§79)
 
@@ -110,7 +126,7 @@ document, not a mutation of a single row's `warehouse_id`.
 
 ---
 
-## Implemented (Phases 5–6, in progress)
+## Implemented (Phases 5–7, complete)
 
 `apps/api/src/stock/` — `StockService.postWithin()` is the only code
 path in the repository that writes `stock_lots`. Callers pass their own

@@ -3,6 +3,11 @@
 Plain PostgreSQL DDL expressing the V1 data model. Split by domain so each
 file stays reviewable; load order matters because of foreign keys.
 
+Files `00`–`80` are the domain model. Files `85`–`97` are fixes, each found
+by building on the schema rather than by reading it; every one carries a
+header explaining what broke. `apps/api/src/db/migrate.ts` applies all
+eighteen, in this order, and is the only thing that does.
+
 | Order | File | Domain | Blueprint §§ |
 |---|---|---|---|
 | 1 | [00_core.sql](00_core.sql) | Tenants, users, roles/permissions, membership, number series, attachments, tenant settings | 5,6,7,52,62,63 |
@@ -18,6 +23,11 @@ file stays reviewable; load order matters because of foreign keys.
 | 11 | [90_row_level_security.sql](90_row_level_security.sql) | `ENABLE`/`FORCE ROW LEVEL SECURITY` + a `tenant_isolation` policy on every tenant-scoped table, generated from `information_schema` (`DECISIONS.md` §17) | — |
 | 12 | [91_tenant_users_self_lookup.sql](91_tenant_users_self_lookup.sql) | A second, SELECT-only policy on `tenant_users` so login can discover a user's own memberships before a tenant is chosen | — |
 | 13 | [92_rls_empty_string_guard.sql](92_rls_empty_string_guard.sql) | Guards every RLS policy against a real Postgres quirk: a custom GUC resets to `''`, not `NULL`, after its first use on a reused connection (`DECISIONS.md` §18) | — |
+| 14 | [93_number_series_null_warehouse_fix.sql](93_number_series_null_warehouse_fix.sql) | The §16 nullable-column gap again, found building `allocateNumber()`: `unique (tenant_id, document_type, warehouse_id)` dedupes nothing for the common tenant-wide series, where `warehouse_id` is null (`DECISIONS.md` §20) | — |
+| 15 | [94_agreement_template_system_uq.sql](94_agreement_template_system_uq.sql) | The same gap on `agreement_templates.tenant_id` (null = system default), so the system template can be seeded with an `ON CONFLICT` target instead of duplicating on every run (`DECISIONS.md` §22) | — |
+| 16 | [95_document_qr_verify_lookup.sql](95_document_qr_verify_lookup.sql) | A second, SELECT-only policy on `documents` so the public `/verify/{qr_token}` route can find a document before any tenant is known — the same shape as `91` (`DECISIONS.md` §25) | — |
+| 17 | [96_stock_lots_balance_key.sql](96_stock_lots_balance_key.sql) | Makes `stock_lots`' balance key actually unique: three of its seven columns are nullable, so the declared constraint enforced nothing for the most ordinary lot there is (`DECISIONS.md` §31) | — |
+| 18 | [97_payment_idempotency.sql](97_payment_idempotency.sql) | Adds `payment_receipts.idempotency_key` and its partial unique index, so a retried "Record Payment" click cannot over-credit a customer (§79) | — |
 
 ## Conventions
 

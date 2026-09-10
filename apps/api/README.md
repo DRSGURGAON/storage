@@ -1,34 +1,66 @@
 # API — Warehouse Documentation & Operations SaaS
 
-Backend for the product specified in `../../docs/`. So far: project
-scaffolding, tenant/user auth with JWT, row-level tenant isolation, the
-seeded RBAC role/permission catalog, a fully working entitlement/
-subscription engine (2-free-copies enforcement, seeded and tested), audit
-logging on every mutating/security-relevant auth action, centralized
-document numbering (`allocateNumber()`), RBAC enforcement
-(`PermissionsGuard` + `@RequirePermission`), tenant memberships (add /
-role / disable), every Phase 2 master — Customers (with addresses and
-contacts), Warehouses and their location hierarchy, Product/SKU (with
-UOMs and categories), the Transport master (Transporters, Vehicles,
-Drivers), and Rate Cards (with Charge Types, Tax Rates, and the full
-billing-engine.md §3 resolution priority) — and the onboarding wizard
-status endpoint. Phases 2, 3 and 4 are complete: Quotation and Agreement
-records, each with its own workflow; the whole inbound chain — Gate
-Entry → Inward → GRN (with §50's Operator → Manager approval split) →
-Inspection / Discrepancy Report → Put-away → Warehouse Receipt; and a
-real document engine — server-rendered PDF generation (headless Chromium
-via `puppeteer-core`), QR-code verification, versioning, and FREE-plan
-entitlement gating — proven end-to-end against **eleven** registered
-templates: Quotation, Agreement, Gate Entry, Inward, GRN, Discrepancy
-Report, Put-away Slip, Warehouse Receipt, Stock Transfer Note, the
-Physical Stock Count Sheet, and the Customer Stock Statement.
+Backend for the product specified in `../../docs/`. **Phases 1 through 9
+are complete** (`../../docs/architecture/dev-phases.md`): everything the
+V1 blueprint describes as backend work is built, tested against a live
+database, and documented. There is no frontend in this repository — `apps/`
+contains only `api`.
 
-Phase 5 is complete: the **stock engine** — `StockService` is the only
-thing in the codebase that writes a stock balance — with GRN approval
-posting `INWARD`, put-away relocating, Stock Transfer, Physical
-Verification, Stock Adjustment with its approval chain, GRN reversal, and
-the stock statement and ageing reports on top. Outward (Phase 6) and the
-billing-run modules (Phase 7) come next.
+What that covers, in the order the phases built it:
+
+- **Phase 1 — foundations.** Tenant/user auth with JWT, row-level tenant
+  isolation (`FORCE ROW LEVEL SECURITY` on all 83 tenant tables, plus
+  `withTenant()`), the seeded RBAC catalog with `PermissionsGuard` +
+  `@RequirePermission` (fails closed on a route that declares nothing), the
+  entitlement/subscription engine, audit logging, and centralized document
+  numbering (`allocateNumber()`, gap-free under concurrency).
+- **Phase 2 — masters.** Customers with addresses and contacts, Warehouses
+  and their location hierarchy, Product/SKU with UOMs and categories, the
+  Transport master, Rate Cards with the full `billing-engine.md` §3
+  resolution priority, and the onboarding wizard.
+- **Phase 3 — commercial + the document engine.** Quotations, Agreements,
+  and server-rendered PDF generation (headless Chromium via
+  `puppeteer-core`) with QR verification, versioning and FREE-plan
+  entitlement gating.
+- **Phase 4 — inbound.** Gate Entry → Inward → GRN (with §50's Operator →
+  Manager approval split) → Inspection / Discrepancy Report → Put-away →
+  Warehouse Receipt.
+- **Phase 5 — stock.** `StockService.postWithin()` is the only code path
+  that writes a stock balance. GRN approval posts `INWARD`, put-away
+  relocates, plus Stock Transfer, Physical Verification, Stock Adjustment
+  with its approval chain, GRN reversal, and the stock statement and
+  ageing reports.
+- **Phase 6 — outbound.** Release Order with reservation and the FIFO /
+  LIFO / FEFO / manual allocation policy, Pick List, Packing List,
+  Dispatch, Loading Sheet, Gate Pass (the single `OUTWARD` writer), POD,
+  and Returns.
+- **Phase 7 — billing.** Billing runs that rebuild storage day by day from
+  the ledger, GST invoices with CGST/SGST vs. IGST decided once and frozen,
+  credit and debit notes, idempotent payments, the customer statement, and
+  the nightly overdue job.
+- **Phase 8 — the surfaces around it.** Customer portal, dashboard, global
+  search, in-app notifications, the audit viewer, Plan & Usage, the public
+  pricing page, and a demo workspace seeded by driving the real API.
+- **Phase 9 — proof.** 33 test suites, 269 tests, all green against a live
+  PostgreSQL database; an end-to-end acceptance walkthrough
+  (`src/acceptance/`); a from-scratch database proof; and a documentation
+  reconciliation pass.
+
+The document engine now carries **all twenty-four** templates of
+`document-engine.md` §2: Quotation, Agreement, Gate Entry, Inward, GRN,
+Discrepancy Report, Put-away Slip, Warehouse Receipt, Stock Transfer Note,
+Physical Stock Count Sheet, Customer Stock Statement, Release Order, Pick
+List, Packing List, Dispatch Note, Loading Sheet, Gate Pass, POD, Return
+Inward, Tax Invoice, Credit Note, Debit Note, Payment Receipt, and Customer
+Account Statement.
+
+**Known gaps**, listed rather than glossed: no frontend; no signed
+time-limited document URLs (attachments are served through the
+authenticated API off the local filesystem); no portal-specific RLS policy
+(portal isolation is service-layer, and tested); no email/WhatsApp/SMS
+delivery for notifications; no payment gateway; `getDocumentRelations` from
+`document-engine.md` §8 is unbuilt; and `tenants.is_demo` is set but read by
+nothing. `../../docs/architecture/test-plan.md` §5 is the full list.
 
 ## Stack
 
@@ -55,15 +87,16 @@ npm run start:dev              # http://localhost:3000
 `../../docs/architecture/schema/*.sql` directly — that directory is the
 single source of truth for the data model (see its own `README.md` for
 conventions). This app does not keep a second, duplicated copy of the
-schema; adding a new domain means adding a file there, not here. Eight of
-those files (`85`–`96`) are fixes for real bugs found only by building and
-load-testing this app against the schema, not by review — see
-`docs/architecture/DECISIONS.md` §16–§25 and §31 if you're wondering why
-they exist. The most recent, `96_stock_lots_balance_key.sql`, is the
-sharpest example: `stock_lots`' unique constraint has three nullable
-columns, so it enforced nothing for the commonest lot in the system, and
-every stock posting would have fragmented "current stock" into duplicate
-rows with no error at all.
+schema; adding a new domain means adding a file there, not here. **Nine** of
+those eighteen files (`85`, `90`–`97`) are fixes for real bugs found only by
+building and load-testing this app against the schema, not by review — see
+`docs/architecture/DECISIONS.md` §16–§22, §25, §31 and §44 if you're
+wondering why they exist. `96_stock_lots_balance_key.sql` is the sharpest
+example: `stock_lots`' unique constraint has three nullable columns, so it
+enforced nothing for the commonest lot in the system, and every stock
+posting would have fragmented "current stock" into duplicate rows with no
+error at all. The most recent, `97_payment_idempotency.sql`, adds the column
+that makes a retried "Record Payment" click harmless.
 
 ## Endpoints so far
 
@@ -146,8 +179,10 @@ rows with no error at all.
   (rides the same rate-card permissions). `GET
   /rate-cards/resolve?customerId=&warehouseId=&chargeTypeCode=&productId=&categoryId=`
   runs billing-engine.md §3's resolution priority (customer > warehouse >
-  company, product/category line override) and returns the winning line —
-  a preview endpoint for the future rate-card UI, since nothing bills yet.
+  company, product/category line override) and returns the winning line.
+  This same resolution is what every billing run prices against
+  (`invoicing/`); the endpoint exposes it so a rate-card UI can show which
+  line will win before anything is invoiced.
 - `GET /company` and `PATCH /company` (`manage_company_settings` — Owner/
   Admin only, on the **read** as well as the write: the row carries bank
   account details and the authorised signatory, `permissions-matrix.md`
@@ -648,8 +683,24 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-All against the real local database (`DATABASE_URL`), not mocks:
+**33 suites, 269 tests**, all against the real local database
+(`DATABASE_URL`), not mocks:
 
+- `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,
+  over HTTP, with four roles holding four tokens: gate entry → inward →
+  GRN (the Operator raises it and is refused the approval; the Manager
+  checks and approves) → put-away → warehouse receipt → release order →
+  reserve → pick → dispatch → loading sheet → gate pass → gate-out → POD →
+  billing run → invoice → payment → statement → four generated documents,
+  each verified through the public QR route → the audit trail. The stock
+  balance is asserted after every step that moves it, and a retried
+  "Create Invoice" is refused. Then the §79 rows no single module owns: an
+  issued invoice keeping its party snapshot and tax treatment after the
+  customer renames itself and moves state (the PDF too); two warehouses
+  and two batches of one SKU keeping separate balances, with a FEFO
+  reservation drawing from the sooner-expiring batch rather than a merged
+  pool; and a cancelled receipt netting back to the exact pre-GRN balance
+  through an additive reversal.
 - `health.controller.spec.ts` — connectivity.
 - `auth/auth.spec.ts` — signup, login, `/me`, the invalid/duplicate/
   unauthenticated cases, repeated `/me` calls across a reused connection to
@@ -662,9 +713,11 @@ All against the real local database (`DATABASE_URL`), not mocks:
   timing comparison asserting a login for an unknown address takes the
   same order of magnitude as one for a real account, as a ratio rather
   than an absolute so it does not flake on a slow machine.
-- `db/tenant-isolation.spec.ts` — the mechanism every future module will
-  rely on (`withTenant()` + RLS), proven directly against a real table
-  since no masters module exists yet to prove it through HTTP.
+- `db/tenant-isolation.spec.ts` — the mechanism every module relies on
+  (`withTenant()` + RLS), proven directly against a real table, including
+  the reused-pooled-connection case that exposed `DECISIONS.md` §18. Every
+  module spec then proves the same thing through HTTP on its own
+  endpoints.
 - `entitlement/entitlement.spec.ts` — the 2-free-copies rule end to end:
   allowed twice then `LIMIT_REACHED`, idempotent retries, a genuine
   concurrent race (5 simultaneous calls against a 2-copy limit resolve to

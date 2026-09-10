@@ -142,10 +142,13 @@ traversal, not hand-maintained per document type:
   Warehouse Receipt, its Discrepancy Report, its `stock_ledger` rows via
   `source_type='grn', source_id=this.id`).
 
-Both use one generic `getDocumentRelations(documentType, sourceId)`
-service function that knows the fixed foreign-key graph implied by
-`schema/README.md`'s conventions — not a bespoke query written per document
-type. The **Document Timeline** is the same underlying graph rendered as
+Both are meant to use one generic `getDocumentRelations(documentType,
+sourceId)` service function that knows the fixed foreign-key graph implied
+by `schema/README.md`'s conventions — not a bespoke query written per
+document type. **Neither the function nor an endpoint for it exists in
+`apps/api`** (`document-engine.md` §8 says the same): the foreign keys are
+all in place, but nothing walks them yet, so these two panels and the
+timeline below have no backend today. The **Document Timeline** is the same underlying graph rendered as
 the fixed sequence from blueprint §45/§68 (Gate Entry → Inward → GRN →
 Inspection → Put-away → Warehouse Receipt → Stock → Release → Picking →
 Dispatch → Gate Pass → POD → Invoice), with the records that actually exist
@@ -164,8 +167,13 @@ information architecture around them.
 
 ## 9. Auto-fill UX (§27) & Smart Forms (§28)
 
-The visual contract for `workflow-and-statuses.md` §1's `resolve{Entity}()`
-auto-fill: selecting a customer shows the compact identity line
+The visual contract for `workflow-and-statuses.md` §1's auto-fill. There
+are no `resolve{Entity}()` endpoints to drive it from: the API auto-fills
+inside the create endpoints instead (post an Inward with a `gateEntryId` and
+it comes back with customer, vehicle, driver and transporter resolved), so a
+form built against this section would render what the server returns after
+the save, or read the source record directly. Selecting a customer shows the
+compact identity line
 (`ABC Traders · CUST-001 · GSTIN: XXXXXXXX`) immediately, then visibly
 populates the dependent fields below it (billing address, delivery address,
 GSTIN, contact, payment terms) rather than filling them silently off-screen

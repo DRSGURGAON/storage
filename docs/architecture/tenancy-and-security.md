@@ -12,11 +12,15 @@ frontend alone (§6, §69):
 
 1. **Service-layer guard (primary).** The authenticated request always
    resolves to exactly one `tenant_id` (from the session/JWT), and every
-   repository/query method requires that value as a mandatory first
-   argument — there is no code path that queries a tenant-scoped table
-   without it. This is enforced by a lint rule / code-review gate, not
-   convention alone: repository methods for tenant-scoped tables are
-   generated with `tenant_id` as a non-optional parameter.
+   query against a tenant-scoped table runs inside
+   `withTenant(sql, tenantId, fn)` (`apps/api/src/db/tenant-context.ts`),
+   which opens a transaction, sets `app.tenant_id` for it, and hands the
+   callback the only handle that can see the tenant's rows. Services also
+   carry their own `where tenant_id = ${...}` clauses, so the filter is
+   explicit in the SQL as well as enforced under it. There is no generated
+   repository layer and no lint rule policing this: the discipline is
+   `withTenant` plus layer 2 below, which is what actually makes a forgotten
+   filter harmless.
 2. **Database row-level security (defense in depth).** Every tenant-scoped
    table has `ENABLE ROW LEVEL SECURITY` with a policy of the form
    `USING (tenant_id = current_setting('app.tenant_id')::uuid)`. The
@@ -78,9 +82,11 @@ issue time (see §5 below).
   belong to multiple tenants (e.g. a consultant) without duplicate identities.
 - Sessions carry `user_id`, the active `tenant_id` (chosen at login if the
   user belongs to more than one tenant), and `role_id`.
-- Passwords are hashed with a memory-hard KDF (argon2id/bcrypt); this
-  document does not select a specific auth stack since no framework has been
-  chosen yet (see `DECISIONS.md` §0).
+- Passwords are hashed with **argon2id** (`argon2`), and the auth stack is
+  Passport-JWT under NestJS (`apps/api/src/auth/`): `JwtAuthGuard` resolves
+  the session, `PermissionsGuard` enforces §4's permission codes, and both
+  are wired as global guards so a route cannot ship without passing them.
+  MFA and SSO/OIDC are described here but not built in V1.
 
 ## 4. Authorization (RBAC)
 
@@ -139,15 +145,22 @@ issue time (see §5 below).
 
 ## 6. Audit logging & rate limiting
 
-- Every mutating action funnels through a single service-layer interceptor
-  that writes one `audit_logs` row (see `schema/70_documents_governance.sql`)
-  with the previous/new value, before returning success to the caller — so an
-  audit-log write failure fails the whole request rather than silently
-  skipping the record.
+- Every mutating action writes one `audit_logs` row (see
+  `schema/70_documents_governance.sql`) with the previous/new value, inside
+  the same transaction as the change — so an audit-log write failure rolls
+  the change back rather than silently skipping the record. This is an
+  explicit `this.audit.record(...)` call in each service
+  (`apps/api/src/audit/audit.service.ts`), not an interceptor: an
+  interceptor sees the HTTP verb and the DTO, but not *which* row changed or
+  what it held before, which is the part worth recording. The cost of the
+  choice is that a new mutating endpoint can forget to audit; the
+  compensating control is that every module's spec asserts the audit row.
 - Login attempts, permission denials, and public endpoints (QR verification,
   portal login) are rate-limited per IP/user to blunt credential stuffing and
-  token enumeration; thresholds are a deployment-time configuration, not a
-  schema concern.
+  token enumeration (`apps/api/src/throttling.ts`: one global limit, a much
+  tighter per-(IP, email) limit on `/auth/login` and `/auth/signup`, and a
+  separate limit on `/verify/:qrToken`); thresholds are deployment-time
+  configuration, not a schema concern.
 
 ## 7. Input validation
 

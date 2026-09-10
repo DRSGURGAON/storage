@@ -3,9 +3,23 @@
 Blueprint refs: §78 (acceptance criteria), §79 (critical test cases)
 
 This turns the blueprint's narrative acceptance criteria into a concrete,
-runnable checklist. It is meant to become the outline of an automated
-end-to-end test suite (Phase 9 in `dev-phases.md`), not just a manual QA
-script — every row should map to one integration test.
+runnable checklist. Every row maps to a real integration test: the
+**Proven by** column names the spec file and the test that covers it. All
+of them run against a live PostgreSQL database — there are no mocked
+repositories in this suite — and the whole set is
+**33 suites, 269 tests, green** (`cd apps/api && npm test`).
+
+Two files carry most of the cross-module rows:
+
+- `apps/api/src/acceptance/acceptance.spec.ts` — section 1's walkthrough as
+  one continuous scenario on a fresh tenant, plus the section 2 rows no
+  single module owns.
+- each module's own `*.spec.ts` — the mechanism in isolation, in more
+  detail than the walkthrough goes into.
+
+Where a row is proven in both, both are named: the module spec is the
+detailed proof, the acceptance spec proves it still holds when the modules
+are composed.
 
 ## 1. End-to-end acceptance scenario (§78)
 
@@ -14,7 +28,7 @@ Run as one continuous scenario, on a single fresh tenant, asserting the
 
 | # | Step | Verify |
 |---|---|---|
-| 1 | Create Company, Customer, Warehouse, SKU, Vehicle, Driver, Rate Card | each record readable via its `resolve{Entity}()` endpoint with all fields populated |
+| 1 | Create Company, Customer, Warehouse, SKU, Vehicle, Driver, Rate Card | each record readable through its own `GET` endpoint with all fields populated (there is no `resolve{Entity}()` endpoint — auto-fill happens server-side inside the create endpoints; see `workflow-and-statuses.md` §1) |
 | 2 | Gate Entry → Inward | Inward auto-fills customer/vehicle/driver/transporter from step 1 and the Gate Entry, per `workflow-and-statuses.md` §1 |
 | 3 | GRN from Inward → Approve | GRN auto-fills from Inward; `grns.status = 'approved'`; `stock_ledger` has exactly one `INWARD` row per accepted line; `stock_lots.physical_qty` matches accepted quantity |
 | 4 | Put-away → complete | `putaway_lines.confirmed_at` set; `stock_lots.location_id` reflects the assigned bin |
@@ -33,65 +47,112 @@ change), correct permissions (an unauthorized role gets 403 on each action),
 correct PDF (the generated document's snapshot fields match the source
 record at generation time).
 
+**Proven by `src/acceptance/acceptance.spec.ts`**, test *"walks §78 end to
+end"*, which runs all twelve steps in order on one fresh tenant, with four
+different roles holding four different tokens: the Operator raises the GRN
+and is refused the approval (403), the Manager checks and approves it, the
+Accountant runs the billing and takes the payment, and the Owner reads the
+paper trail. It asserts the stock balance after each stock-affecting step,
+the `intra_state` tax split, that a retried "Create Invoice" is refused,
+that the statement closes at the expected balance, that four documents
+generate and verify through the public QR route, and that the audit log
+holds the GRN's `create` and `status_change` rows.
+
 ## 2. Critical test cases (§79)
 
-Quantitative / stock:
+Every row below is covered. "Proven by" names the file and the test.
 
-- [ ] Receive 100 → stock = 100
-- [ ] Dispatch 40 → stock = 60
-- [ ] Reserve 20 → physical = 60, available = 40
-- [ ] Cancel reservation → available returns to 60
-- [ ] Expected 100, received 95 → Discrepancy Report auto-suggested, short_qty = 5
-- [ ] Damaged 5 of the 95 received → accepted_qty = 90, rejected/damaged_qty = 5, and only 90 posts to stock
-- [ ] Transfer stock between bins within one warehouse → source bin decreases, destination bin increases, warehouse total unchanged
-- [ ] Transfer stock between warehouses → source warehouse decreases, destination warehouse increases
-- [ ] Return stock (Return Request → Return Inward → Inspection → GRN) → stock increases only for accepted return quantity
-- [ ] Prevent dispatch above available stock → rejected with a validation error, no partial posting
-- [ ] Prevent duplicate GRN posting (retry the same approve request) → stock posts once, second call is a no-op
-- [ ] Prevent duplicate invoice posting (retry "Create Invoice") → one invoice, not two
-- [ ] Approved transaction editing restrictions → editing an approved GRN/Invoice/Agreement is rejected; only a controlled reversal/revision is possible
-- [ ] Stock adjustment approval → adjustment only posts to `stock_ledger` after the configured approval chain completes
+### Quantitative / stock
 
-Multi-tenancy / security:
+| Case | Proven by |
+|---|---|
+| Receive 100 → stock = 100 | `stock/stock.spec.ts` *"posts accepted stock at GRN approval — unallocated, and only what was accepted"*; `acceptance.spec.ts` §78 walkthrough |
+| Dispatch 40 → stock = 60 | `outbound/outbound.spec.ts` *"walks the chain and posts OUTWARD once at gate-out: dispatch 40 → stock 60"*; `acceptance.spec.ts` |
+| Reserve 20 → physical = 60, available = 40 | `release-orders/release-orders.spec.ts` *"reserves 20 with FIFO from shelved bins only: physical stays 100, available drops to 80"*; `acceptance.spec.ts` (reserve 40 of 100) |
+| Cancel reservation → available returns | `release-orders.spec.ts` — cancelling posts one `UNRESERVE` per `RESERVE`, asserted as the ledger pair `['RESERVE','UNRESERVE']` |
+| Expected 100, received 95 → short_qty = 5, Discrepancy Report | `grns/grns.spec.ts` *"derives short/excess and hasDiscrepancy"*; `discrepancy-reports/discrepancy-reports.spec.ts` |
+| Damaged 5 of 95 → accepted 90, only 90 posts | `stock/stock.spec.ts` *"only what was accepted"*; `grns.spec.ts` rejects `accepted + rejected > received` at the boundary |
+| Transfer between bins in one warehouse | `stock-transfers/stock-transfers.spec.ts` *"moves stock bin to bin in one posting"* |
+| Transfer between warehouses | `stock-transfers.spec.ts` *"leaves warehouse-to-warehouse stock in neither warehouse while it is on the road"* (`DECISIONS.md` §37) |
+| Return stock → increases only for the accepted return quantity | `returns/returns.spec.ts` *"brings 10 back as RETURN through a GRN raised from the return inward: 60 → 70"* |
+| Prevent dispatch above available stock | `release-orders.spec.ts` *"refuses to reserve more than is shelved, all or nothing, and says how much is still unallocated"*; `stock.spec.ts` *"refuses to take a balance negative"* |
+| Prevent duplicate GRN posting on retry | `stock/stock.spec.ts` *"is idempotent: re-posting the same key writes nothing a second time"* |
+| Prevent duplicate invoice posting on retry | `acceptance.spec.ts` (second `POST /invoices` for the same run → 400); `invoicing/invoicing.spec.ts` *"invoices the run once"* |
+| Approved transactions cannot be edited | `acceptance.spec.ts` (`PATCH` an approved GRN → 400); `grns.spec.ts`, `invoicing.spec.ts` and `agreements/agreements.spec.ts` each reject the same on their own record |
+| Stock adjustment posts only after the approval chain | `stock-verifications/stock-verifications.spec.ts` *"walks draft → pending_manager → approved → posted, and only then moves stock"* (`DECISIONS.md` §38) |
 
-- [ ] Customer A cannot access Customer B's records via any staff-facing API
-- [ ] Customer portal session cannot access another customer's documents, stock, or statement, even by guessing an id in the URL
-- [ ] A user without `approve_grn` cannot approve a GRN via a direct API call, even if the button is hidden in the UI
+### Multi-tenancy / security
 
-Financial:
+| Case | Proven by |
+|---|---|
+| Tenant A cannot reach tenant B's records via any staff API | `db/tenant-isolation.spec.ts` (directly, including a reused pooled connection) and every module spec's own *"isolates tenants"* test — `customers.spec.ts` proves it first through HTTP: list empty, fetch 404, patch 404 |
+| A portal session cannot reach another customer's data, even by guessing ids | `portal/portal.spec.ts` *"cannot see the other customer, whichever door it tries"*, and *"stops working the moment the membership is disabled"* |
+| A user without `approve_grn` cannot approve one by calling the API directly | `acceptance.spec.ts` (the Operator's approve → 403); `grns.spec.ts` *"a Warehouse Operator can create and submit but cannot check, approve, or reject"* |
 
-- [ ] Invoice payment correctly reduces `invoices.balance_due`
-- [ ] PDF contains correct company/customer data (matches `company_snapshot`/`customer_snapshot`, not live master data that may have since changed)
-- [ ] QR verification works, and returns only the minimal public fields (`document-engine.md` §4)
+### Financial
 
-Integrity:
+| Case | Proven by |
+|---|---|
+| Payment reduces `balance_due` | `acceptance.spec.ts` (half the invoice → `partially_paid`, `balanceDue` exact); `receivables/receivables.spec.ts` *"reduces outstanding by recomputing amount_paid, and refuses to over-pay"* |
+| A PDF renders from the frozen snapshot, not from live master data | `acceptance.spec.ts` *"a document keeps the party details it was issued with, even after the master changes"* — the customer is renamed and moved to another state after issue; the invoice's snapshot, tax treatment, CGST amount and PDF all stand |
+| QR verification works and returns only the minimal public fields | `documents/documents.spec.ts` (valid → revoked after regeneration, unauthenticated); `acceptance.spec.ts` verifies all four generated documents |
 
-- [ ] Document numbering remains unique under concurrent creation (parallel GRN creation stress test)
-- [ ] Cancelled transactions do not corrupt stock (a cancelled GRN's reversal nets back to the pre-GRN balance exactly)
-- [ ] Refresh/retry does not duplicate transactions (idempotency key reused on retry)
-- [ ] Multiple warehouses maintain separate stock balances for the same SKU
-- [ ] Batch-tracked products maintain correct per-batch balances (two batches of the same SKU never merge)
-- [ ] Audit log records critical changes (create/approve/reject/cancel/adjustment/status change/document generation all produce an `audit_logs` row)
+### Integrity
+
+| Case | Proven by |
+|---|---|
+| Numbering stays unique under concurrent creation | `numbering/numbering.spec.ts` *"serializes concurrent allocations for the same series — no duplicates, no gaps"* (10 simultaneous allocations) |
+| A cancelled transaction nets stock back exactly | `acceptance.spec.ts` *"a cancelled receipt nets back to exactly the pre-GRN balance"* — and asserts the reversal is additive: two ledger rows, the second pointing at the first |
+| Retry does not duplicate a transaction | `receivables.spec.ts` *"records a payment exactly once however many times the button is clicked"*; `documents.spec.ts` (commit retry → one row); `entitlement/entitlement.spec.ts` *"does not double-consume on a retried idempotency key"* |
+| Multiple warehouses keep separate balances for one SKU | `acceptance.spec.ts` *"two warehouses and two batches of one SKU keep separate balances"* |
+| Two batches of one SKU never merge | same test — and it goes further: a FEFO reservation of 25 draws entirely from the sooner-expiring batch rather than from a merged pool |
+| The audit log records the critical changes | `acceptance.spec.ts` (GRN `create` + `status_change`, and `document_generate` rows); `auth/auth.spec.ts` (signup, login, `login_failed` with the IP); `console/console.spec.ts` (the viewer, filtered, and hidden from those who may not read it) |
 
 ## 3. Non-functional checks (Phase 9, from §69–§70, §64)
 
-- [ ] Rate limiting on login and public QR-verification endpoints
-- [ ] File access requires a valid signed URL scoped to the requester's tenant/customer
-- [ ] Stock-affecting endpoints are atomic under simulated mid-transaction failure (kill the process between ledger insert and lot upsert in a test double — the transaction must roll back both or neither)
-- [ ] Mobile responsiveness for the operator-facing flows: Gate Entry, GRN, stock lookup, scan, picking, loading, Gate Pass, POD, photo/signature capture
+| Check | State |
+|---|---|
+| Rate limiting on login and public QR verification | **Done.** `auth/auth.spec.ts` *"throttles repeated login attempts against one account, without penalising the rest of the office"* — the limit is keyed per (IP, email), so one account being hammered does not lock out the next login from the same office (`DECISIONS.md` §36). `/verify/:qrToken` carries its own limit (`documents/verify.controller.ts`) |
+| File access requires a signed, scoped URL | **Not done, and named as open** in `dev-phases.md` Phase 8. Attachments are served through the authenticated API against `LocalFilesystemAttachmentStorage`; there are no signed time-limited URLs, because there is no object store behind them yet (`DECISIONS.md` §0's update, §24) |
+| Stock postings are atomic under mid-transaction failure | **Partly.** Atomicity is structural, not chaos-tested: `StockService.postWithin()` takes the caller's transaction, so the ledger insert, the lot upsert and the caller's own status change commit together or not at all — `stock.spec.ts` proves the negative-balance refusal leaves nothing behind, and every posting spec asserts no partial rows. What is *not* done is killing the process mid-transaction to prove it; that needs a fault-injection harness this suite does not have |
+| Mobile responsiveness of the operator flows | **Not applicable yet.** There is no frontend in this repository — `apps/` contains only `api`. This row cannot be tested until one exists |
 
 ## 4. Entitlement & subscription engine (saas-layer §6–§17, §41–§45; `entitlement-engine.md`)
 
-- [ ] A `FREE`-plan tenant can generate exactly 2 of a `counted` document feature (e.g. GRN), and the 3rd call returns `allowed: false, reason: 'LIMIT_REACHED', upgradeRequired: true`
-- [ ] A failed generation (simulate a rendering error after `checkEntitlement` passes) does not increment `usage_counters` — the next `checkEntitlement` call still shows the same `remaining` as before the failed attempt
-- [ ] A cancelled draft never calls `consumeEntitlement` at all
-- [ ] Calling `previewDocument` repeatedly for the same source record never consumes usage; only `commitDocument` does
-- [ ] Retrying the same "Generate" click twice (simulated network retry with the same idempotency key) produces exactly one `documents` row and exactly one consumed `usage_ledger` row, not two
-- [ ] Downloading, printing, or viewing an already-generated document never calls `consumeEntitlement`
-- [ ] Changing a plan's `plan_feature_limits.limit_value` from 2 to 5 changes enforcement immediately, with no application deploy
-- [ ] An `entitlement_overrides` row for one tenant does not affect any other tenant's limit for the same feature
-- [ ] A tenant whose `tenant_subscriptions.status` is `past_due` beyond its grace period is blocked from a paid-plan-only feature even if its counted usage for the period has not been reached
-- [ ] Two tenants' `usage_ledger`/`usage_counters` rows never intermix — Tenant A's consumption never affects Tenant B's `remaining`
-- [ ] A demo tenant (`tenants.is_demo = true`) is excluded from billing runs, real-usage reports, and cross-tenant analytics
-- [ ] The frontend cannot bypass a block by skipping the UI: calling the generation API directly on a limit-exhausted feature is rejected server-side with the same `LIMIT_REACHED` response the UI would have shown
-- [ ] The public pricing page's displayed limits match `plan_feature_limits` exactly — no hard-coded numbers in the page that could drift from what is enforced
+| Case | Proven by |
+|---|---|
+| A `FREE` tenant gets exactly 2 of a counted feature; the 3rd returns `LIMIT_REACHED, upgradeRequired: true` | `entitlement/entitlement.spec.ts` *"allows the first two consumptions, then blocks the third with LIMIT_REACHED"*; `documents/documents.spec.ts` proves the same through HTTP as a 402 paywall on both preview and commit |
+| A failed generation does not increment usage | `entitlement.spec.ts` *"records a failed attempt for audit without touching usage or the counter"* |
+| A cancelled draft never consumes | **By construction, not by a dedicated test:** `consumeEntitlement` is called from exactly one place, `commitDocument`. A draft that is never committed cannot reach it, and `documents.spec.ts` shows preview leaving both `documents` and the counter untouched |
+| Repeated `previewDocument` never consumes; only `commitDocument` does | `documents.spec.ts` *"previews a PDF without writing a document row, and consuming no entitlement"* |
+| A retried "Generate" produces one `documents` row and one `usage_ledger` row | `documents.spec.ts` *"commits a document, is idempotent on retry"*; `entitlement.spec.ts` *"does not double-consume on a retried idempotency key"*, plus a genuine 5-way concurrent race against a 2-copy limit where exactly 2 win |
+| Downloading, printing or viewing never consumes | **By construction:** `GET /documents/:id/download` streams the stored attachment and never touches the entitlement service. `documents.spec.ts` downloads repeatedly (including on a tenant at its limit) without a 402, but no test asserts the counter directly afterwards |
+| Changing `plan_feature_limits.limit_value` changes enforcement with no deploy | **By construction:** every check reads the row at call time — there is no cached or compiled limit anywhere. `entitlement.spec.ts` exercises the same resolver against differently-seeded limits, but no test edits a limit mid-run and re-checks |
+| An `entitlement_overrides` row for one tenant does not move another tenant's limit | **Partly.** The resolver reads `entitlement_overrides` ahead of `plan_feature_limits` (`entitlement.service.ts`), and cross-tenant independence is proven for the plan path in `entitlement.spec.ts` *"keeps different features and different tenants fully independent"* — but no test writes an override row. This is the weakest square in the grid |
+| A `past_due` subscription past its grace period is blocked even under the limit | **Partly.** `entitlement.service.ts` treats `past_due`, `cancelled` and `expired` as not-entitled regardless of usage; there is no test that puts a subscription into those states, because nothing in the product writes them yet (no gateway — `DECISIONS.md` §13) |
+| Two tenants' usage never intermixes | `entitlement.spec.ts` *"keeps different features and different tenants fully independent"* |
+| A demo tenant is excluded from billing runs and cross-tenant analytics | **Not implemented.** `tenants.is_demo` is set by `npm run seed:demo` and read by nothing — a demo workspace is billed and counted exactly like a real one. Harmless while demos are hand-seeded locally; it must be closed before demo tenants exist in production |
+| The API cannot be bypassed by skipping the UI | `documents.spec.ts` calls the generation endpoints directly on an exhausted tenant and gets the same 402 the UI would have shown |
+| The public pricing page's limits match `plan_feature_limits` exactly | `console/console.spec.ts` *"reports plan usage from the same check a paywall uses, and serves pricing publicly"* — both pages are pivots over the same rows the engine enforces, so there is no second number to drift (`console/plan.service.ts`) |
+
+## 5. What is not covered
+
+Named here rather than left as silent gaps in the grid above:
+
+- **`getDocumentRelations`** (`document-engine.md` §8, `ux-system.md` §7) is
+  unbuilt, so there is nothing to test.
+- **Signed, time-limited document URLs** and an S3 adapter — open since
+  Phase 8.
+- **The portal-specific RLS policy** (`app.customer_id` / `app.actor_kind`).
+  Portal isolation today is enforced in the service layer, with the customer
+  filter inline in every query and proven in `portal.spec.ts`; the
+  database-level backstop that staff queries get from `tenant_isolation` has
+  no portal equivalent yet.
+- **Email/WhatsApp/SMS notification delivery** — notifications are written
+  and read in-app only; there is no adapter to test.
+- **Fault injection** (killing a process mid-transaction) and **load
+  testing**. Concurrency is tested where it decides correctness — numbering
+  and entitlement both run genuine parallel races — but nothing here
+  measures throughput or survives a hard kill.
+- **Anything frontend**: no UI exists, so §64's mobile responsiveness and
+  every screen-level check in `ux-system.md` are untestable today.

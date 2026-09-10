@@ -96,6 +96,22 @@ deliberately consumes no second entitlement unit. See `DECISIONS.md` §33.
 > | `discrepancy_report` | `DISCREPANCY_REPORT` | Discrepant lines with both §19 acknowledgement lines |
 > | `putaway` | `PUTAWAY` | Location codes with a confirmation checkbox — a sheet an operator carries |
 > | `warehouse_receipt` | `WAREHOUSE_RECEIPT` | Frozen jsonb lines with locations, plus §22's mandatory "operational, not negotiable" disclaimer |
+> | `stock_transfer` | `STOCK_TRANSFER` | From/to warehouse and bin columns, and the in-transit state a cross-warehouse move sits in |
+> | `stock_verification` | `STOCK_VERIFICATION` | The count sheet: blank system-quantity column before the count, filled in with variances after |
+> | `stock_statement` | `STOCK_STATEMENT` | Keyed on the customer, not on one transaction — per-lot balances with per-product totals |
+> | `release_order` | `RELEASE_ORDER` | Requested lines with the delivery-address snapshot |
+> | `pick_list` | `PICK_LIST` | Bin-ordered picking lines with a picked-quantity column to write in |
+> | `packing_list` | `PACKING_LIST` | Package-level table (`DECISIONS.md` §15's "folded into Dispatch" was reopened: it is its own metered document) |
+> | `dispatch_note` | `DISPATCH_NOTE` | Consignee block, LR/vehicle details, dispatched lines |
+> | `loading_sheet` | `LOADING_SHEET` | Line-by-line loaded checkboxes and the seal number |
+> | `gate_pass` | `GATE_PASS` | The security-desk slip: vehicle, seal, and what may leave |
+> | `pod` | `POD` | Dispatched vs. received columns with the receiver's name and shortage/damage |
+> | `return_inward` | `RETURN_INWARD` | The arrival note for goods coming back, against the dispatch they left on |
+> | `invoice` | `INVOICE_GENERATION` | Both frozen party snapshots, SAC-coded charge lines, CGST+SGST or IGST, round-off |
+> | `credit_note` | `CREDIT_NOTE` | The correction and the invoice it corrects — never an edit to that invoice |
+> | `debit_note` | `DEBIT_NOTE` | The additional charge and its reason |
+> | `payment_receipt` | `PAYMENT_RECEIPT` | Amount, mode, and the invoices the payment was allocated across |
+> | `customer_statement` | `CUSTOMER_STATEMENT` | The period projection: invoices, notes, payments, closing balance, ageing |
 >
 > Between them these cover every §3 primitive: the party block, the
 > line-item table, totals, and the plain-prose section — and the two
@@ -104,7 +120,7 @@ deliberately consumes no second entitlement unit. See `DECISIONS.md` §33.
 > per-document bespoke layout. Adding the next `documentType` from §2's
 > list means one more `DocumentTemplate` implementation plus one more
 > constructor argument to `DocumentTemplateRegistry`, not a new
-> pipeline — proven eight times over now, not just asserted. Proven end-to-end in
+> pipeline — proven twenty-four times over now, not just asserted. Proven end-to-end in
 > `documents.spec.ts`: preview vs. commit, idempotent retry, regenerate
 > producing a new version with the old one's QR resolving `revoked`
 > through the public verify endpoint (§4, below), cross-tenant isolation,
@@ -249,5 +265,14 @@ re-rendering an existing document is never a new unit of usage.
 
 `documents` rows don't duplicate the foreign-key graph already present on
 every source table — "Created From" and "Related Documents" are computed,
-not stored. See `ux-system.md` §7 for the UI contract and the
-`getDocumentRelations(documentType, sourceId)` traversal it's built on.
+not stored. See `ux-system.md` §7 for the UI contract.
+
+> **Not implemented.** The `getDocumentRelations(documentType, sourceId)`
+> traversal this section describes does not exist in `apps/api`, and neither
+> does an endpoint for it. Every relationship it would walk *is* present in
+> the schema (a GRN carries its `inward_id`, an Inward its `gate_entry_id`, a
+> Dispatch its `release_order_id`, and so on), so this is unwritten code
+> rather than a missing data model — but nothing today returns the graph, and
+> `ux-system.md` §7's "Created From"/"Related Documents" panels have no
+> backend. It is the largest single gap left in the document engine; it is
+> named here rather than left to be discovered from the absence of a route.

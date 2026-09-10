@@ -8,10 +8,19 @@ plan. Nothing here should contradict either blueprint; where a blueprint
 leaves an implementation detail open, the decision made is recorded in
 [DECISIONS.md](DECISIONS.md) with the section it serves.
 
-No technology stack has been chosen yet (see `DECISIONS.md` §0). Everything
-below is written to be implementable on any mainstream relational database and
-backend framework — the schema uses plain PostgreSQL DDL as the most precise,
-portable notation, not as a statement that Postgres is the final choice.
+The stack is chosen and built on (`DECISIONS.md` §0): **NestJS + TypeScript
+on PostgreSQL 16**, with `postgres` (postgres-js) for queries, Drizzle for
+schema typing, Passport-JWT + argon2 for auth, and headless Chromium
+(`puppeteer-core`) for PDF rendering. The running implementation is
+[`apps/api`](../../apps/api/README.md).
+
+These documents are therefore no longer database-neutral, and are not meant
+to be: the design leans on PostgreSQL-specific machinery — row-level
+security with `FORCE ROW LEVEL SECURITY` (`schema/90`–`92`), `SET LOCAL`
+GUCs for the tenant context, and `SELECT … FOR UPDATE` for gap-free
+numbering. Where a document still describes a mechanism in the abstract, the
+code is the authority; each engine document carries an "Implemented" section
+saying which parts are actually built.
 
 ## Contents
 

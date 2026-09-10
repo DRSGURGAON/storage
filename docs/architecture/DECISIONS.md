@@ -22,7 +22,7 @@ existing stack to evaluate. Decided:
 | Database | PostgreSQL 16 — already the schema's native format (RLS, generated columns, `FOR UPDATE` row locks, `SET LOCAL` session context) |
 | Query layer | Drizzle ORM, SQL-first, raw-SQL escape hatches for tenant context and row locking |
 | Auth | Custom Passport-JWT + argon2 (multi-tenant membership and portal scoping don't map cleanly onto a managed IdP) |
-| Background jobs | BullMQ + Redis |
+| Background jobs | BullMQ + Redis *(not used: see the update below)* |
 | Documents/PDF | Server-rendered HTML/CSS through headless Chromium (Puppeteer), one shared template set |
 | File storage | S3-compatible object storage, signed URLs |
 | Frontend | React + Vite, Ant Design, TanStack Query, React Hook Form + Zod |
@@ -36,6 +36,30 @@ already-committed schema design (RLS, ledger-first stock/usage,
 this was first proposed and is not restated here — this entry exists so a
 later reader has the decision without needing that conversation. This
 closes the one item that was blocking Phase 1 from starting.
+
+**Update, Phase 9 — two rows of that table are not what got built.**
+
+- **Background jobs: no BullMQ, no Redis.** Neither is a dependency of
+  `apps/api`. The only scheduled work V1 has is the nightly overdue-invoice
+  flip, which is a `@Cron` method under `@nestjs/schedule`
+  (`apps/api/src/receivables/overdue.service.ts`). Standing up Redis and a
+  worker topology for one nightly query would have been infrastructure with
+  no job to run. The moment a real queue is needed — outbound email, PDF
+  batches, gateway webhook retries — BullMQ is still the choice, and this
+  row stands as the decision for that day rather than a description of
+  today.
+- **File storage: local filesystem, not S3.** Attachments go through an
+  `AttachmentStorage` interface whose only implementation is
+  `LocalFilesystemAttachmentStorage` (`DECISIONS.md` §24). The interface is
+  the part that matters; the S3 adapter and its signed URLs are unwritten,
+  and signed time-limited document URLs remain an open item
+  (`dev-phases.md` Phase 8).
+
+Everything else in the table is what was built: NestJS + TypeScript,
+PostgreSQL 16, `postgres` (postgres-js) with Drizzle for typing,
+Passport-JWT + argon2, Puppeteer-rendered HTML. The frontend, mobile and
+hosting rows are still forward-looking — there is no frontend in this
+repository.
 
 ## §1 — Multi-tenancy: shared database, `tenant_id` column + RLS
 
@@ -184,18 +208,23 @@ rather than taken on faith:
   already defines, not a separate simpler mechanism. V1.1's multi-level
   chains are a seed-data and UI addition on the identical tables, never a
   parallel system to migrate off later.
-- **Packing List (folded into Dispatch's header totals for V1):**
+- **Packing List (folded into Dispatch's header totals for V1 — reopened in
+  Phase 6: it was built as a standalone, metered document after all):**
   `packing_lists`/`packing_list_lines` already exist as fully independent
   tables in `schema/50_outbound.sql`, not derived from `dispatch_lines`.
   V1.1 exposing a standalone Packing List is a new data-loader function
   (the same pattern every `document-engine.md` document type already
   follows) reading Pick List/Dispatch quantities at generation time — it
   needs no change to `dispatches` or `dispatch_lines` at all.
-- **Returns (deferred to V1.1):** `stock_ledger.txn_type` already includes
+- **Returns (deferred to V1.1 — also reopened: built in Phase 6c, see §42):**
+  `stock_ledger.txn_type` already includes
   `'RETURN'` in its check constraint, and `source_type` already includes
   `'return_inward'`, in `schema/40_stock.sql`. The stock engine has
   supported a future Returns module since it was first written; V1
-  building no UI for it changes nothing about that.
+  building no UI for it changes nothing about that. *(In the event, the
+  module was built: Return Request → Return Inward → GRN with
+  `returnInwardId`, posting `RETURN` rows. There is still no UI, for it or
+  for anything else.)*
 - **Entitlement engine (action-metering only in V1, no seat/record
   counts):** a future "max 3 warehouses on Starter" limit reuses the exact
   same `plans`/`plan_feature_limits` rows a document-generation limit

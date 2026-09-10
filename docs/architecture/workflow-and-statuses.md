@@ -5,14 +5,24 @@ Blueprint refs: §3, §58–§61, §67–§68, §72–§74
 ## 1. Auto-fill contract (§3, §58)
 
 Auto-fill is implemented as one pattern reused everywhere, not per-form
-one-off logic: every "picker" field (customer, warehouse, SKU, vehicle,
-driver, or an upstream document like Gate Entry/Inward/GRN/Release
-Order/Pick List/Dispatch) is backed by a `resolve{Entity}(id)` API that
-returns a **flat object of every field the target form might need**. The
-form layer merges that object into its state; it never re-fetches the same
-master record field-by-field.
+one-off logic. The table below is the contract for *what* each selection
+fills in; it holds as written.
 
-| Selecting… | `resolve...()` returns | Consumed by |
+> **How it is actually built.** This section originally specified a
+> `resolve{Entity}(id)` endpoint per picker, returning a flat object for the
+> form to merge. `apps/api` does not have those endpoints. Auto-fill runs
+> **server-side inside the create endpoint**: `POST /inwards` with a
+> `gateEntryId` returns the inward with customer, vehicle, driver and
+> transporter already filled from the gate entry; `POST /grns` with an
+> `inwardId` copies the header and every line; `POST /dispatches` with a
+> `releaseOrderId` does the same. The reason is that a resolve-then-post
+> design lets a client fill a form from one snapshot and post something
+> else, and the server would have no way to tell — filling in the writer
+> means the values that land in the row are the values the server read. A
+> form that wants to show the user what will be filled reads the source
+> record (`GET /gate-entries/:id`), which returns the same fields.
+
+| Selecting… | fills in | Consumed by |
 |---|---|---|
 | Customer | legal name, GSTIN, PAN, billing/delivery addresses, contact, mobile, email, payment terms, default rate card | Quotation, Agreement, Inward, GRN, Release Order, Invoice, … |
 | Warehouse | name, code, address, GST info, contact, manager | every transaction with a warehouse field |
@@ -132,4 +142,7 @@ combobox component, backed by a search endpoint that matches on the fields
 listed in §74 (name, code, GSTIN, mobile, …) and renders the concise
 `Name · Code · secondary-identifier` result row. One component, one backend
 search contract, reused everywhere a master record is picked — this is the
-UI-level twin of the `resolve{Entity}()` auto-fill contract in §1.
+UI-level twin of the auto-fill contract in §1. The search endpoints exist
+(`GET /customers`, `/products`, `/warehouses`, `/transport/vehicles`, … all
+take `search` and paginate); the combobox itself is frontend work, and there
+is no frontend in this repository yet.

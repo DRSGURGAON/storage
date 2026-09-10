@@ -12,11 +12,11 @@ not to bolt monetization onto individual modules after the fact.
 numbering have landed.**
 `apps/api` is a NestJS + TypeScript + Drizzle project (`../../DECISIONS.md`
 §0) whose migration runner applies this directory's schema files as real,
-tracked migrations — now including `85_integrity_fixes.sql`,
-`90_row_level_security.sql`, `91_tenant_users_self_lookup.sql`,
-`92_rls_empty_string_guard.sql`, and `93_number_series_null_warehouse_fix.sql`,
-five fixes found only by building and load-testing real code against the
-schema, not by review (see `DECISIONS.md` §16–§21 for what each closed).
+tracked migrations — now including `85_integrity_fixes.sql` and everything from
+`90_row_level_security.sql` through `97_payment_idempotency.sql` — **nine**
+fixes found only by building and load-testing real code against the schema,
+not by review (`schema/README.md` indexes them; `DECISIONS.md` §16–§22,
+§25, §31 and §44 record what each closed).
 Signup, login (including
 multi-tenant membership selection), JWT issuance, and a protected `/me`
 endpoint are live and covered by integration tests against a real
@@ -65,8 +65,8 @@ gains a membership here, password untouched (tenancy-and-security.md
   `entitlement-engine.md` in full.
 - Deliverable: a tenant can sign up, invite users, assign roles; RLS policies
   are live from the first migration, not bolted on later; a new tenant is
-  created with a `trial` `tenant_subscriptions` row on the seeded `FREE`
-  plan; `checkEntitlement`/`consumeEntitlement` are implemented and unit
+  created with an `active` `tenant_subscriptions` row on the seeded `FREE`
+  plan (`active`, not `trial` — see the status note above); `checkEntitlement`/`consumeEntitlement` are implemented and unit
   tested against the seed data even though no document-generating module
   exists yet to call them.
 - Exit check: two tenants' users cannot see each other's `tenants` row or
@@ -74,8 +74,9 @@ gains a membership here, password untouched (tenancy-and-security.md
   `test-plan.md` "Customer A cannot access Customer B", generalised to staff
   users too). **Done** for the tenancy/RLS mechanism itself —
   `apps/api/src/db/tenant-isolation.spec.ts` proves it directly against a
-  real database (no masters module exists yet to prove it through HTTP;
-  that's Phase 2's job once there's a real endpoint to call). **Also done**
+  real database, and — since Phase 2 — `apps/api/src/customers/customers.spec.ts`
+  and every later suite prove the same thing through HTTP, on real
+  endpoints. **Also done**
   for the entitlement engine — `apps/api/src/entitlement/entitlement.spec.ts`
   proves `allowed: true` for the first two `GRN_GENERATION` consumptions and
   `allowed: false, reason: 'LIMIT_REACHED'` on the third, plus idempotent
@@ -87,7 +88,7 @@ gains a membership here, password untouched (tenancy-and-security.md
 
 ## Phase 2 — Customer, Warehouse, Location, Product/SKU, Transporter, Vehicle, Driver, Rate Card
 
-**Status: Customer master landed** (`apps/api/src/customers/`): create /
+**Status: complete.** Customer master landed (`apps/api/src/customers/`): create /
 list / get / update, `CUST0001`-style codes from `allocateNumberIn()`
 inside the same transaction as the insert (numbering.md §4), name/code/
 GSTIN/mobile search with server-side pagination (§74), GSTIN/PAN format
@@ -217,8 +218,14 @@ Phase 2 in full.
 
 - Schema: `schema/10_masters.sql`.
 - Docs: `numbering.md` (customer codes, warehouse codes if numbered),
-  `workflow-and-statuses.md` §1 (auto-fill contract — build the
-  `resolve{Entity}()` endpoints here, since every later phase depends on them).
+  `workflow-and-statuses.md` §1 (the auto-fill contract). Built, but not as
+  the `resolve{Entity}()` endpoints that document imagined: auto-fill runs
+  **server-side inside the create endpoints** that need it (posting an
+  Inward with a `gateEntryId` returns it with customer, vehicle, driver and
+  transporter already filled from the gate entry). A separate resolve call
+  would let a client fill a form from one snapshot and post a different one;
+  doing it in the writer means the values that land in the row are the
+  values the server read.
 - Deliverable: full CRUD + searchable selector (§74) for every master; rate
   card resolution (`billing-engine.md` §3) implemented and unit-tested even
   though nothing bills yet. Also build the onboarding wizard here
@@ -228,7 +235,7 @@ Phase 2 in full.
 
 ## Phase 3 — Quotation, Agreement, Document Engine
 
-**Status: Quotation record landed** (`apps/api/src/quotations/`):
+**Status: complete.** Quotation record landed (`apps/api/src/quotations/`):
 `quotations` + `quotation_lines`, `QT/{fy}/{seq:6}` numbering
 (`allocateNumberIn`, same engine every other module uses), and the
 Draft → Sent → Accepted/Rejected/Cancelled workflow from blueprint §14
@@ -353,7 +360,7 @@ document engine's existing mechanics unchanged.
 
 ## Phase 4 — Gate Entry, Inward, GRN, Discrepancy, Inspection, Put-away, Warehouse Receipt
 
-**Status: Gate Entry record landed** (`apps/api/src/gate-entries/`):
+**Status: complete.** Gate Entry record landed (`apps/api/src/gate-entries/`):
 `gate_entries`, `GE/{fy}/{seq:6}` numbering, and the
 Open → Closed/Cancelled workflow from blueprint §16 (`'linked'` — an
 Inward referencing this gate entry — is set by Inward's own increment,
@@ -482,8 +489,11 @@ document of title, and may not be pledged as security.
 had no transition — a controlled reversal (§50) exists to undo a
 posting, and there was no posting to undo. Each was commented as such
 at the point where it would otherwise have been tempting to write a
-stub. Phase 5 has since filled the first three; `'reversed'` is still
-open (see below).
+stub. Phase 5 has since filled all four: `POST /grns/:id/reverse` posts
+one offsetting ledger row per original and sets `status = 'reversed'`
+(`grns.service.ts`, `DECISIONS.md` §39), covered in `grns.spec.ts` and
+again in `acceptance.spec.ts`, where the reversal is asserted to net a
+receipt back to the exact pre-GRN balance.
 
 - Schema: `schema/30_inbound.sql`.
 - Docs: `workflow-and-statuses.md` (GRN status machine, auto-fill chain
@@ -619,7 +629,7 @@ so a corrected GRN can be raised.
 
 ## Phase 6 — Release Order, Reservation, Pick, Pack, Dispatch, Loading, Gate Pass, POD
 
-**Status: Release Order and Pick List landed** (`apps/api/src/release-orders/`,
+**Status: complete.** Release Order and Pick List landed (`apps/api/src/release-orders/`,
 `pick-lists/`). Reservation is where the allocation policy actually runs
 — `stock_lots.reserved_qty` is per lot, so reserving means choosing lots
 (`DECISIONS.md` §40) — with FIFO/LIFO/FEFO from `stock.allocation_policy`
@@ -657,8 +667,6 @@ handing the arrival back to `inspected` (`DECISIONS.md` §42). The
 Return Inward note is the nineteenth template. Every transaction type
 in `stock-engine.md` §2 now has a writer.
 
-**Status: complete.**
-
 - Schema: `schema/50_outbound.sql`.
 - Docs: `stock-engine.md` §2/§6 (reservation + allocation policy),
   `workflow-and-statuses.md` (Release Order status machine).
@@ -670,7 +678,7 @@ in `stock-engine.md` §2 now has a writer.
 
 ## Phase 7 — Storage Charges, Handling Charges, Invoice, Debit/Credit, Payment, Statement
 
-**Status: billing runs and invoices landed** (`apps/api/src/invoicing/`).
+**Status: complete.** Billing runs and invoices landed (`apps/api/src/invoicing/`).
 The run rebuilds storage day by day from `stock_ledger` (free days
 against each key's first inward, the whole daily series kept for the
 preview), adds handling charges from the operational *completions* that
@@ -694,8 +702,6 @@ overdue flip is a nightly per-tenant job (`DECISIONS.md` §44). Four more
 templates (Credit Note, Debit Note, Payment Receipt, Customer
 Statement) complete the §46/§76 list of twenty-four.
 
-**Status: complete.**
-
 - Schema: `schema/60_billing.sql`.
 - Docs: `billing-engine.md` in full.
 - Deliverable: Billing Run preview → Invoice → Payment → Customer Statement,
@@ -705,7 +711,8 @@ Statement) complete the §46/§76 list of twenty-four.
 
 ## Phase 8 — Customer Portal, Reports, Notifications, Audit, QR Verification
 
-**Status: the customer portal landed** (`apps/api/src/portal/`). A portal
+**Status: complete** apart from the three items named at the end of this
+section. The customer portal landed (`apps/api/src/portal/`). A portal
 login is an ordinary `tenant_users` row with `role = customer` and a
 mandatory `customer_id`; `PortalGuard` re-reads that membership on every
 request, and `PortalService` hard-codes the customer filter into every
@@ -742,9 +749,10 @@ their own documents rather than silently skipped.
 
 - Schema: `notification_rules`/`notifications`, `audit_logs`,
   `approval_chain_templates`/`approval_instances`/`approval_steps` from
-  `schema/70_documents_governance.sql` (audit logging should really be wired
-  in from Phase 1 onward at the interceptor level — this phase is where the
-  *viewer* UI for it ships).
+  `schema/70_documents_governance.sql` (audit logging is wired in from Phase
+  1 onward, as an explicit `AuditService.record()` call inside each service's
+  transaction — see "Cross-cutting" below; this phase adds only the *viewer*
+  over it).
 - Docs: `tenancy-and-security.md` §2 (portal isolation), the reporting
   projections referenced in `schema/60_billing.sql`'s closing comment,
   `ux-system.md` §3–§4, §12–§14 (dashboard, global search, usage nudges,
@@ -762,6 +770,46 @@ their own documents rather than silently skipped.
   seeded `FREE` plan with no gateway connected at all.
 
 ## Phase 9 — Full Testing
+
+**Status: complete for everything that can be tested without a frontend.**
+The suite is **33 files, 269 tests**, all green, all against a live
+PostgreSQL database — no mocked repositories anywhere. `test-plan.md` now
+carries a **Proven by** column naming the file and the test behind every
+§78 step and every §79 row, so a claim in that document can be checked
+against a test rather than taken on trust.
+
+Three things landed in this phase:
+
+- **`apps/api/src/acceptance/acceptance.spec.ts`** — §78's scenario walked
+  once, end to end, through HTTP: gate entry → inward → GRN (Operator
+  raises, is refused the approval, Manager signs off) → put-away →
+  warehouse receipt → release order → reserve → pick → dispatch → loading
+  → gate pass → gate-out → POD → billing run → invoice → payment →
+  statement → documents → audit trail, with the stock balance asserted
+  after every step that moves it. Plus the §79 rows no single module owns:
+  a snapshot outliving a master-data change, two warehouses and two batches
+  of one SKU staying separate, and a cancelled receipt netting back to the
+  exact pre-GRN balance.
+- **A fresh-database proof.** `warehouse_fresh` was created from nothing,
+  all eighteen schema files applied through `migrate.ts`, both seeds run,
+  and the full suite passed against it. The migration path is not something
+  that only works on the database it grew up on.
+- **A documentation reconciliation.** Every architecture document was
+  audited against the code, and roughly forty stale or false claims were
+  corrected — including this file's own phase headings, which still read
+  "Customer master landed" for phases that had been finished for weeks.
+  Where a documented mechanism was never built (`getDocumentRelations`,
+  `resolve{Entity}()` endpoints, signed URLs, `nearest_location`
+  allocation, `tenants.is_demo` enforcement), it is now marked unbuilt in
+  the document that specifies it, rather than left to be discovered from
+  the absence of a route.
+
+What Phase 9's original scope does **not** cover, and why: mobile
+responsiveness (§64) and every screen-level check need a frontend, and
+`apps/` contains only `api`. Fault injection and load testing are also
+absent — concurrency is tested where it decides correctness (numbering and
+entitlement both run genuine parallel races), but nothing kills a process
+mid-transaction. `test-plan.md` §5 lists the full set of gaps.
 
 - No new schema.
 - Docs: `test-plan.md` — execute it in full: the §78 end-to-end acceptance
