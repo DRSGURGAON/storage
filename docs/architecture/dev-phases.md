@@ -1097,6 +1097,33 @@ One screen serves all of them (`apps/web/src/screens/Reports.tsx`), built
 from the catalogue: adding a report to the backend makes it appear in the
 UI, with its filters and its column types, with no frontend change.
 
+**b. The Stock and Billing groups — §55 complete.** Fourteen more, and the
+catalogue now answers with exactly the twenty-three §55 lists: five
+operations, eight stock, six billing, four documents.
+
+The stock eight read `stock_lots` and `stock_ledger` and nothing else.
+Stock movement is the one worth naming: opening / in / out / closing per
+product, where *opening* is the `balance_physical_qty` the engine wrote on
+the last movement before the window rather than a sum from the beginning
+of time — the running-balance columns exist precisely so a period can be
+opened without a replay. Ageing reads the workspace's own
+`stock.ageing_buckets` setting, so the bands here and on the ageing screen
+are the same bands.
+
+The billing six read what the billing engine computed
+(`billing_run_lines`), never a re-derivation from stock-days and handling
+events: a report that arrived at a different number than the invoice would
+be a second opinion about somebody's bill. Two judgements are recorded in
+the definitions themselves. The **invoice register** lists cancelled
+invoices — it is the numbering record, and a missing number is the thing
+an auditor asks about. The **collection** report excludes cancelled
+receipts — a cancelled receipt is money that was not collected, and
+counting it would overstate the day. `receivables.spec.ts` checks the
+billing reports against the customer statement's own totals, which is how
+the difference between *outstanding* (unpaid invoice balances) and
+*closing balance* (the whole account, including an unapplied credit note)
+stopped being a bug and became a documented distinction.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

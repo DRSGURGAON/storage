@@ -619,10 +619,18 @@ provider said.
   echoes the filters *as applied* (an open date range is the last thirty
   days); the CSV is the same rows and columns as the screen, behind
   `export_reports`, so an export cannot quietly stop matching the report it
-  is named after. Every `run` applies `tenant_users.warehouse_ids`. Nine
-  reports today: `daily_inward`, `daily_outward`, `gate_entry_register`,
-  `grn_register`, `dispatch_register`, `document_register`, `pending_pod`,
-  `pending_approvals`, `agreement_expiry`.
+  is named after. Every `run` applies `tenant_users.warehouse_ids`. All
+  twenty-three of §55: **operations** — `daily_inward`, `daily_outward`,
+  `gate_entry_register`, `grn_register`, `dispatch_register`; **stock** —
+  `current_stock`, `customer_stock`, `stock_ledger`, `stock_movement`,
+  `stock_ageing`, `location_stock`, `stock_verification_register`,
+  `stock_adjustment_register`; **billing** — `storage_charges`,
+  `handling_charges`, `invoice_register`, `outstanding`, `collection`,
+  `customer_statement`; **documents** — `document_register`,
+  `pending_pod`, `pending_approvals`, `agreement_expiry`. The stock ones
+  read `stock_lots`/`stock_ledger` and the billing ones read what the
+  billing engine computed; none recomputes a balance or a charge of its
+  own.
 - `GET /notification-rules`, `PUT /notification-rules/:code`
   (`manage_company_settings`, Owner/Admin) — the §56 rules, made editable.
   The list is the rules **as they apply**: this workspace's row where it
@@ -758,7 +766,7 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-**39 suites, 308 tests**, all against the real local database
+**39 suites, 311 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,

@@ -301,6 +301,62 @@ describe('Notes, payments and the customer statement', () => {
     expect(again.body.versionNo).toBe(2);
   });
 
+  /**
+   * The §55 billing reports read the same rows the statement does, so this
+   * checks them against numbers this spec has already asserted rather than
+   * against themselves.
+   */
+  it('gives the billing reports the same numbers the statement has', async () => {
+    const statement = (await api().get(`/customer-statements/${customerId}`).set(auth(accountant)).expect(200)).body;
+    const run = async (code: string, query: Record<string, string> = {}) =>
+      (await api().get(`/reports/run/${code}`).query({ from: day(-60), to: day(1), ...query }).set(auth(accountant)).expect(200)).body;
+
+    const register = await run('invoice_register', { customerId });
+    expect(register.rows.map((r: { number: string }) => r.number)).toEqual(
+      expect.arrayContaining([invoiceA.number, invoiceB.number]),
+    );
+    // The register lists cancelled invoices too (it is the numbering
+    // record); the statement does not, so the comparison excludes them.
+    const live = register.rows
+      .filter((r: { status: string }) => r.status !== 'cancelled')
+      .reduce((sum: number, r: { grandTotal: number }) => sum + r.grandTotal, 0);
+    expect(live).toBeCloseTo(statement.totals.invoiced, 2);
+    expect(register.rows.some((r: { status: string }) => r.status === 'cancelled')).toBe(true);
+
+    const collection = await run('collection', { customerId });
+    expect(collection.totals.amount).toBeCloseTo(statement.totals.received, 2);
+    // Every rupee received here was put against an invoice, so nothing sits on account.
+    expect(collection.totals.unallocated).toBeCloseTo(0, 2);
+
+    // Outstanding is unpaid *invoice* balances, which is not the same
+    // number as the account's closing balance -- an unapplied credit note
+    // moves the second and not the first. It agrees with the register.
+    const outstanding = await run('outstanding', { customerId });
+    expect(outstanding.rows[0].customer).toBe('Acme Consumer Goods Pvt Ltd');
+    const dueFromRegister = register.rows
+      .filter((r: { status: string }) => r.status !== 'cancelled')
+      .reduce((sum: number, r: { balanceDue: number }) => sum + r.balanceDue, 0);
+    expect(outstanding.rows[0].totalDue).toBeCloseTo(dueFromRegister, 2);
+    expect(outstanding.rows[0].totalDue).toBeCloseTo(
+      outstanding.rows[0].notDue + outstanding.rows[0].due0to30 + outstanding.rows[0].due31to60 +
+        outstanding.rows[0].due61to90 + outstanding.rows[0].due90plus,
+      2,
+    );
+
+    const ledger = await run('customer_statement', { customerId });
+    expect(ledger.totals.debit - ledger.totals.credit).toBeCloseTo(statement.closingBalance, 2);
+
+    // Storage is what the billing engine computed, not a re-derivation.
+    const storage = await run('storage_charges', { customerId });
+    expect(storage.rowCount).toBeGreaterThan(0);
+    expect(storage.rows.every((r: { chargeType: string }) => r.chargeType === 'Storage')).toBe(true);
+
+    // And the Warehouse Operator, who holds none of these codes, sees none of them.
+    for (const code of ['invoice_register', 'outstanding', 'collection', 'storage_charges']) {
+      await api().get(`/reports/run/${code}`).set(auth(operator)).expect(403);
+    }
+  });
+
   it('flips an invoice overdue when its due date passes, and back once it is paid', async () => {
     const invoice = await issuedInvoice(otherCustomerId, -10, -1);
     await withTenant(sql, tenantId, (tx) => tx`update invoices set due_date = current_date - 10 where id = ${invoice.id} and tenant_id = ${tenantId}`);

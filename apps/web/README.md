@@ -67,8 +67,7 @@ than a file browser, and the POD screen takes a real signature on a canvas
 and saves it as the image the delivery document prints.
 
 Still absent, and named rather than implied: the Agreement wizard's eleven
-separate steps, and the Stock and Billing halves of the reports catalogue
-(the framework and the Operations and Documents groups are built).
+separate steps.
 
 ## How it is put together
 

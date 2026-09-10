@@ -5,11 +5,13 @@ import { AuthenticatedUser } from '../auth/jwt-payload';
 import { loadWarehouseScope } from '../auth/warehouse-scope';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
+import { BILLING_REPORTS } from './catalogue/billing.reports';
 import { DOCUMENT_REPORTS } from './catalogue/documents.reports';
 import { OPERATIONS_REPORTS } from './catalogue/operations.reports';
+import { STOCK_REPORTS } from './catalogue/stock.reports';
 import { ReportDefinition, ReportFilters } from './report-definition';
 
-const DEFINITIONS: ReportDefinition[] = [...OPERATIONS_REPORTS, ...DOCUMENT_REPORTS];
+const DEFINITIONS: ReportDefinition[] = [...OPERATIONS_REPORTS, ...STOCK_REPORTS, ...BILLING_REPORTS, ...DOCUMENT_REPORTS];
 
 const BY_CODE = new Map(DEFINITIONS.map((report) => [report.code, report]));
 
