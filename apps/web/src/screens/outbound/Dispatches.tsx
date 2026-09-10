@@ -146,7 +146,7 @@ export function PickListDetail() {
           </Space>
         }
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Release order">
             <a onClick={() => navigate(`/release-orders/${data?.releaseOrderId}`)}>Open</a>
           </Descriptions.Item>
@@ -157,6 +157,7 @@ export function PickListDetail() {
 
       <Card title="Pick these">
         <Table<PickListLine>
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           pagination={false}
@@ -362,7 +363,7 @@ export function DispatchDetail() {
           </Space>
         }
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Date">{date(data?.dispatchDate)}</Descriptions.Item>
           <Descriptions.Item label="Consignee">{data?.consigneeName ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="LR">{data?.lrNumber ?? '—'}</Descriptions.Item>
@@ -415,6 +416,7 @@ export function DispatchDetail() {
 
       <Card title="Lines">
         <Table<DispatchLine>
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           pagination={false}

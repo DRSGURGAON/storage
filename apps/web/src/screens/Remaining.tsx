@@ -80,7 +80,7 @@ export function QuotationDetail() {
           </Space>
         }
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Date">{date(data?.quotationDate)}</Descriptions.Item>
           <Descriptions.Item label="Valid until">{date(data?.validUntil)}</Descriptions.Item>
           <Descriptions.Item label="Total">{money(data?.grandTotal)}</Descriptions.Item>
@@ -88,6 +88,7 @@ export function QuotationDetail() {
       </Card>
       <Card title="Lines">
         <Table
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           pagination={false}
@@ -171,7 +172,7 @@ export function AgreementDetail() {
           </Space>
         }
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Effective from">{date(data?.effectiveFrom)}</Descriptions.Item>
           <Descriptions.Item label="Until">{date(data?.effectiveTo)}</Descriptions.Item>
           <Descriptions.Item label="Status">{humanise(data?.status)}</Descriptions.Item>
@@ -364,7 +365,7 @@ export function StockTransferDetail() {
           </Space>
         }
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Date">{date(data?.transferDate)}</Descriptions.Item>
           <Descriptions.Item label="Kind">{humanise(data?.kind)}</Descriptions.Item>
           <Descriptions.Item label="Status">{humanise(data?.status)}</Descriptions.Item>
@@ -381,6 +382,7 @@ export function StockTransferDetail() {
       </Card>
       <Card title="Lines">
         <Table
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           pagination={false}
@@ -515,13 +517,14 @@ export function StockVerificationDetail() {
           </Space>
         }
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Date">{date(data?.verificationDate)}</Descriptions.Item>
           <Descriptions.Item label="Status">{humanise(data?.status)}</Descriptions.Item>
         </Descriptions>
       </Card>
       <Card title="Count sheet">
         <Table
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           pagination={false}
@@ -627,7 +630,7 @@ export function ReturnRequestDetail() {
           />
         }
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Raised">{date(data?.requestDate)}</Descriptions.Item>
           <Descriptions.Item label="Reason" span={2}>
             {data?.reason ?? '—'}
@@ -645,6 +648,7 @@ export function ReturnRequestDetail() {
       </Card>
       <Card title="What is coming back">
         <Table
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           pagination={false}

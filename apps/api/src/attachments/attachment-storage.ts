@@ -14,4 +14,11 @@ export interface AttachmentStorage {
 
   /** Reads the bytes back by `storage_key`. */
   read(storageKey: string): Promise<Buffer>;
+
+  /**
+   * Deletes the bytes. Deleting the row alone would leave the file behind
+   * forever -- on S3 that is a bill, and here it is a disk that only ever
+   * grows. Missing bytes are not an error: the row is already gone.
+   */
+  remove(storageKey: string): Promise<void>;
 }

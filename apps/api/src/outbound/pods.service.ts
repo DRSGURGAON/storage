@@ -24,6 +24,8 @@ interface PodRow {
   remarks: string | null;
   captured_by: string | null;
   captured_at: string | null;
+  signature_attachment_id: string | null;
+  stamp_attachment_id: string | null;
   created_at: string;
 }
 
@@ -44,7 +46,8 @@ interface PodLineRow {
 
 const SELECT = `
   pod.id, pod.number, pod.dispatch_id, d.number as dispatch_number, d.warehouse_id, d.release_order_id, pod.delivery_date,
-  pod.receiver_name, pod.receiver_mobile, pod.status, pod.remarks, pod.captured_by, pod.captured_at, pod.created_at`;
+  pod.receiver_name, pod.receiver_mobile, pod.status, pod.remarks, pod.captured_by, pod.captured_at,
+  pod.signature_attachment_id, pod.stamp_attachment_id, pod.created_at`;
 
 function toApi(row: PodRow, lines?: PodLineRow[]) {
   return {
@@ -61,6 +64,11 @@ function toApi(row: PodRow, lines?: PodLineRow[]) {
     remarks: row.remarks,
     capturedBy: row.captured_by,
     capturedAt: row.captured_at,
+    // Filled by POST /attachments with category 'signature'/'stamp'
+    // (attachments/attachment-owners.ts), which is what points the POD at
+    // the image the delivery document then prints.
+    signatureAttachmentId: row.signature_attachment_id,
+    stampAttachmentId: row.stamp_attachment_id,
     createdAt: row.created_at,
     ...(lines && {
       lines: lines.map((l) => ({

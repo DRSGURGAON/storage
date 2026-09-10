@@ -53,9 +53,15 @@ things worth fixing: there was no way to open the navigation at all below
 `lg`, the list tables pushed the page sideways, and the login card and the
 form drawers were both wider than the screen. All three are fixed.
 
+Photographs and signatures are captured here too (Phase 12a): the
+`Attachments` card on a GRN, gate entry, customer or POD uses an upload
+control with `capture="environment"`, so a phone opens the camera rather
+than a file browser, and the POD screen takes a real signature on a canvas
+and saves it as the image the delivery document prints.
+
 Still absent, and named rather than implied: a full reports library beyond
-the stock statement and ageing, the Agreement wizard's eleven separate
-steps, and photo/signature capture.
+the stock statement and ageing, and the Agreement wizard's eleven separate
+steps.
 
 ## How it is put together
 

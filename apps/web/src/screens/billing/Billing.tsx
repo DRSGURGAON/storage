@@ -255,6 +255,7 @@ export function BillingRunDetail() {
 
       <Card title="What would be charged">
         <Table<BillingRunLine>
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           pagination={false}
@@ -386,7 +387,7 @@ export function InvoiceDetail() {
           </Space>
         }
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Billed to" span={2}>
             {data?.customerSnapshot?.legal_name ?? '—'}
             {data?.customerSnapshot?.gstin ? ` · ${data.customerSnapshot.gstin}` : ''}
@@ -427,6 +428,7 @@ export function InvoiceDetail() {
 
       <Card title="Lines">
         <Table
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           pagination={false}
@@ -618,6 +620,7 @@ export function Statements() {
               </Col>
             </Row>
             <Table<StatementEntry>
+              scroll={{ x: 'max-content' }}
               size="small"
               rowKey={(row) => `${row.type}-${row.number}`}
               loading={isLoading}

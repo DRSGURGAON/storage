@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AgreementsModule } from './agreements/agreements.module';
+import { AttachmentsModule } from './attachments/attachments.module';
 import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
 import { ConsoleModule } from './console/console.module';
@@ -55,6 +56,9 @@ import { ScopedThrottlerGuard, throttlerConfig } from './throttling';
     ThrottlerModule.forRoot(throttlerConfig(process.env)),
     DbModule,
     AuthModule,
+    // Reachable through DocumentsModule anyway, but named here because it
+    // now serves routes of its own rather than only storing document PDFs.
+    AttachmentsModule,
     EntitlementModule,
     NumberingModule,
     CompanyModule,

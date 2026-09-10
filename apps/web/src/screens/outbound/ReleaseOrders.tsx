@@ -166,7 +166,7 @@ export function ReleaseOrderDetail() {
           </Space>
         }
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Ordered">{date(data?.orderDate)}</Descriptions.Item>
           <Descriptions.Item label="Wanted by">{date(data?.requestedDate)}</Descriptions.Item>
           <Descriptions.Item label="Consignee">{data?.consigneeName ?? '—'}</Descriptions.Item>
@@ -194,6 +194,7 @@ export function ReleaseOrderDetail() {
 
       <Card title="Lines">
         <Table<ReleaseOrderLine>
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           pagination={false}

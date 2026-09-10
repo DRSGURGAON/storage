@@ -280,3 +280,12 @@ purpose-built single-column, large-touch-target flows. Camera-driven inputs
 (damage photos, POD photos, signature capture) upload directly into the
 `attachments` table scoped to the specific transaction being worked, per
 `tenancy-and-security.md` §5 — never a generic unattached media library.
+
+**Built (Phase 12a).** `POST /attachments` takes `ownerType` + `ownerId`,
+so there is no unattached upload to make: the whitelist in
+`attachments/attachment-owners.ts` is both what may be attached to and
+which permission each attachment demands, and the owner row is checked to
+exist inside the caller's own tenant. On the web side, the upload control
+carries `capture="environment"` (a phone opens the camera, not the file
+browser) and the POD screen takes a signature on a canvas — a real
+drawing, saved as a PNG, that becomes `pods.signature_attachment_id`.

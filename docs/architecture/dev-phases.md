@@ -191,9 +191,9 @@ previous `delivery` default while leaving the unrelated `registered`
 default untouched, and toggling `isPrimary` back onto an earlier contact
 correctly un-primaries the one that displaced it. Both ride the existing
 `view_customer`/`edit_customer` permissions — no separate permission code
-exists for either sub-resource. KYC documents are deferred to the
-`attachments` table (Phase 4, per the schema's own comment: "Customer
-documents... live in attachments with owner_type='customer'").
+exists for either sub-resource. KYC documents live in the
+`attachments` table with `owner_type = 'customer'`, per the schema's own
+comment — built in Phase 12a, and reachable from the customer screen.
 **Onboarding wizard landed** (`apps/api/src/onboarding/`, `GET
 /onboarding/status`): ux-system.md §1 offers two ways to persist wizard
 progress — "a small `onboarding_state` field on the tenant, or derived
@@ -1008,8 +1008,43 @@ deactivating a rule fell through to the still-active system default, so
 switching an event off switched it back on (`DECISIONS.md` §48).
 
 **Still not built**, and named rather than implied: a full reports library
-beyond the stock statement and ageing; the Agreement wizard's eleven
-separate steps; and photo/signature capture.
+beyond the stock statement and ageing, and the Agreement wizard's eleven
+separate steps.
+
+## Phase 12 — the things a warehouse actually holds in its hands
+
+**a. Attachments: uploads, photographs and a signature.** The
+`attachments` table, the `AttachmentStorage` seam and the columns that
+point at a signature all existed from Phase 1, and the only thing that
+ever wrote them was the document engine storing its own PDFs. So blueprint
+§21's damage photos, §36's POD signature and §9's customer KYC pack were
+columns with no way to fill them —
+`DiscrepancyReportsService`'s own header said so out loud.
+
+`POST /attachments` (multipart), `GET /attachments?ownerType=&ownerId=`,
+`GET /attachments/:id/file` and `DELETE /attachments/:id` close that.
+Three decisions worth naming, all in `DECISIONS.md` §49: the permission
+comes from *what the file is attached to* rather than from a route
+decorator; `attachment-owners.ts` is simultaneously that mapping and the
+whitelist that stops a polymorphic `owner_id` from pointing anywhere; and
+a category that the owner row points back at (a POD's signature, the
+company logo) writes the column on upload and clears it on delete.
+
+On the web: an `Attachments` card on the GRN, gate entry, customer and POD
+screens, whose upload control carries `capture="environment"` so a phone
+opens the camera; a signature pad that draws on a canvas with pointer
+events and saves a PNG; and a **POD screen**, which the dispatch screen
+had been linking to since Phase 11d without one existing.
+
+Using it found two more defects, both fixed here. Any failure of
+`GET /auth/me` — a 500, an offline moment, a request the browser aborted
+mid-navigation — discarded the token and forced a fresh login; only a 401
+means the token is actually bad, and the app now says "cannot reach the
+server" and offers to retry instead. And the §64 phone pass had covered
+the *list* screens but not the *detail* screens: their three-column
+`Descriptions` and their line tables both pushed the page sideways, and a
+Card header at 390px squeezed the record number out of existence entirely.
+All seventeen screens now measure `scrollWidth == clientWidth == 390`.
 
 ## Cross-cutting, not a phase
 

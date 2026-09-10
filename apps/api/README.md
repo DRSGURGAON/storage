@@ -208,7 +208,9 @@ provider said.
   write the rest, so every document rendered with no GSTIN and no address
   (`DECISIONS.md` §35). `isDocumentReady` on the response is the same
   GSTIN-plus-full-address condition the onboarding wizard's company step
-  now uses. `slug`, `status`, the three attachment ids and
+  now uses. `slug`, `status`, the three attachment ids (set by
+  `POST /attachments` with `ownerType=company`, not by a raw id from the
+  client) and
   `financialYearStartMonth` are deliberately not settable — the last
   because number series are keyed by financial year, so moving it mid-year
   would re-key every series.
@@ -585,6 +587,22 @@ provider said.
   rolled back cannot be taken back). A channel with no configuration
   (`SMTP_URL`, `WHATSAPP_WEBHOOK_URL`, `SMS_WEBHOOK_URL`) leaves its
   notifications `pending` and visible rather than marking them sent.
+- `POST /attachments` (multipart: `ownerType`, `ownerId`, `category`,
+  `file`), `GET /attachments?ownerType=&ownerId=`,
+  `GET /attachments/:id/file[?download=1]`, `DELETE /attachments/:id` —
+  blueprint §21's damage photos, §36's POD signature and §9's customer KYC
+  pack. **No `@RequirePermission`**, and that is the point: the permission
+  an upload needs depends on what it is attached to, which a decorator
+  evaluated before the body is read cannot know. `attachment-owners.ts`
+  maps each owner type to its read/write permission *and* is the whitelist
+  that keeps a polymorphic `owner_id` from pointing at anything —
+  including another tenant's row, which the existence check inside
+  `withTenant` turns into a 404. A category the owner points back at (a
+  POD's signature, the company logo, a discrepancy report's driver
+  acknowledgement) writes that column on upload and clears it on delete.
+  Content types are limited to what a camera or scanner produces, the size
+  cap is enforced at the socket and again in the service, and deleting a
+  row deletes its bytes. `DECISIONS.md` §49.
 - `GET /notification-rules`, `PUT /notification-rules/:code`
   (`manage_company_settings`, Owner/Admin) — the §56 rules, made editable.
   The list is the rules **as they apply**: this workspace's row where it
@@ -720,7 +738,7 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-**36 suites, 291 tests**, all against the real local database
+**37 suites, 297 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,
@@ -738,6 +756,15 @@ rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
   reservation drawing from the sooner-expiring batch rather than a merged
   pool; and a cancelled receipt netting back to the exact pre-GRN balance
   through an additive reversal.
+- `attachments/attachments.spec.ts` — a real 1×1 PNG through the real
+  filesystem provider: stored, listed, read back byte for byte (and found
+  on disk under its `storage_key`, with a sha256), refused to a role
+  without the *owner's* write permission, refused for an unknown owner
+  type, an unknown category and a `text/html` body, invisible and
+  un-deletable from another workspace, linked to `tenants.logo_attachment_id`
+  and unlinked again — including the case where a second upload takes the
+  link and deleting the first must not clear it — and finally deleted,
+  bytes and all, with `create`/`delete` in `audit_logs`.
 - `notifications/notification-rules.spec.ts` — the rule editor: the
   seeded list, `403` for a role without `manage_company_settings`, an
   override replacing the default (and the audit row it writes), the

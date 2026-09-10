@@ -7,7 +7,7 @@ runnable checklist. Every row maps to a real integration test: the
 **Proven by** column names the spec file and the test that covers it. All
 of them run against a live PostgreSQL database — there are no mocked
 repositories in this suite — and the whole set is
-**36 suites, 291 tests, green** (`cd apps/api && npm test`).
+**37 suites, 297 tests, green** (`cd apps/api && npm test`).
 
 Two files carry most of the cross-module rows:
 
@@ -117,7 +117,7 @@ Every row below is covered. "Proven by" names the file and the test.
 | Rate limiting on login and public QR verification | **Done.** `auth/auth.spec.ts` *"throttles repeated login attempts against one account, without penalising the rest of the office"* — the limit is keyed per (IP, email), so one account being hammered does not lock out the next login from the same office (`DECISIONS.md` §36). `/verify/:qrToken` carries its own limit (`documents/verify.controller.ts`) |
 | File access requires a signed, scoped URL | **Done** (Phase 10b). `POST /documents/:id/download-link` mints an HMAC-signed link naming one document, its tenant and optionally its customer, expiring in five minutes; `documents.spec.ts` and `portal.spec.ts` cover the unauthenticated fetch, a flipped signature byte, a forged payload, an expired link, and links scoped to the wrong customer or tenant. The bytes still come from `LocalFilesystemAttachmentStorage` — the object store itself is still unbuilt (`DECISIONS.md` §0's update, §24) |
 | Stock postings are atomic under mid-transaction failure | **Partly.** Atomicity is structural, not chaos-tested: `StockService.postWithin()` takes the caller's transaction, so the ledger insert, the lot upsert and the caller's own status change commit together or not at all — `stock.spec.ts` proves the negative-balance refusal leaves nothing behind, and every posting spec asserts no partial rows. What is *not* done is killing the process mid-transaction to prove it; that needs a fault-injection harness this suite does not have |
-| Mobile responsiveness of the operator flows | **Done (Phase 11g), except capture.** Driven at 390×844 in a real browser — login, dashboard, gate entries, GRNs, stock, release orders, invoices, settings and a create drawer — each reporting `scrollWidth == clientWidth == 390`, with the navigation drawer opened and screenshotted. Three defects found and fixed: no way to open the navigation below `lg`, list tables pushing the page sideways, and the login card's fixed 440px plus the form drawers' fixed 520–720px. Photo/signature capture is still not built |
+| Mobile responsiveness of the operator flows | **Done (Phase 11g), except capture.** Driven at 390×844 in a real browser — login, dashboard, gate entries, GRNs, stock, release orders, invoices, settings and a create drawer — each reporting `scrollWidth == clientWidth == 390`, with the navigation drawer opened and screenshotted. Three defects found and fixed: no way to open the navigation below `lg`, list tables pushing the page sideways, and the login card's fixed 440px plus the form drawers' fixed 520–720px. Phase 12a then built photo and signature capture and repeated the pass over the *detail* screens, which the first one had missed: seventeen screens, all measuring 390, after fixing three-column `Descriptions`, line tables and a Card header that squeezed the record number to nothing |
 
 ## 4. Entitlement & subscription engine (saas-layer §6–§17, §41–§45; `entitlement-engine.md`)
 

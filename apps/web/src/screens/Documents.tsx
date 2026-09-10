@@ -170,7 +170,7 @@ export function DocumentRelations() {
           </Space>
         }
       >
-        <Descriptions size="small" column={2}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2 }}>
           <Descriptions.Item label="Created from">{data.createdFrom.length}</Descriptions.Item>
           <Descriptions.Item label="Related records">{data.related.length}</Descriptions.Item>
         </Descriptions>

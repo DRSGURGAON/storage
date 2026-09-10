@@ -20,4 +20,8 @@ export class LocalFilesystemAttachmentStorage implements AttachmentStorage {
   async read(storageKey: string): Promise<Buffer> {
     return fs.readFile(path.join(this.baseDir, storageKey));
   }
+
+  async remove(storageKey: string): Promise<void> {
+    await fs.rm(path.join(this.baseDir, storageKey), { force: true });
+  }
 }

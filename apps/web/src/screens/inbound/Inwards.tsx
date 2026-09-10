@@ -195,7 +195,7 @@ export function InwardDetail() {
           </Space>
         }
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Received">{dateTime(data?.inwardAt)}</Descriptions.Item>
           <Descriptions.Item label="Vehicle">{data?.vehicleNumber ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="LR">{data?.lrNumber ?? '—'}</Descriptions.Item>
@@ -229,6 +229,7 @@ export function InwardDetail() {
 
       <Card title="Lines">
         <Table<InwardItem>
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           pagination={false}

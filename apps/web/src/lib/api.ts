@@ -76,6 +76,44 @@ export async function api<T>(
   return parsed as T;
 }
 
+/**
+ * Multipart upload. Separate from `api()` because the two disagree on one
+ * thing: the browser has to set `content-type` itself here, so it can add
+ * the multipart boundary. Setting it by hand produces a body the server
+ * cannot parse, with no error that says so.
+ */
+export async function upload<T>(path: string, form: FormData): Promise<T> {
+  const token = getToken();
+  const response = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  const text = await response.text();
+  const parsed = text ? safeJson(text) : null;
+  if (!response.ok) {
+    const raw = (parsed as { message?: string | string[] } | null)?.message;
+    const message = Array.isArray(raw) ? raw.join('; ') : (raw ?? `Upload failed (${response.status})`);
+    throw new ApiError(response.status, message, parsed);
+  }
+  return parsed as T;
+}
+
+/**
+ * The bytes of a file, as a blob URL the browser can put in an `<img>` or
+ * an `<a>`. A plain `src="/api/attachments/..."` would not carry the
+ * bearer token, so the fetch happens here and the caller gets a URL that
+ * needs no headers. Callers must `URL.revokeObjectURL` when done.
+ */
+export async function fileUrl(path: string): Promise<string> {
+  const token = getToken();
+  const response = await fetch(`${BASE}${path}`, {
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) throw new ApiError(response.status, `Could not load the file (${response.status})`, null);
+  return URL.createObjectURL(await response.blob());
+}
+
 function safeJson(text: string): unknown {
   try {
     return JSON.parse(text);

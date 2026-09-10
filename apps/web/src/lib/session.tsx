@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { api, getToken, setToken } from './api';
+import { api, ApiError, getToken, setToken } from './api';
 
 export interface Session {
   user: { email: string; fullName: string };
@@ -21,6 +21,14 @@ interface SessionContextValue {
    * server would refuse is courtesy; it is not a control.
    */
   can: (permission: string) => boolean;
+  /**
+   * Set when `/auth/me` could not be reached at all -- the server is down
+   * or the network is gone. Distinct from "not signed in": the token is
+   * still there and still good, so the answer is to try again, not to log
+   * in again.
+   */
+  unreachable: boolean;
+  retry: () => void;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -36,17 +44,36 @@ const SessionContext = createContext<SessionContextValue | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unreachable, setUnreachable] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!getToken()) {
       setLoading(false);
       return;
     }
+    setLoading(true);
+    setUnreachable(false);
     api<Session>('/auth/me')
-      .then(setSession)
-      .catch(() => setToken(null))
+      .then((loaded) => {
+        setSession(loaded);
+        setUnreachable(false);
+      })
+      .catch((error) => {
+        // Only a 401 means the token is no longer good, and `api()` has
+        // already discarded it and sent the browser to the login screen.
+        // Anything else -- a 500, an offline moment, a request the browser
+        // aborted mid-navigation -- must NOT throw the session away: doing
+        // that turned every transient blip into a forced re-login, with no
+        // message saying why.
+        if (error instanceof ApiError && error.status === 401) {
+          setSession(null);
+          return;
+        }
+        setUnreachable(true);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [attempt]);
 
   const value = useMemo<SessionContextValue>(
     () => ({
@@ -61,8 +88,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setSession(null);
       },
       can: (permission: string) => session?.permissions.includes(permission) ?? false,
+      unreachable,
+      retry: () => setAttempt((n) => n + 1),
     }),
-    [session, loading],
+    [session, loading, unreachable],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

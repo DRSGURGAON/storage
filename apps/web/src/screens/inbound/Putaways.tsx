@@ -148,7 +148,7 @@ export function PutawayDetail() {
           </Space>
         }
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="GRN">
             <a onClick={() => navigate(`/grns/${data?.grnId}`)}>{data?.grnNumber ?? 'Open'}</a>
           </Descriptions.Item>
@@ -159,6 +159,7 @@ export function PutawayDetail() {
 
       <Card title="Lines">
         <Table<PutawayLine>
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           pagination={false}
@@ -296,7 +297,7 @@ export function WarehouseReceiptDetail() {
         </Space>
       }
     >
-      <Descriptions size="small" column={3}>
+      <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
         <Descriptions.Item label="Date">{date(data?.receiptDate)}</Descriptions.Item>
         <Descriptions.Item label="GRN">
           <a onClick={() => navigate(`/grns/${data?.grnId}`)}>Open</a>

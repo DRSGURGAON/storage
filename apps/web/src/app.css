@@ -1,0 +1,21 @@
+/*
+ * Two rules, both from the §64 phone pass.
+ *
+ * A Card's header is a flex row of title and actions. At 390px the actions
+ * win and the title is squeezed to nothing -- on a POD that meant the
+ * document number simply vanished. Letting the row wrap costs nothing on a
+ * laptop, where it never needs to.
+ *
+ * `Descriptions` are given responsive column counts per screen; this is the
+ * matching fix for their labels, which otherwise wrap one character per
+ * line inside a column too narrow for the value.
+ */
+.ant-card-head-wrapper {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.ant-descriptions-item-label,
+.ant-descriptions-item-content {
+  word-break: break-word;
+}

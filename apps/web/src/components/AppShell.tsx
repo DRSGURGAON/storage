@@ -96,6 +96,7 @@ const NAV: NavItem[] = [
       { key: '/release-orders', label: 'Release orders', permissions: ['create_release_order'] },
       { key: '/pick-lists', label: 'Pick lists', permissions: ['create_pick_list'] },
       { key: '/dispatches', label: 'Dispatches', permissions: ['create_dispatch'] },
+      { key: '/pods', label: 'Proof of delivery', permissions: ['capture_pod'] },
       { key: '/return-requests', label: 'Returns', permissions: ['create_return_request'] },
     ],
   },

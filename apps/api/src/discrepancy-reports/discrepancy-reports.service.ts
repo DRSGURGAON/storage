@@ -99,11 +99,10 @@ function toApi(row: DiscrepancyReportRow, items?: DiscrepancyItemRow[]) {
  * *discrepant* lines -- a GRN whose lines all tally has nothing to
  * report, and is refused rather than producing an empty report.
  *
- * Photos (`attachments` with `owner_type = 'discrepancy_report'`,
- * `category = 'photo'`, per the schema's own note) are not wired: no
- * user-facing upload endpoint exists anywhere in this codebase yet --
- * `AttachmentsService` currently only stores engine-generated PDFs. The
- * same gap applies to `driver_ack_signature_attachment_id`.
+ * Photos go on the report itself via `POST /attachments` with
+ * `owner_type = 'discrepancy_report'` (`attachments/attachment-owners.ts`),
+ * and a `signature` there writes `driver_ack_signature_attachment_id` --
+ * both built in Phase 12a, and neither this service's to do.
  */
 @Injectable()
 export class DiscrepancyReportsService {

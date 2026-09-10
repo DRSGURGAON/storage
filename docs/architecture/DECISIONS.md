@@ -1851,3 +1851,72 @@ excludes portal logins, so it would address nobody). The screen goes
 further and marks the two seeded codes — `payment_due`,
 `agreement_expiring` — that no service raises yet, from a list the spec
 re-derives from the source tree so it cannot quietly go stale.
+
+## §49 — Uploads: the permission comes from what the file is attached to
+
+`attachments` has existed since `schema/00_core.sql`, with a polymorphic
+`owner_type`/`owner_id`, a storage seam (§24) and columns on four tables
+pointing back at a signature, a stamp or a logo. Everything except the
+part that puts a file in it: the only writer was the document engine
+storing its own PDFs. Blueprint §21's damage photos, §36's POD signature
+and §9's customer KYC pack were therefore *schema*, not features — a fact
+`DiscrepancyReportsService`'s header stated plainly rather than hiding.
+
+Four decisions, in the order they had to be made.
+
+**The permission is a property of the owner type, not of the route.** A
+route decorator is evaluated before the body is read, so it cannot know
+that this upload is a photo on a GRN (part of raising the GRN) rather than
+a customer's GST certificate (part of editing the customer). So
+`attachment-owners.ts` maps each owner type to the permissions to read and
+to write it, and `AttachmentUploadsService` checks with the same
+`hasPermission` lookup `PermissionsGuard` uses. The controller carries
+`JwtAuthGuard` alone and says why — the arrangement `/search` and document
+regeneration already use.
+
+**That map is also the whitelist.** `owner_id` has no foreign key behind
+it, so without a fixed table of allowed types an upload could name any
+string and point at any row, in any tenant. Every entry names the table
+the id must exist in, and that check runs inside `withTenant` — so a row
+in another workspace is *not found*, which is the same answer the rest of
+the application gives. `owner.table` is interpolated into the query, which
+is safe precisely because it can only come from this file.
+
+**A linked category writes back.** Uploading a `signature` to a POD sets
+`pods.signature_attachment_id`; deleting it clears the column — but only
+when the column still points at *that* attachment, so a second signature
+uploaded over the first takes the link with it and deleting the first
+afterwards does not blank the second. Without this, the column would stay
+null forever and the document that prints from it would print nothing.
+
+**Deleting a row deletes the bytes.** `AttachmentStorage` gained
+`remove()`. The unlink happens after the commit and never fails the
+request: bytes left behind are waste, whereas an unlink before the commit
+could delete the file for a delete that then rolled back.
+
+Two limits, both deliberate. Content types are the five a camera or a
+scanner produces (`image/jpeg|png|webp|heic`, `application/pdf`) — an
+upload endpoint that accepts anything is a file-serving endpoint for
+whatever someone puts through it, and these bytes are handed back to a
+browser. And `category = 'document'` is excluded from every route here:
+those rows belong to the document engine, and deleting one would break the
+document that references it.
+
+## §50 — A failed `/auth/me` is not a logout
+
+Found driving the attachment screens: navigating on a phone-sized viewport
+dropped the session and showed the login form, with the token gone from
+`localStorage`.
+
+`SessionProvider` did `api('/auth/me').then(setSession).catch(() => setToken(null))`.
+Every failure was treated as "your token is bad" — a 500, a dropped
+connection, a request the browser aborted because the user navigated
+mid-flight. The user is then silently signed out of a session that was
+never invalid, with nothing on screen saying why.
+
+Only a 401 means the token is no longer good, and `api()` already handles
+that case (it clears the token and sends the browser to `/login`).
+Everything else now leaves the session alone and renders "Cannot reach the
+server — you are still signed in" with a retry, which is both true and
+actionable. The general shape: *the client may only discard a credential
+when the server says the credential is wrong.*

@@ -26,10 +26,16 @@ interface AttachmentRow {
 }
 
 /**
- * Backs generated-document PDF storage for now (schema/00_core.sql
- * `attachments`, owner_type='quotation' etc.) -- not yet the general
- * KYC-document/upload feature described in the blueprint (dev-phases.md
- * still lists that as a Phase 4 item).
+ * Writing a row and its bytes, and reading them back. Two callers, with
+ * opposite audiences: `DocumentEngineService` storing the PDFs it renders
+ * (`owner_type = 'quotation'` and the like, `category = 'document'`), and
+ * `AttachmentUploadsService` serving `POST /attachments` for the photos,
+ * signatures and KYC documents people upload.
+ *
+ * Everything about *who may* attach something, to what, and what happens
+ * to the owner row afterwards lives in that second service -- this one is
+ * deliberately the mechanical half, so the engine's own writes do not have
+ * to route around a permission check that has no actor to check.
  */
 @Injectable()
 export class AttachmentsService {

@@ -96,7 +96,7 @@ export function PortalOverview() {
   return (
     <Space direction="vertical" size={16} style={{ display: 'flex' }}>
       <Card loading={isLoading} title={<Typography.Title level={4} style={{ margin: 0 }}>{data?.customer.legalName ?? data?.customer.name}</Typography.Title>}>
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Account">{data?.customer.code}</Descriptions.Item>
           <Descriptions.Item label="GSTIN">{data?.customer.gstin ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Stored with">{data?.warehouseOperator}</Descriptions.Item>
@@ -355,6 +355,7 @@ export function PortalStatement() {
         </Col>
       </Row>
       <Table<StatementEntry>
+        scroll={{ x: 'max-content' }}
         size="small"
         rowKey={(row) => `${row.type}-${row.number}`}
         loading={isLoading}

@@ -251,6 +251,7 @@ export function Ageing() {
 
       <Card title="By lot">
         <Table<AgeingLine>
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey={(row) => `${row.sku}-${row.batchNo ?? ''}-${row.warehouseCode}-${row.customerId}`}
           loading={isLoading}

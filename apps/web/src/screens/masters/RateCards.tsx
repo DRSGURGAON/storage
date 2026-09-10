@@ -176,7 +176,7 @@ export function RateCardDetail() {
   return (
     <Space direction="vertical" size={16} style={{ display: 'flex' }}>
       <Card loading={card.isLoading} title={<Typography.Title level={4} style={{ margin: 0 }}>{card.data?.name}</Typography.Title>}>
-        <Descriptions size="small" column={4}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 4 }}>
           <Descriptions.Item label="Code">{card.data?.code}</Descriptions.Item>
           <Descriptions.Item label="Scope">{humanise(card.data?.scope)}</Descriptions.Item>
           <Descriptions.Item label="Valid">
@@ -202,6 +202,7 @@ export function RateCardDetail() {
         extra={can('edit_rate_card') && <CreateButton label="Add line" onClick={() => setAdding(true)} />}
       >
         <Table<RateCardLine>
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           loading={lines.isLoading}

@@ -6,6 +6,7 @@ import { CreateButton, ListPage } from '../../components/ListPage';
 import { FormDrawer } from '../../components/FormDrawer';
 import { RecordPicker } from '../../components/RecordPicker';
 import { RecordActions } from '../../components/RecordActions';
+import { Attachments } from '../../components/Attachments';
 import { DocumentActions } from '../../components/DocumentActions';
 import { ItemLines } from '../../components/ItemLines';
 import { api } from '../../lib/api';
@@ -225,7 +226,7 @@ export function GrnDetail() {
           </Space>
         }
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Date">{date(data?.grnDate)}</Descriptions.Item>
           <Descriptions.Item label="Supplier invoice">{data?.invoiceNumber ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Stock posted">
@@ -267,6 +268,7 @@ export function GrnDetail() {
 
       <Card title="Lines">
         <Table<GrnItem>
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           pagination={false}
@@ -312,6 +314,16 @@ export function GrnDetail() {
           Only the accepted column posts to stock, and only once the GRN is approved.
         </Typography.Paragraph>
       </Card>
+
+      {/* Blueprint §21: the photographs that make a damage claim arguable. */}
+      <Attachments
+        ownerType="grn"
+        ownerId={id}
+        title="Photos and paperwork"
+        categories={['photo', 'invoice', 'lr', 'eway_bill', 'other']}
+        writePermission="create_grn"
+        emptyText="No photos yet. On a phone, the button opens the camera — photograph the damage where it is, not from memory."
+      />
     </Space>
   );
 }

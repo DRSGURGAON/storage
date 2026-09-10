@@ -315,7 +315,7 @@ export function PlanSettings() {
   return (
     <Space direction="vertical" size={16} style={{ display: 'flex' }}>
       <Card title={<Typography.Title level={4} style={{ margin: 0 }}>Plan</Typography.Title>}>
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="Plan">
             <Space>
               <strong>{data?.plan.name}</strong>
@@ -340,6 +340,7 @@ export function PlanSettings() {
 
       <Card title="Usage">
         <Table
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="featureCode"
           pagination={false}

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { CreateButton } from '../../components/ListPage';
 import { FormDrawer } from '../../components/FormDrawer';
+import { Attachments } from '../../components/Attachments';
 import { api } from '../../lib/api';
 import { useSession } from '../../lib/session';
 import { humanise } from '../../lib/format';
@@ -62,7 +63,7 @@ export function CustomerDetail() {
         }
         extra={can('edit_customer') && <CreateButton label="Edit" onClick={() => setEditing(true)} />}
       >
-        <Descriptions size="small" column={3}>
+        <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }}>
           <Descriptions.Item label="GSTIN">{customer.data?.gstin ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Place of supply">{customer.data?.placeOfSupply ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Credit days">{customer.data?.creditDays ?? '—'}</Descriptions.Item>
@@ -77,6 +78,7 @@ export function CustomerDetail() {
         extra={can('edit_customer') && <CreateButton label="Add address" onClick={() => setAddingAddress(true)} />}
       >
         <Table<Address>
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           loading={addresses.isLoading}
@@ -104,6 +106,7 @@ export function CustomerDetail() {
         extra={can('edit_customer') && <CreateButton label="Add contact" onClick={() => setAddingContact(true)} />}
       >
         <Table<Contact>
+          scroll={{ x: 'max-content' }}
           size="small"
           rowKey="id"
           loading={contacts.isLoading}
@@ -175,6 +178,18 @@ export function CustomerDetail() {
           </>
         )}
       </FormDrawer>
+
+      {/* Blueprint §9's KYC pack: the GST certificate, PAN and signed
+          agreement that make a customer real, kept on the customer rather
+          than in somebody's mailbox. */}
+      <Attachments
+        ownerType="customer"
+        ownerId={id}
+        title="KYC and paperwork"
+        categories={['gst_certificate', 'pan', 'kyc', 'agreement', 'other']}
+        writePermission="edit_customer"
+        emptyText="No documents yet. GST certificate, PAN and the signed agreement live here."
+      />
 
       <FormDrawer
         open={addingContact}

@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { App as AntApp, ConfigProvider, Spin } from 'antd';
+import { App as AntApp, Button, ConfigProvider, Result, Spin } from 'antd';
 import enGB from 'antd/locale/en_GB';
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
@@ -28,6 +28,7 @@ import {
 import { Stock, StockLedger, Ageing } from './screens/stock/Stock';
 import { ReleaseOrders, ReleaseOrderDetail } from './screens/outbound/ReleaseOrders';
 import { PickLists, PickListDetail, Dispatches, DispatchDetail } from './screens/outbound/Dispatches';
+import { Pods, PodDetail } from './screens/outbound/Pods';
 import {
   BillingRuns,
   BillingRunDetail,
@@ -68,6 +69,7 @@ import {
   PortalDocuments,
 } from './screens/portal/Portal';
 import 'antd/dist/reset.css';
+import './app.css';
 
 /**
  * One retry, not three. This app's failures are overwhelmingly 4xx --
@@ -80,8 +82,26 @@ const queryClient = new QueryClient({
 });
 
 function RequireSession() {
-  const { session, loading } = useSession();
+  const { session, loading, unreachable, retry } = useSession();
   if (loading) return <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}><Spin size="large" /></div>;
+  // Still signed in, but the API did not answer. Sending someone to the
+  // login screen here would be a lie -- their session is fine.
+  if (unreachable) {
+    return (
+      <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', padding: 16 }}>
+        <Result
+          status="warning"
+          title="Cannot reach the server"
+          subTitle="You are still signed in. This is the connection, not your session."
+          extra={
+            <Button type="primary" onClick={retry}>
+              Try again
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
   if (!session) return <Navigate to="/login" replace />;
   return <Outlet />;
 }
@@ -151,6 +171,8 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="pick-lists/:id" element={<PickListDetail />} />
                     <Route path="dispatches" element={<Dispatches />} />
                     <Route path="dispatches/:id" element={<DispatchDetail />} />
+                    <Route path="pods" element={<Pods />} />
+                    <Route path="pods/:id" element={<PodDetail />} />
                     <Route path="billing-runs" element={<BillingRuns />} />
                     <Route path="billing-runs/:id" element={<BillingRunDetail />} />
                     <Route path="invoices" element={<Invoices />} />
