@@ -18,21 +18,17 @@ Entry → Inward → GRN (with §50's Operator → Manager approval split) →
 Inspection / Discrepancy Report → Put-away → Warehouse Receipt; and a
 real document engine — server-rendered PDF generation (headless Chromium
 via `puppeteer-core`), QR-code verification, versioning, and FREE-plan
-entitlement gating — proven end-to-end against **ten** registered
+entitlement gating — proven end-to-end against **eleven** registered
 templates: Quotation, Agreement, Gate Entry, Inward, GRN, Discrepancy
-Report, Put-away Slip, Warehouse Receipt, Stock Transfer Note, and the
-Physical Stock Count Sheet.
+Report, Put-away Slip, Warehouse Receipt, Stock Transfer Note, the
+Physical Stock Count Sheet, and the Customer Stock Statement.
 
-Phase 5 is under way: the **stock engine** is built and wired into the
-inbound chain. `StockService` is the only thing in the codebase that
-writes a stock balance — GRN approval posts real `INWARD` ledger rows
-and resolves batches, put-away completion relocates that stock as a
-`TRANSFER_OUT`/`TRANSFER_IN` pair, and `GET /stock` / `GET /stock/ledger`
-read it back. Stock Transfer, Physical Verification and Stock Adjustment
-are all built on top of it; the ageing report, the customer stock
-statement and GRN reversal (`'reversed'` still has no transition) are the
-rest of the phase, and Outward and the billing-run modules come after
-it.
+Phase 5 is complete: the **stock engine** — `StockService` is the only
+thing in the codebase that writes a stock balance — with GRN approval
+posting `INWARD`, put-away relocating, Stock Transfer, Physical
+Verification, Stock Adjustment with its approval chain, GRN reversal, and
+the stock statement and ageing reports on top. Outward (Phase 6) and the
+billing-run modules (Phase 7) come next.
 
 ## Stack
 
@@ -392,6 +388,22 @@ rows with no error at all.
   (`DECISIONS.md` §38). `post` rides the approve permission, not the create
   one. This is the only endpoint in the system that writes an `ADJUSTMENT`
   ledger row.
+- `GET /reports/stock-statement?customerId=&warehouseId=&asOf=` and
+  `GET /reports/ageing?customerId=&warehouseId=` (`view_reports`). The
+  statement is `stock_lots` live, or for a past `asOf` date the ledger's
+  stored running balances via one `distinct on` — no replay. Ageing buckets
+  come from `stock.ageing_buckets` at query time (change the setting, no
+  backfill) over `batches.first_received_at`; non-batch stock is aged from
+  its earliest receipt, a stated FIFO assumption (`DECISIONS.md` §39).
+  `POST /reports/stock-statement/:customerId/document[/preview]`
+  (`view_stock`) issues the Customer Stock Statement, keyed on the customer
+  as its source record so reissuing is a new version of the same thing.
+- `POST /grns/:id/reverse` (`approve_grn`) — `stock-engine.md` §3.5's
+  additive reversal: one offsetting `INWARD` row with `reversal_of_id` per
+  original, nothing deleted, the inward released back to `'received'` so a
+  corrected GRN can be raised. Refused while a warehouse receipt is issued
+  and once a put-away has moved the stock — the unallocated lot is shared
+  across receipts, so "would it go negative" was the wrong guard (§39).
 - `GET /stock?customerId=&warehouseId=&productId=&locationId=&includeEmpty=`
   (`view_stock`) and `GET /stock/ledger?...&txnType=&sourceType=&sourceId=`
   (`view_stock_ledger`) — current balances and the append-only movement
@@ -645,6 +657,21 @@ All against the real local database (`DATABASE_URL`), not mocks:
   worth asserting here because `tenants` is keyed by `id` rather than
   `tenant_id`, so `schema/90`'s generator gives it no RLS policy and the
   explicit filter is the only thing scoping it.
+- `reports/reports.spec.ts` — the statement per lot with per-product
+  totals and only that customer; a past `asOf` rebuilt from the ledger
+  after a bin move (100 then, 30+70 now); ageing bucketing a 45-day-old
+  batch into `31-60` and non-batch stock into `0-30`, then re-bucketing
+  under a custom `stock.ageing_buckets` setting; the eleventh template
+  keyed on the customer with reissue as v2 and the old QR revoked; and
+  `view_reports` gating (Billing Executive yes, Operator no). The spec's
+  own fixture updates go through `withTenant` because the ledger is under
+  FORCE RLS — a bare update silently touches zero rows, which is the
+  point.
+- `grns/grns.spec.ts` additionally covers reversal: refused while a
+  warehouse receipt is issued (naming it), then the offsetting `INWARD`
+  row with `qtyOut` equal to the original's `qtyIn` and `reversalOfId`
+  pointing at it, the inward back to `'received'`, and a second GRN
+  refused once its put-away has run.
 - `stock-verifications/stock-verifications.spec.ts` — both halves of §27.
   The sheet building itself from current stock with `systemQty` frozen; a
   counted line's `differenceQty` computed by the database; **counting

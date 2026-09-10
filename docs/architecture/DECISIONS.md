@@ -1369,3 +1369,50 @@ not approve it; a Manager approves and then cannot finalise their own
 approval; an Admin cannot finalise either; the Owner can. `post` rides
 `approve_stock_adjustment` rather than the create code — applying an
 approved change is the approver's act, not the requester's.
+
+## §39 — GRN reversal refuses on "has it moved", not on "would it go negative"
+
+`stock-engine.md` §3.5 says reversal is additive: cancelling an approved
+GRN inserts offsetting rows with `reversal_of_id` set, never deletes. The
+Phase 5 engine slice left GRN `'reversed'` without a transition on the
+grounds that undoing a posting once the goods have been put away is a
+design question. This is the answer.
+
+The first cut of the guard was the obvious one: post the offsetting rows
+and let the engine's negative-stock invariant refuse if the goods are no
+longer where the receipt put them. It is wrong, and the test that caught
+it is worth describing. GRN approval posts stock *unallocated* — one lot
+per (customer, warehouse, product, batch) with `location_id` null — and
+that lot is **shared** by every receipt of that product. Reverse GRN #2
+after its put-away has emptied its share, and the offset does not go
+negative at all: it quietly consumes GRN #3's still-unallocated stock,
+and the balance stays positive. No error, wrong number, on the table the
+whole product exists to keep right.
+
+So the guard is about movement, not arithmetic: a non-cancelled put-away
+against the GRN refuses the reversal outright, with a message that says
+what to do instead (a Stock Adjustment with a reason). The negative-stock
+check stays as a backstop, but it is no longer the thing being relied on.
+
+Two other refusals and one release, all deliberate:
+
+- An **issued warehouse receipt** blocks reversal. A customer is holding a
+  document that says these goods are in storage; cancelling that document
+  is a separate, visible act that has to come first.
+- The offsetting rows are `INWARD` with `qty_out`, not `ADJUSTMENT`. §3.4
+  reserves `ADJUSTMENT` for rows that reference a `stock_adjustments`
+  record, and a reversal references the GRN. The type names what is being
+  undone; `reversal_of_id` says it is an undoing.
+- The **inward goes back to `'received'`**, so a corrected GRN can be
+  raised from it — which is the only reason anyone reverses one.
+
+### Ageing for stock with no batch is a stated FIFO assumption
+
+`batches.first_received_at` was kept stable since the engine slice
+precisely so ageing (§26) could read it. Stock that is not batch-tracked
+has no such anchor. It is aged from the earliest `INWARD`/`RETURN` of that
+product for that customer in that warehouse — the oldest layer's age
+applied to the whole quantity. That is a FIFO assumption and it is written
+down rather than hidden, because it is also the *conservative* reading: in
+a storage-charge dispute the customer is told the age of the oldest goods
+they have not yet taken out, not an average that flatters the newest.

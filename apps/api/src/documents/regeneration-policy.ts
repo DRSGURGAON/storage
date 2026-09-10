@@ -41,6 +41,9 @@ export const PROVISIONAL_SOURCE_STATUSES: Record<string, readonly string[]> = {
   // A blank count sheet is provisional; a completed verification is the
   // record someone signed, and reissuing it should be a deliberate act.
   stock_verification: ['draft'],
+  // A statement is reissued freely -- each issue is a fresh reading of the
+  // balance, and the previous one is superseded by design.
+  stock_statement: ['issued'],
 };
 
 /**

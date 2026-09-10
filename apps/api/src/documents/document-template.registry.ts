@@ -8,6 +8,7 @@ import { InwardDocumentTemplate } from './templates/inward-document.template';
 import { PutawayDocumentTemplate } from './templates/putaway-document.template';
 import { QuotationDocumentTemplate } from './templates/quotation-document.template';
 import { StockTransferDocumentTemplate } from './templates/stock-transfer-document.template';
+import { StockStatementDocumentTemplate } from './templates/stock-statement-document.template';
 import { StockVerificationDocumentTemplate } from './templates/stock-verification-document.template';
 import { WarehouseReceiptDocumentTemplate } from './templates/warehouse-receipt-document.template';
 
@@ -32,6 +33,7 @@ export class DocumentTemplateRegistry {
     warehouseReceiptTemplate: WarehouseReceiptDocumentTemplate,
     stockTransferTemplate: StockTransferDocumentTemplate,
     stockVerificationTemplate: StockVerificationDocumentTemplate,
+    stockStatementTemplate: StockStatementDocumentTemplate,
   ) {
     this.templates.set(quotationTemplate.documentType, quotationTemplate);
     this.templates.set(agreementTemplate.documentType, agreementTemplate);
@@ -43,6 +45,7 @@ export class DocumentTemplateRegistry {
     this.templates.set(warehouseReceiptTemplate.documentType, warehouseReceiptTemplate);
     this.templates.set(stockTransferTemplate.documentType, stockTransferTemplate);
     this.templates.set(stockVerificationTemplate.documentType, stockVerificationTemplate);
+    this.templates.set(stockStatementTemplate.documentType, stockStatementTemplate);
   }
 
   get(documentType: string): DocumentTemplate {

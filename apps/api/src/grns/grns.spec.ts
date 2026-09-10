@@ -32,6 +32,25 @@ describe('GRNs', () => {
   };
 
   /** A received inward is the normal starting point for a GRN. */
+  const createBin = async () => {
+    const zone = await api()
+      .post(`/warehouses/${warehouseId}/locations`)
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ level: 'zone', segment: `Z${randomUUID().slice(0, 4).toUpperCase()}` })
+      .expect(201);
+    const rack = await api()
+      .post(`/warehouses/${warehouseId}/locations`)
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ level: 'rack', segment: 'R01', parentId: zone.body.id })
+      .expect(201);
+    const bin = await api()
+      .post(`/warehouses/${warehouseId}/locations`)
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ level: 'bin', segment: 'B01', parentId: rack.body.id })
+      .expect(201);
+    return bin.body.id as string;
+  };
+
   const createReceivedInward = async (overrides: Record<string, unknown> = {}) => {
     const created = await api()
       .post('/inwards')
@@ -234,6 +253,58 @@ describe('GRNs', () => {
     expect(ledger.body.items[0]).toMatchObject({ txnType: 'INWARD', sourceType: 'grn', locationId: null });
 
     await api().post(`/grns/${id}/approve`).set('Authorization', `Bearer ${owner}`).expect(400);
+  });
+
+  it("reverses an approved GRN additively, refuses once a receipt is issued or the stock has moved", async () => {
+    // stock-engine.md §3.5: reversal never deletes. Every INWARD row gets an
+    // offsetting row pointing back at it, and the inward is released so a
+    // corrected GRN can be raised from it.
+    const inwardId = await createReceivedInward();
+    const created = await api().post('/grns').set('Authorization', `Bearer ${owner}`).send({ inwardId }).expect(201);
+    const id = created.body.id;
+    for (const step of ['submit', 'check', 'approve']) {
+      await api().post(`/grns/${id}/${step}`).set('Authorization', `Bearer ${owner}`).expect(201);
+    }
+    const before = await api().get(`/stock/ledger?sourceId=${id}`).set('Authorization', `Bearer ${owner}`).expect(200);
+    expect(before.body.total).toBe(1);
+
+    // A customer holding a warehouse receipt is a reason to stop.
+    const receipt = await api().post('/warehouse-receipts').set('Authorization', `Bearer ${owner}`).send({ grnId: id }).expect(201);
+    const blocked = await api().post(`/grns/${id}/reverse`).set('Authorization', `Bearer ${owner}`).expect(400);
+    expect(blocked.body.message).toContain(receipt.body.number);
+    await api().post(`/warehouse-receipts/${receipt.body.id}/cancel`).set('Authorization', `Bearer ${owner}`).expect(201);
+
+    const reversed = await api().post(`/grns/${id}/reverse`).set('Authorization', `Bearer ${owner}`).expect(201);
+    expect(reversed.body.status).toBe('reversed');
+    const after = await api().get(`/stock/ledger?sourceId=${id}`).set('Authorization', `Bearer ${owner}`).expect(200);
+    expect(after.body.total).toBe(2);
+    const original = after.body.items.find((r: { reversalOfId: string | null }) => r.reversalOfId === null);
+    const offset = after.body.items.find((r: { reversalOfId: string | null }) => r.reversalOfId !== null);
+    // The undoing is the same quantity in the other direction, on the same
+    // lot, pointing at what it undoes -- and the original row is untouched.
+    expect(offset).toMatchObject({ txnType: 'INWARD', qtyIn: '0.000', qtyOut: original.qtyIn, reversalOfId: original.id });
+    expect(Number(offset.balancePhysicalQty)).toBe(Number(original.balancePhysicalQty) - Number(original.qtyIn));
+    // The inward is a receipt again, ready for a corrected GRN.
+    expect((await api().get(`/inwards/${inwardId}`).set('Authorization', `Bearer ${owner}`).expect(200)).body.status).toBe('received');
+    await api().post(`/grns/${id}/reverse`).set('Authorization', `Bearer ${owner}`).expect(400);
+
+    // Once the goods have been put away, the receipt is no longer the thing
+    // to undo -- the engine refuses to take the unallocated lot negative.
+    const secondInward = await createReceivedInward();
+    const second = await api().post('/grns').set('Authorization', `Bearer ${owner}`).send({ inwardId: secondInward }).expect(201);
+    for (const step of ['submit', 'check', 'approve']) {
+      await api().post(`/grns/${second.body.id}/${step}`).set('Authorization', `Bearer ${owner}`).expect(201);
+    }
+    const bin = await createBin();
+    const putaway = await api()
+      .post('/putaways')
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ grnId: second.body.id, lines: [{ grnItemId: second.body.items[0].id, toLocationId: bin }] })
+      .expect(201);
+    await api().post(`/putaways/${putaway.body.id}/complete`).set('Authorization', `Bearer ${owner}`).expect(201);
+    const moved = await api().post(`/grns/${second.body.id}/reverse`).set('Authorization', `Bearer ${owner}`).expect(400);
+    expect(moved.body.message).toMatch(/Stock Adjustment/);
+    expect((await api().get(`/grns/${second.body.id}`).set('Authorization', `Bearer ${owner}`).expect(200)).body.status).toBe('approved');
   });
 
   it('rejects a submitted GRN, and cancels a draft', async () => {

@@ -131,6 +131,7 @@ Wired in so far:
 | Stock transfer, bin to bin (§28) | `TRANSFER_OUT` + `TRANSFER_IN` per line, both at `complete` | `stock_transfer:{id}:out` / `:in` |
 | Stock transfer, warehouse to warehouse | `TRANSFER_OUT` at `dispatch`, `TRANSFER_IN` at `complete` | `stock_transfer:{id}:out` / `:in` |
 | Stock adjustment posting (§27) | one signed `ADJUSTMENT` per line, at `post` | `stock_adjustment:{id}:post` |
+| GRN reversal (§3.5) | one offsetting `INWARD` (`qty_out`, `reversal_of_id`) per original row | `grn:{id}:reverse` |
 
 Three things the implementation settled that this document left open:
 
@@ -166,8 +167,5 @@ structural: there is no code path from a count to a balance. Its
 discrepancies become an approved `ADJUSTMENT` or they change nothing at
 all.
 
-Not yet built:
-the reservation types (`RESERVE`/`UNRESERVE`, which Phase 6's Release
-Order owns), `OUTWARD`, and §3.5's controlled reversal — GRN
-`'reversed'` still has no transition, since undoing a posting after the
-goods have been put away is a design question in its own right.
+Not yet built: the reservation types (`RESERVE`/`UNRESERVE`, which
+Phase 6's Release Order owns) and `OUTWARD` (gate-out).

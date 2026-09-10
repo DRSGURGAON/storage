@@ -80,6 +80,13 @@ export class GrnsController {
     return this.grns.reject(user, id, ip);
   }
 
+  /** §3.5's controlled reversal -- the Manager-side authority, like approval itself. */
+  @Post(':id/reverse')
+  @RequirePermission('approve_grn')
+  reverse(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Ip() ip: string) {
+    return this.grns.reverse(user, id, ip);
+  }
+
   @Post(':id/cancel')
   @RequirePermission('create_grn')
   cancel(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string, @Ip() ip: string) {

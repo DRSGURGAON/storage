@@ -15,6 +15,7 @@ import { InwardDocumentTemplate } from './templates/inward-document.template';
 import { PutawayDocumentTemplate } from './templates/putaway-document.template';
 import { QuotationDocumentTemplate } from './templates/quotation-document.template';
 import { StockTransferDocumentTemplate } from './templates/stock-transfer-document.template';
+import { StockStatementDocumentTemplate } from './templates/stock-statement-document.template';
 import { StockVerificationDocumentTemplate } from './templates/stock-verification-document.template';
 import { WarehouseReceiptDocumentTemplate } from './templates/warehouse-receipt-document.template';
 import { VerifyController, VerifyService } from './verify.controller';
@@ -37,6 +38,7 @@ import { VerifyController, VerifyService } from './verify.controller';
     WarehouseReceiptDocumentTemplate,
     StockTransferDocumentTemplate,
     StockVerificationDocumentTemplate,
+    StockStatementDocumentTemplate,
     VerifyService,
   ],
   exports: [DocumentEngineService],

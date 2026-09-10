@@ -496,8 +496,8 @@ open (see below).
 
 ## Phase 5 — Stock Engine, Ledger, Customer Stock, Ageing, Verification, Transfer
 
-**Status: in progress — the engine and the inbound half of it are
-built and tested** (`apps/api/src/stock/`).
+**Status: complete** (`apps/api/src/stock/`, `stock-transfers/`,
+`stock-verifications/`, `stock-adjustments/`, `reports/`).
 
 `StockService` is the only thing in the codebase that writes a stock
 balance, which is what makes stock-engine.md §1 ("`stock_lots` is a
@@ -586,11 +586,27 @@ tenth registered template — renders blank before the count and filled in
 after, hiding the system quantity on the blank form so the counter is
 counting rather than confirming.
 
-**Still to build in this phase:** the Customer Stock Statement and Ageing
-report; and GRN reversal — `'reversed'` still has no transition, because
-undoing a posting once the goods have been put away (or partly
-dispatched) is a real design question, not a transcription of §3.5, and
-it deserves its own slice rather than a half-correct one bolted on.
+**Reports and reversal landed, closing the phase**
+(`apps/api/src/reports/`). `GET /reports/stock-statement` (§25) is
+`stock_lots` for the customer live, and for a past `asOf` date is rebuilt
+from the ledger's stored running balances in one `distinct on` — which is
+what those columns were kept for. `GET /reports/ageing` (§26) buckets by
+`stock.ageing_buckets` at query time over `batches.first_received_at`,
+with non-batch stock aged from its earliest receipt as a stated FIFO
+assumption (`DECISIONS.md` §39). The Customer Stock Statement is the
+**eleventh** document template, keyed on the customer as its source
+record so reissuing is a new version of the same thing. GRN reversal
+(`POST /grns/:id/reverse`, `approve_grn`) is §3.5's additive reversal:
+offsetting `INWARD` rows with `reversal_of_id`, refused while a warehouse
+receipt is issued or once a put-away has moved the stock — the latter
+because the unallocated lot is shared across receipts, so "would it go
+negative" is the wrong question (§39). The inward returns to `'received'`
+so a corrected GRN can be raised.
+
+- Exit check met: receive 100 → stock 100; transfer between bins and
+  warehouses; prevent negative stock — all proven through real documents
+  in `stock.spec.ts`, `stock-transfers.spec.ts`, and
+  `stock-verifications.spec.ts`.
 
 - Schema: `schema/40_stock.sql`.
 - Docs: `stock-engine.md` in full.

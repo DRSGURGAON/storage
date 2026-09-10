@@ -845,6 +845,116 @@ export class GrnsService {
     });
   }
 
+  /**
+   * stock-engine.md §3.5's controlled reversal, and the transition that
+   * GRN `'reversed'` existed for since Phase 4 without having. It is
+   * **additive**: nothing is deleted; every INWARD row this GRN posted gets
+   * an offsetting row with `reversal_of_id` pointing back at it, so the
+   * ledger keeps both the receipt and its undoing.
+   *
+   * Two refusals carry the real weight:
+   *
+   * - If a warehouse receipt is outstanding, reversal is refused. A
+   *   customer is holding a document that says these goods are in
+   *   storage; that document has to be cancelled first, deliberately.
+   * - If the stock has since *moved* -- put away, transferred, partly
+   *   dispatched -- the offsetting rows would take the original lot
+   *   negative, and the engine refuses them. That is the correct answer:
+   *   goods that have been shelved and picked from are no longer "the
+   *   receipt", and unwinding them is a Stock Adjustment with a reason,
+   *   not a reversal of the paperwork that brought them in.
+   *
+   * The inward goes back to `'received'`, so a corrected GRN can be
+   * raised from it -- which is the whole reason anyone reverses one.
+   */
+  reverse(actor: AuthenticatedUser, id: string, ipAddress?: string) {
+    return this.transition(actor, id, ipAddress, ['approved'], async (tx, before) => {
+      const [receipt] = await tx<{ number: string }[]>`
+        select number from warehouse_receipts
+        where tenant_id = ${actor.tenantId} and grn_id = ${id} and status = 'issued'
+      `;
+      if (receipt) {
+        throw new BadRequestException(
+          `Warehouse receipt ${receipt.number} is issued against this GRN -- cancel it before reversing the receipt`,
+        );
+      }
+
+      // Once a put-away has run, the goods are on shelves and may share a
+      // lot with other receipts -- reversing "this GRN's" rows could then
+      // quietly reverse someone else's stock without ever going negative.
+      // So the question is not "would it go negative" but "has it moved".
+      const [putaway] = await tx<{ number: string }[]>`
+        select number from putaways
+        where tenant_id = ${actor.tenantId} and grn_id = ${id} and status <> 'cancelled'
+      `;
+      if (putaway) {
+        throw new BadRequestException(
+          `Put-away ${putaway.number} has moved this GRN's stock -- it can no longer be reversed. ` +
+            'Write the difference off with a Stock Adjustment instead.',
+        );
+      }
+
+      const posted = await tx<
+        {
+          id: string;
+          location_id: string | null;
+          product_id: string;
+          batch_id: string | null;
+          serial_no: string | null;
+          qty_in: string;
+          uom_code: string;
+          source_line_id: string | null;
+        }[]
+      >`
+        select id, location_id, product_id, batch_id, serial_no, qty_in, uom_code, source_line_id
+        from stock_ledger
+        where tenant_id = ${actor.tenantId} and source_type = 'grn' and source_id = ${id}
+          and txn_type = 'INWARD' and reversal_of_id is null
+        order by txn_at, id
+      `;
+
+      try {
+        await this.stock.postWithin(tx, actor, {
+          sourceType: 'grn',
+          sourceId: id,
+          idempotencyKey: `grn:${id}:reverse`,
+          movements: posted.map((row) => ({
+            txnType: 'INWARD' as const,
+            customerId: before.customer_id,
+            warehouseId: before.warehouse_id,
+            locationId: row.location_id,
+            productId: row.product_id,
+            batchId: row.batch_id,
+            serialNo: row.serial_no,
+            qtyOut: Number(row.qty_in),
+            uomCode: row.uom_code,
+            sourceLineId: row.source_line_id,
+            reversalOfId: row.id,
+            remarks: `Reversal of GRN ${before.number}`,
+          })),
+        });
+      } catch (err) {
+        if (err instanceof BadRequestException && /negative/i.test(String((err as Error).message))) {
+          throw new BadRequestException(
+            'Cannot reverse this GRN: its stock has since been moved (put away, transferred or dispatched). ' +
+              'Write the difference off with a Stock Adjustment instead.',
+          );
+        }
+        throw err;
+      }
+
+      await tx`
+        update grns set status = 'reversed' where id = ${id} and tenant_id = ${actor.tenantId}
+      `;
+      if (before.inward_id) {
+        await tx`
+          update inwards set status = 'received'
+          where id = ${before.inward_id} and tenant_id = ${actor.tenantId} and status = 'grn_created'
+        `;
+      }
+    });
+  }
+
   reject(actor: AuthenticatedUser, id: string, ipAddress?: string) {
     return this.transition(actor, id, ipAddress, ['submitted', 'checked'], async (tx) => {
       await tx`update grns set status = 'rejected' where id = ${id} and tenant_id = ${actor.tenantId}`;
