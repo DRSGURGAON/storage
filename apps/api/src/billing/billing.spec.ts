@@ -160,6 +160,9 @@ describe('Billing: Charge Types, Tax Rates, Rate Cards, Resolution', () => {
       .set('Authorization', `Bearer ${owner}`)
       .expect(200);
     expect(list.body).toHaveLength(1);
+    // The line carries the charge it prices by name, not only by id: the
+    // screen showed a blank column otherwise (Phase 16).
+    expect(list.body[0]).toMatchObject({ chargeTypeCode: 'STORAGE', chargeTypeName: 'Storage' });
   });
 
   it('resolves through the full customer > warehouse > company priority, with a product-specific override', async () => {

@@ -15,6 +15,8 @@ interface PutawayRow {
   id: string;
   number: string;
   grn_id: string;
+  /** Joined on the reads: a put-away slip is "for GRN X", and an id is not that. */
+  grn_number?: string;
   warehouse_id: string;
   customer_id: string;
   assigned_to: string | null;
@@ -49,6 +51,7 @@ function toApi(row: PutawayRow, lines?: PutawayLineRow[]) {
     id: row.id,
     number: row.number,
     grnId: row.grn_id,
+    ...(row.grn_number !== undefined ? { grnNumber: row.grn_number } : {}),
     warehouseId: row.warehouse_id,
     customerId: row.customer_id,
     assignedTo: row.assigned_to,
@@ -101,7 +104,9 @@ export class PutawaysService {
 
   private async fetchWithLines(tx: postgres.TransactionSql, tenantId: string, id: string) {
     const [row] = await tx<PutawayRow[]>`
-      select ${tx.unsafe(SELECT_COLUMNS)} from putaways where id = ${id} and tenant_id = ${tenantId}
+      select ${tx.unsafe(SELECT_COLUMNS.split(',').map((c) => `p.${c.trim()}`).join(', '))}, g.number as grn_number
+      from putaways p join grns g on g.id = p.grn_id
+      where p.id = ${id} and p.tenant_id = ${tenantId}
     `;
     if (!row) return null;
     const lines = await tx<PutawayLineRow[]>`
@@ -226,15 +231,15 @@ export class PutawaysService {
     return withTenant(this.sql, actor.tenantId, async (tx) => {
       const scope = await loadWarehouseScope(tx, actor);
       const rows = await tx<PutawayRow[]>`
-        select ${tx.unsafe(SELECT_COLUMNS)}
-        from putaways
-        where tenant_id = ${actor.tenantId}
-          and (${scope}::uuid[] is null or warehouse_id = any(${scope}))
-          and (${pattern}::text is null or number ilike ${pattern})
-          and (${grnFilter}::uuid is null or grn_id = ${grnFilter})
-          and (${warehouseFilter}::uuid is null or warehouse_id = ${warehouseFilter})
-          and (${statusFilter}::text is null or status = ${statusFilter})
-        order by created_at desc
+        select ${tx.unsafe(SELECT_COLUMNS.split(',').map((c) => `p.${c.trim()}`).join(', '))}, g.number as grn_number
+        from putaways p join grns g on g.id = p.grn_id
+        where p.tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or p.warehouse_id = any(${scope}))
+          and (${pattern}::text is null or p.number ilike ${pattern})
+          and (${grnFilter}::uuid is null or p.grn_id = ${grnFilter})
+          and (${warehouseFilter}::uuid is null or p.warehouse_id = ${warehouseFilter})
+          and (${statusFilter}::text is null or p.status = ${statusFilter})
+        order by p.created_at desc
         limit ${query.limit} offset ${query.offset}
       `;
       const [{ count }] = await tx<{ count: string }[]>`

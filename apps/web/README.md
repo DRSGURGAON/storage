@@ -70,6 +70,21 @@ The Agreement screen carries §15's eleven-step wizard, drawn from the
 API's own definition, each step saving on its own and showing what is
 still outstanding before the agreement can be submitted.
 
+## Checking the screens against the API
+
+`node tools/contract-audit.mjs` (with `TOKEN=` a bearer token and a server
+running) walks every `api<T>('/path')` call in `src/`, fetches that path,
+and compares the fields `T` declares against the keys the server actually
+sends. TypeScript cannot do this: the API is JSON at runtime, so a field
+that was renamed — or never existed — arrives as `undefined` and renders
+as a blank column rather than as an error.
+
+It is not theoretical. The agreements screen read `effectiveFrom`,
+`effectiveTo` and `clauses[].renderedClause` for three phases and the API
+has never returned any of the three; the audit then found two more (a
+put-away's GRN number and a rate card line's charge type), both fixed on
+the API side, since the id alone is not what a person reads.
+
 ## How it is put together
 
 - **`src/lib/api.ts`** — the one place this app talks to the API. It

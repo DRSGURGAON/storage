@@ -1192,6 +1192,35 @@ repository — a payment gateway with no provider chosen (`DECISIONS.md`
 §13) and an S3 adapter with no bucket to point at (§24) — and both are
 behind interfaces that a provider drops into.
 
+## Phase 16 — the screens against the API
+
+The agreement screen read three fields the API has never returned. That
+is not a bug TypeScript can catch: the client compiles against its own
+interface, the server sends JSON, and a field that does not exist arrives
+as `undefined` and renders as a blank column. Nothing fails; the screen
+just quietly says nothing.
+
+So `apps/web/tools/contract-audit.mjs` checks it directly — every
+`api<T>('/path')` call in the app, fetched from a live server, with `T`'s
+declared fields compared against the keys that actually come back. It
+found two more:
+
+- A **put-away** knew its GRN's id and not its number, so the slip that
+  exists to say "for GRN X" showed a blank column.
+- A **rate card line** knew its charge type's id and not its name, so the
+  line that prices storage did not say "Storage".
+
+Both were fixed on the API side rather than the screen's, for the same
+reason: an id is not what a person reads, and every other endpoint that
+returns a foreign key already returns the name beside it. Both now have
+a test asserting the joined field, so the screen cannot go blank again
+without something failing first.
+
+The audit reports two kinds of line, and says which is which: a field the
+API does not return, and an endpoint it could not construct or was not
+allowed to call. The second kind is not a defect, and labelling it as one
+would make the tool the sort of thing people stop running.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

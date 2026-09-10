@@ -76,7 +76,7 @@ describe('Put-aways and warehouse receipts', () => {
     for (const step of ['submit', 'check', 'approve']) {
       await api().post(`/grns/${grn.body.id}/${step}`).set('Authorization', `Bearer ${owner}`).expect(201);
     }
-    return grn.body as { id: string; items: { id: string }[] };
+    return grn.body as { id: string; number: string; items: { id: string }[] };
   };
 
   beforeAll(async () => {
@@ -141,6 +141,12 @@ describe('Put-aways and warehouse receipts', () => {
     expect(res.body.number).toBe('PA/26-27/000001');
     expect(res.body.status).toBe('pending');
     expect(res.body.customerId).toBe(customerId);
+    // The slip says which GRN it is for, in the words on the GRN -- an id
+    // alone left the screen showing a blank column (Phase 16).
+    const reread = await api().get(`/putaways/${res.body.id}`).set('Authorization', `Bearer ${owner}`).expect(200);
+    expect(reread.body.grnNumber).toBe(grn.number);
+    const listed = await api().get('/putaways').set('Authorization', `Bearer ${owner}`).expect(200);
+    expect(listed.body.items[0].grnNumber).toBe(grn.number);
     expect(res.body.lines).toHaveLength(1);
     const line = res.body.lines[0];
     expect(line.quantity).toBe(100);

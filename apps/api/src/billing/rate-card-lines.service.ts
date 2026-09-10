@@ -28,6 +28,9 @@ export interface RateCardLineRow {
   sac_code: string | null;
   description: string | null;
   sort_order: number;
+  /** Joined on the read path only -- a line is stored by id, and read with the name a human recognises. */
+  charge_type_code?: string;
+  charge_type_name?: string;
 }
 
 const SELECT_COLUMNS = `
@@ -53,6 +56,13 @@ export function toApi(row: RateCardLineRow) {
     sacCode: row.sac_code,
     description: row.description,
     sortOrder: row.sort_order,
+    // A rate card line is meaningless without the charge it prices, and
+    // `chargeTypeId` alone means the screen shows a blank column or has to
+    // fetch every charge type to translate one id. Present on the reads,
+    // absent on a write's echo, which is why they are optional.
+    ...(row.charge_type_code !== undefined
+      ? { chargeTypeCode: row.charge_type_code, chargeTypeName: row.charge_type_name }
+      : {}),
   };
 }
 
@@ -132,9 +142,12 @@ export class RateCardLinesService {
         throw new NotFoundException('Rate card not found');
       }
       const rows = await tx<RateCardLineRow[]>`
-        select ${tx.unsafe(SELECT_COLUMNS)} from rate_card_lines
-        where tenant_id = ${actor.tenantId} and rate_card_id = ${rateCardId}
-        order by sort_order, id
+        select ${tx.unsafe(SELECT_COLUMNS.split(',').map((c) => `l.${c.trim()}`).join(', '))},
+               ct.code as charge_type_code, ct.name as charge_type_name
+        from rate_card_lines l
+        join charge_types ct on ct.id = l.charge_type_id
+        where l.tenant_id = ${actor.tenantId} and l.rate_card_id = ${rateCardId}
+        order by l.sort_order, l.id
       `;
       return rows.map(toApi);
     });
