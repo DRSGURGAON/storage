@@ -130,12 +130,19 @@ export class DocumentRelationsService {
     return [...(await this.load()).tables.keys()].sort();
   }
 
-  async relations(actor: AuthenticatedUser, sourceType: string, sourceId: string) {
+  async relations(actor: AuthenticatedUser, requestedType: string, sourceId: string) {
     const graph = await this.load();
+    // Either spelling works. `documents.document_type` is singular ('grn')
+    // and the graph is keyed by table ('grns'), so a client walking from a
+    // document row to its relations has the singular in hand and should not
+    // have to know how to pluralise 'dispatch'.
+    const sourceType = graph.tables.has(requestedType)
+      ? requestedType
+      : (graph.bySourceType.get(requestedType) ?? requestedType);
     const meta = graph.tables.get(sourceType);
     if (!meta) {
       throw new BadRequestException(
-        `'${sourceType}' is not a record type with documents. Known types: ${(await this.knownTypes()).join(', ')}`,
+        `'${requestedType}' is not a record type with documents. Known types: ${(await this.knownTypes()).join(', ')}`,
       );
     }
 

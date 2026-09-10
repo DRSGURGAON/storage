@@ -149,7 +149,10 @@ type. Built as `GET /documents/relations/{sourceType}/{sourceId}`
 (`document-engine.md` §8 has the design): the graph is discovered from
 `information_schema`, so it cannot drift from the schema it describes. The
 response's `createdFrom` and `related` are these two panels; its `chain` is
-the timeline below. The **Document Timeline** is the same underlying graph rendered as
+the timeline below. Either spelling of the type works — `grn` as
+`documents.document_type` holds it, or `grns` as the table is named — so a
+client walking from a document row needs no pluralising rules of its own.
+The screen is `apps/web/src/screens/Documents.tsx`. The **Document Timeline** is the same underlying graph rendered as
 the fixed sequence from blueprint §45/§68 (Gate Entry → Inward → GRN →
 Inspection → Put-away → Warehouse Receipt → Stock → Release → Picking →
 Dispatch → Gate Pass → POD → Invoice), with the records that actually exist

@@ -36,6 +36,26 @@ import {
   Payments,
   Statements,
 } from './screens/billing/Billing';
+import { Documents, DocumentRelations } from './screens/Documents';
+import {
+  CompanySettings,
+  UserSettings,
+  PlanSettings,
+  AuditSettings,
+  Notifications,
+} from './screens/settings/Settings';
+import {
+  Quotations,
+  QuotationDetail,
+  Agreements,
+  AgreementDetail,
+  StockTransfers,
+  StockTransferDetail,
+  StockVerifications,
+  StockVerificationDetail,
+  ReturnRequests,
+  ReturnRequestDetail,
+} from './screens/Remaining';
 import 'antd/dist/reset.css';
 
 /**
@@ -101,6 +121,23 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="invoices/:id" element={<InvoiceDetail />} />
                     <Route path="payments" element={<Payments />} />
                     <Route path="statements" element={<Statements />} />
+                    <Route path="documents" element={<Documents />} />
+                    <Route path="documents/:sourceType/:sourceId" element={<DocumentRelations />} />
+                    <Route path="quotations" element={<Quotations />} />
+                    <Route path="quotations/:id" element={<QuotationDetail />} />
+                    <Route path="agreements" element={<Agreements />} />
+                    <Route path="agreements/:id" element={<AgreementDetail />} />
+                    <Route path="stock-transfers" element={<StockTransfers />} />
+                    <Route path="stock-transfers/:id" element={<StockTransferDetail />} />
+                    <Route path="stock-verifications" element={<StockVerifications />} />
+                    <Route path="stock-verifications/:id" element={<StockVerificationDetail />} />
+                    <Route path="return-requests" element={<ReturnRequests />} />
+                    <Route path="return-requests/:id" element={<ReturnRequestDetail />} />
+                    <Route path="notifications" element={<Notifications />} />
+                    <Route path="settings/company" element={<CompanySettings />} />
+                    <Route path="settings/users" element={<UserSettings />} />
+                    <Route path="settings/plan" element={<PlanSettings />} />
+                    <Route path="settings/audit" element={<AuditSettings />} />
                     {/*
                       Everything the navigation offers that has no screen yet.
                       Explicit, so a menu item never leads to a blank page.

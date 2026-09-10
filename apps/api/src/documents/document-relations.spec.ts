@@ -164,6 +164,12 @@ describe('Document relations', () => {
     expect(refused.body.message).toMatch(/not a record type with documents/);
     expect(refused.body.message).toMatch(/warehouse_receipts/);
 
+    // The singular spelling works too -- that is what `documents.document_type`
+    // holds, so walking from a document row to its relations needs no
+    // pluralising by the client.
+    const singular = await api().get(`/documents/relations/grn/${grnId}`).set(auth()).expect(200);
+    expect(singular.body.record.id).toBe(grnId);
+
     await api().get(`/documents/relations/grns/${randomUUID()}`).set(auth()).expect(404);
     await api().get(`/documents/relations/grns/${grnId}`).expect(401);
   });
