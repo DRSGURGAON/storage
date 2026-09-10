@@ -78,6 +78,16 @@ export class AuthController {
       `,
     );
 
+    const permissions = await withTenant(this.sql, user.tenantId, (tx) =>
+      tx<{ code: string }[]>`
+        select distinct rp.permission_code as code
+        from tenant_users tu
+        join role_permissions rp on rp.role_id = tu.role_id
+        where tu.id = ${user.tenantUserId} and tu.tenant_id = ${user.tenantId} and tu.status = 'active'
+        order by 1
+      `,
+    );
+
     return {
       user: { email: row.email, fullName: row.full_name },
       role: { code: row.role_code, name: row.role_name },
@@ -85,6 +95,15 @@ export class AuthController {
       // demo workspace on every screen (`entitlement-engine.md` §10); the
       // documents mark themselves.
       tenant: { slug: row.tenant_slug, legalName: row.legal_name, isDemo: row.is_demo },
+      // The caller's live grants, so a client can draw the right screen --
+      // hide an action the role cannot take, rather than offering it and
+      // collecting a 403. This is presentation only: `PermissionsGuard`
+      // re-resolves the same grants on every request and is what actually
+      // decides (`permissions-matrix.md`; saas-layer §14's "never trust the
+      // frontend"). Read here rather than put in the JWT for the same reason
+      // the guard re-reads them: a role change must bite now, not at token
+      // expiry.
+      permissions: permissions.map((p) => p.code),
     };
   }
 }

@@ -163,7 +163,31 @@ describe('Auth', () => {
       expect(res.body.user.email).toBe(email);
       expect(res.body.role.code).toBe('owner');
       expect(res.body.tenant.slug).toBe(tenantSlug);
+      expect(res.body.tenant.isDemo).toBe(false);
+      // The caller's live grants, so a client can draw the right screen
+      // instead of offering actions that will come back 403. Resolved per
+      // request from `role_permissions`, not carried in the token: a role
+      // change has to bite now, not at expiry.
+      expect(res.body.permissions).toEqual(expect.arrayContaining(['approve_grn', 'create_customer', 'view_documents']));
+      expect(res.body.permissions).toEqual([...res.body.permissions].sort());
     }
+  });
+
+  it('gives a Warehouse Operator only the operator grants on /me', async () => {
+    const operatorEmail = `op-${suffix}@test.local`;
+    const owner = (await request(app.getHttpServer()).post('/auth/login').send({ email, password }).expect(201)).body.accessToken;
+    await request(app.getHttpServer())
+      .post('/users')
+      .set('Authorization', `Bearer ${owner}`)
+      .send({ email: operatorEmail, fullName: 'Operator', password, roleCode: 'warehouse_operator' })
+      .expect(201);
+    const operator = (await request(app.getHttpServer()).post('/auth/login').send({ email: operatorEmail, password }).expect(201)).body.accessToken;
+
+    const me = await request(app.getHttpServer()).get('/auth/me').set('Authorization', `Bearer ${operator}`).expect(200);
+    expect(me.body.permissions).toContain('create_grn');
+    // §50's Operator → Manager split, visible to the client before it clicks.
+    expect(me.body.permissions).not.toContain('approve_grn');
+    expect(me.body.permissions).not.toContain('create_customer');
   });
 
   it('throttles repeated login attempts against one account, without penalising the rest of the office', async () => {

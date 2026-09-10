@@ -9,5 +9,11 @@
   },
   "dependencies": {
     "@nestjs/schedule": "^4.1.2"
+  },
+  "scripts": {
+    "dev:api": "npm run start:dev --workspace apps/api",
+    "dev:web": "npm run dev --workspace apps/web",
+    "build": "npm run build --workspace apps/web",
+    "test": "npm test --workspace apps/api"
   }
 }
