@@ -9,6 +9,7 @@ import { SessionProvider, useSession } from './lib/session';
 import { Login } from './screens/Login';
 import { Dashboard } from './screens/Dashboard';
 import { Onboarding } from './screens/Onboarding';
+import { NotBuilt } from './screens/NotBuilt';
 import { Customers } from './screens/masters/Customers';
 import { CustomerDetail } from './screens/masters/CustomerDetail';
 import { Warehouses, WarehouseDetail } from './screens/masters/Warehouses';
@@ -24,6 +25,17 @@ import {
   WarehouseReceipts,
   WarehouseReceiptDetail,
 } from './screens/inbound/Putaways';
+import { Stock, StockLedger, Ageing } from './screens/stock/Stock';
+import { ReleaseOrders, ReleaseOrderDetail } from './screens/outbound/ReleaseOrders';
+import { PickLists, PickListDetail, Dispatches, DispatchDetail } from './screens/outbound/Dispatches';
+import {
+  BillingRuns,
+  BillingRunDetail,
+  Invoices,
+  InvoiceDetail,
+  Payments,
+  Statements,
+} from './screens/billing/Billing';
 import 'antd/dist/reset.css';
 
 /**
@@ -74,6 +86,26 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="putaways/:id" element={<PutawayDetail />} />
                     <Route path="warehouse-receipts" element={<WarehouseReceipts />} />
                     <Route path="warehouse-receipts/:id" element={<WarehouseReceiptDetail />} />
+                    <Route path="stock" element={<Stock />} />
+                    <Route path="stock/ledger" element={<StockLedger />} />
+                    <Route path="reports/ageing" element={<Ageing />} />
+                    <Route path="release-orders" element={<ReleaseOrders />} />
+                    <Route path="release-orders/:id" element={<ReleaseOrderDetail />} />
+                    <Route path="pick-lists" element={<PickLists />} />
+                    <Route path="pick-lists/:id" element={<PickListDetail />} />
+                    <Route path="dispatches" element={<Dispatches />} />
+                    <Route path="dispatches/:id" element={<DispatchDetail />} />
+                    <Route path="billing-runs" element={<BillingRuns />} />
+                    <Route path="billing-runs/:id" element={<BillingRunDetail />} />
+                    <Route path="invoices" element={<Invoices />} />
+                    <Route path="invoices/:id" element={<InvoiceDetail />} />
+                    <Route path="payments" element={<Payments />} />
+                    <Route path="statements" element={<Statements />} />
+                    {/*
+                      Everything the navigation offers that has no screen yet.
+                      Explicit, so a menu item never leads to a blank page.
+                    */}
+                    <Route path="*" element={<NotBuilt />} />
                   </Route>
                 </Route>
               </Routes>
