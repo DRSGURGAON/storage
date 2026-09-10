@@ -16,7 +16,7 @@ dispatch → gate pass → POD), returns, transfers and verifications, billing
 runs through to invoices, payments and customer statements, twenty-four
 PDF document templates rendered by a real browser, a reports library, a
 customer portal, and the subscription/entitlement engine that meters it —
-**41 test suites, 327 tests**, every one against a live database rather
+**42 test suites, 336 tests**, every one against a live database rather
 than a mock. On top of it, `apps/web`: every screen in the scope
 document's screen map, checked in a real browser at desktop and phone
 width.

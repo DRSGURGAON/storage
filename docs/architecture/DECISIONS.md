@@ -566,6 +566,30 @@ same interface — swapping it in requires no change to `documents`,
 deliberate, documented gap — not a silent substitution of the locked
 architecture.
 
+> **Closed (Phase 24).** `S3AttachmentStorage` exists and is exactly the
+> drop-in this entry predicted: no change to `documents`, `attachments`, or
+> any caller — only which provider `AttachmentsModule` binds, decided by
+> whether `S3_BUCKET` is set. It is written against the S3 *protocol*
+> rather than AWS (an endpoint and path-style addressing are all it takes
+> to point at MinIO, R2, Spaces or Wasabi), and the storage key keeps the
+> filesystem adapter's shape, so an existing deployment moves by copying
+> the directory into the bucket and setting a variable.
+>
+> The one thing deliberately **not** added is presigned URLs. The
+> proxy-endpoint half of `tenancy-and-security.md` §5's either/or is now
+> the signed-link route this application mints itself, with an expiry and a
+> document id it controls. A presigned S3 URL alongside it would be a
+> second capability with different rules — which is how a document stays
+> reachable after the link that named it was supposed to have expired. The
+> either/or stays an *or*.
+>
+> Verified by running the whole application on it, not by mocking the
+> client: the API booted with a bucket and no attachments directory,
+> generated a PDF, served it back through a signed link, round-tripped an
+> upload, and left zero files on local disk. The endpoint was a local
+> S3-compatible server rather than AWS, so what that proves is the protocol
+> conversation, not IAM.
+
 ## §25 — `documents` had the same "no session, no rows" gap as §17 — the public `/verify/:qrToken` endpoint needed its own self-lookup RLS policy
 
 Manually curling the freshly built `GET /verify/:qrToken` against a real,

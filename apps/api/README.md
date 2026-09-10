@@ -832,10 +832,15 @@ rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
 It is containerised: `apps/api/Dockerfile` carries Node, Chromium (every
 document is rendered by a real browser) and the fonts a rupee sign needs,
-and applies migrations and the system seed before it serves anything. See
+and applies migrations and the system seed before it serves anything.
+Attachments go to a local directory or, as soon as `S3_BUCKET` is set, to
+any S3-compatible bucket — which is what makes a second container possible,
+since two of them cannot share a disk. `ops/backup.sh` and
+`ops/restore.sh` cover both halves of a backup, and the restore verifies
+itself. See
 [`../../docs/architecture/deployment.md`](../../docs/architecture/deployment.md).
 
-**41 suites, 329 tests**, all against the real local database
+**42 suites, 336 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,

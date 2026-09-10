@@ -173,5 +173,5 @@ that is a bare array where a page was expected — and every one of those
 was found this way. It misses what a component test would catch: a
 rendering regression in one component, with no API involved. If this app
 grows a piece of genuinely tricky client-side logic, that piece should get
-a unit test; today the tricky logic is all on the server, and it has 329
+a unit test; today the tricky logic is all on the server, and it has 336
 of them.

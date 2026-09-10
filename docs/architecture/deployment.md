@@ -11,6 +11,8 @@ docker-compose.yml       postgres + api + web on one machine
 apps/api/Dockerfile      Node 22 + Chromium, migrations on start
 apps/web/Dockerfile      built assets behind nginx, which proxies /api
 apps/web/nginx.conf.template
+ops/backup.sh            database + attachments, in the order that matters
+ops/restore.sh           and the verification most procedures skip
 ```
 
 ```bash
@@ -112,24 +114,99 @@ operational app means somebody can be shown a stock figure that was true an
 hour ago, and deciding what may be served stale is a question about
 warehouse practice rather than a build setting.
 
+## Attachments: a disk, or a bucket
+
+Generated PDFs, KYC documents, gate photographs and captured signatures go
+to whichever of two adapters the environment selects.
+
+**Naming `S3_BUCKET` is the switch.** There is no second mode flag to
+forget: a bucket named and not used is not a state anyone means. Set
+`ATTACHMENT_STORAGE=local` to override it — for a staging copy of
+production's environment that should not write to production's bucket —
+and `ATTACHMENT_STORAGE=s3` with no bucket **refuses to start** rather than
+falling back to a disk, because a multi-container deployment quietly on
+local disks is a fleet of half-populated directories and a document that
+404s depending on which instance answered.
+
+It speaks the S3 *protocol*, not AWS specifically: `S3_ENDPOINT` and
+`S3_FORCE_PATH_STYLE` point it at MinIO in a rack, Cloudflare R2,
+DigitalOcean Spaces or Wasabi. Credentials are optional — leave them unset
+and the SDK's own chain finds an instance or task role, which is how a
+deployment avoids holding long-lived keys at all.
+
+`storage_key` keeps the same shape either way
+(`<tenant>/<attachment-id>-<filename>`), so moving an existing deployment
+is a copy and a variable, not a migration: sync the directory into the
+bucket under the same paths, set `S3_BUCKET`, restart.
+
+**What it deliberately does not do is presign URLs.** This application
+already mints its own signed download links, which carry a document id and
+an expiry it controls (`tenancy-and-security.md` §5). A parallel presigned
+URL would be a second capability with different rules — and that is how a
+document stays reachable after the link that named it was supposed to have
+expired.
+
+## Backups
+
+```bash
+ops/backup.sh /var/backups/warehouse           # database + attachments
+ops/restore.sh /var/backups/warehouse/<stamp> <target-url> <attachments-dir>
+```
+
+Three things in there are worth knowing before you need them.
+
+**Backups need their own database role.** Every tenant table is under
+FORCE ROW LEVEL SECURITY, which applies to the table's owner too, so
+`pg_dump` as the application's role fails partway through with
+`ERROR: query would be affected by row-level security policy`. That is
+correct behaviour and a terrible thing to learn during an incident, so
+`backup.sh` checks for it before writing a byte and prints the fix:
+
+```sql
+create role warehouse_backup login password '...' bypassrls;
+grant connect on database <db> to warehouse_backup;
+grant usage on schema public to warehouse_backup;
+grant select on all tables in schema public to warehouse_backup;
+alter default privileges in schema public grant select on tables to warehouse_backup;
+```
+
+Read-only, which is the other reason not to reuse the application's role.
+
+**The database is dumped first and the files second.** The two halves
+cannot be captured at the same instant. Files first means the database can
+name an attachment written after the file snapshot — a row pointing at
+bytes the backup does not contain, which restores as an invoice nobody can
+open. Database first means the file snapshot can hold bytes no row names:
+an orphan, costing a few kilobytes. One direction loses documents; the
+other wastes disk.
+
+**The restore verifies itself, and refuses to pretend.** It checks the
+dump's checksums, compares row counts against the ones recorded at backup
+time, and confirms that every `attachments` row has its bytes on disk. That
+verification also has to run as the bypassing role — counted under RLS,
+every tenant table answers zero, so a perfect restore would report five
+zeroes. It says it cannot verify rather than reporting a number it did not
+really measure.
+
+On object storage the bytes are not copied into the backup directory: the
+bucket is backed up on its own terms (versioning, lifecycle rules, or a
+scheduled `aws s3 sync`), and `attachments-location.txt` records where they
+were, so a restore knows what it needs. The objects must be from the same
+moment as the dump **or later** — never earlier.
+
 ## Still missing
 
 Named rather than implied:
 
-- **Backups.** There is no backup or restore procedure here. A warehouse's
-  stock ledger and its issued invoices are the two things it cannot
-  reconstruct.
-- **Object storage.** `DECISIONS.md` §24 — the interface exists
-  (`AttachmentStorage`), the S3 adapter does not. Until then attachments
-  live on one machine's disk, which caps you at one API container.
 - **Error monitoring.** No Sentry, no structured log shipping. The logs are
   whatever the container writes.
 - **A payment gateway.** `DECISIONS.md` §13. V1 runs on the seeded Free
   plan with upgrades arranged offline, and the upgrade prompt says so
   rather than inventing a tier.
-- **A second API instance.** Nothing in the code prevents it — the
-  numbering engine takes row locks, the entitlement engine is idempotent —
-  but the attachments directory would have to become shared storage first.
+- **An off-site copy, and a schedule.** `ops/backup.sh` takes a backup;
+  nothing here runs it every night, copies it to another machine, or
+  encrypts it. Those are decisions about where your data may live, and a
+  cron line is the easy part.
 
 ## Verified how
 
@@ -150,3 +227,18 @@ there. What was verified, locally and for real:
 
 The step that remains unproven here is `docker build` itself. Run it once
 on a machine with registry access before trusting a deploy to it.
+
+**Object storage** was proved by running the whole application on it: the
+API booted with `S3_BUCKET` set and no `ATTACHMENTS_DIR` at all, generated
+a quotation PDF, served it back through a signed download link (a valid
+56 KB PDF), round-tripped an uploaded KYC file — and left **zero files on
+the local disk**, which is what proves nothing silently fell back. The
+endpoint it spoke to was a local S3-compatible server rather than AWS, so
+what is proved is the protocol conversation, not IAM or bucket policies.
+
+**The backup was restored.** Not "a backup script exists": a real dump of a
+running workspace was restored into an empty database, the row counts
+matched, every attachment row had its bytes, and then the API was pointed
+at the restored copy — where a document generated *before* the backup
+opened as a valid PDF. Rehearse yours the same way, on a schedule. A backup
+nobody has restored is a hope.

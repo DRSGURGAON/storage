@@ -1548,6 +1548,70 @@ them as *Deleted* rather than merely disabled, the wrong workspace name
 refused, the right one closing every sign-in including the Owner's own,
 and both pages at 390px. Full suite: 41 suites, 329 tests.
 
+## Phase 24 — object storage, and a backup that has been restored
+
+The two production gaps `deployment.md` named. Both were real, and both
+turned out to have a trap in them that only showed up by doing it.
+
+**Attachments in a bucket (`DECISIONS.md` §24, closed).** Every generated
+PDF, KYC document, gate photograph and captured signature was going to a
+local directory, which caps a deployment at one API container: two behind a
+load balancer would each hold half the files and 404 on the other half.
+`S3AttachmentStorage` is the drop-in the interface was written for — no
+caller, schema or storage key changes, only which provider the module
+binds, decided by whether `S3_BUCKET` is set. Written against the S3
+protocol rather than AWS, so an endpoint and path-style addressing point it
+at MinIO, R2, Spaces or Wasabi.
+
+It deliberately does not presign URLs. This application already mints
+signed links with an expiry and a document id it controls; a presigned S3
+URL beside them would be a second capability with different rules, which is
+how a document stays reachable after the link that named it expired.
+
+Proved by running the *application* on it rather than mocking the client:
+the API booted with a bucket and no attachments directory, generated a PDF,
+served it back through a signed link, round-tripped an upload, and left
+**zero files on local disk** — which is what proves nothing silently fell
+back. The unit tests do the same thing at a smaller scale, against a stub
+that speaks the protocol, because a mocked `S3Client` would pass with the
+key built wrongly, the prefix dropped, or a 404 swallowed.
+
+**Backups, and the two RLS traps in them.** `ops/backup.sh` dumps the
+database and archives the attachment bytes; `ops/restore.sh` restores and
+then checks its own work. Three things it now knows:
+
+- **`pg_dump` as the application's role fails.** Every tenant table is
+  under FORCE ROW LEVEL SECURITY, which applies to the owner too, so the
+  dump dies partway through on `agreement_templates` with *"query would be
+  affected by row-level security policy"*. Correct behaviour; a terrible
+  thing to discover during an incident. The script now checks for a
+  bypassing role before writing a byte and prints the `create role ...
+  bypassrls` that fixes it.
+- **The verification had the same blindness, pointing the other way.**
+  Counted under RLS with no tenant set, every table answers zero — so the
+  first real restore, which had worked perfectly, reported five zeroes and
+  looked like a disaster. Worse is the shape it did not take: had the
+  *backup* also counted blind, both sides would read zero and "match". It
+  now refuses to claim a verification it cannot perform.
+- **Order.** The database is dumped first and the files second. Files first
+  lets the database name bytes the backup does not contain — an invoice
+  nobody can open. Database first can leave an orphan file. One loses
+  documents; the other wastes disk.
+
+The restore check found something on its first real run: **92 of 3332
+attachment rows in the development database have no bytes anywhere on the
+machine** — debris from earlier sessions whose files went to a directory
+since cleaned. Exactly what the check exists to surface, and in production
+it would mean 92 documents that cannot be opened.
+
+Then the round trip, cleanly, on a purpose-built workspace: backup →
+restore into an empty database → row counts match → every attachment row
+has its bytes → **the API pointed at the restored copy, where a PDF
+generated before the backup opened as a valid PDF**. That last step is the
+one that matters. A backup nobody has restored is a hope.
+
+Full suite: 42 suites, 336 tests.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not
