@@ -87,6 +87,16 @@ there is nothing to sell yet, it says that instead. Generating a document
 that *does* fit within the plan nudges once at the first copy and once at
 the last (§12), and never in between.
 
+## Deploying it
+
+`apps/web/Dockerfile` builds these assets and serves them from nginx, which
+also proxies `/api` to the API container — the same shape the dev server
+has, so the browser's requests stay same-origin in production too. The
+nginx config carries the CSP, the frame and referrer policies, and
+immutable caching for the hashed asset filenames (never for `index.html`,
+which is what points at the new hashes after a deploy). See
+[`docs/architecture/deployment.md`](../../docs/architecture/deployment.md).
+
 ## Installing it on a phone
 
 `public/manifest.webmanifest` plus the icon set makes this installable:

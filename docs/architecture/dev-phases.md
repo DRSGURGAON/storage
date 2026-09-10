@@ -1445,6 +1445,57 @@ password refused afterwards, changing it from Your account signing this
 browser out, an Owner issuing a member's password and that member's open
 session dying with it, and all three new screens at 390px.
 
+## Phase 22 — something you can actually deploy (blocker)
+
+Twenty-one phases of software with no way to run it anywhere but a laptop:
+no Dockerfile, no compose file, no security headers, and generated PDFs
+written to a container-local disk that a restart would wipe.
+
+`docker-compose.yml` now brings up postgres, the API and nginx, and
+`docs/architecture/deployment.md` is the whole story. Four things in it are
+worth naming here because each is a way this would have failed in
+production rather than in a build:
+
+- **The API image carries Chromium.** Every document is rendered by a real
+  browser, and `puppeteer-core` — unlike `puppeteer` — never looks for one
+  on its own. An image without it starts, serves every read endpoint, and
+  fails on the first "Generate document". Found exactly that way while
+  rehearsing the container's own start-up. The service now names the
+  variable in its error rather than passing puppeteer's message through as
+  a 500, and `.env.example` no longer claims the variable is optional —
+  it said a normal deployment could leave it unset, which was wrong.
+- **Fonts are installed too.** A document with an Indian address or a `₹`
+  renders as boxes without them, and the PDF is the artefact a customer
+  keeps.
+- **Migrations run in front of the process, not beside it.** A container
+  that starts serving against a database it has not migrated is a 500 on
+  whichever endpoint touches the new column first. Both steps are
+  idempotent, so a schema file added in a release is applied by the
+  release.
+- **The attachments volume.** Without it every document a workspace has
+  issued disappears on the next deploy.
+
+Helmet is on (`X-Frame-Options: DENY` rather than its SAMEORIGIN default —
+nothing this API returns is meant to be framed), and CORS is **off** unless
+`CORS_ORIGINS` names exact origins: the shape that ships proxies `/api`
+through nginx, so the browser's requests are same-origin and an API that
+answered any origin would only be a way for someone else's page to read a
+token out of `localStorage`.
+
+`PUBLIC_APP_URL` and `PUBLIC_WEB_URL` are now two variables. They were one
+for a commit, and the password-reset mail pointed at the API — a JSON
+endpoint — instead of the screen.
+
+**What is proven and what is not.** The sandbox's egress policy blocks
+Docker Hub's blob CDN, so no base image can be pulled and `docker build`
+could not be run here. Everything else was: `docker compose config` parses,
+the entrypoint's two commands run against a database created from empty,
+the compiled `dist` boots with the image's environment, and a signup →
+quotation → **56 KB PDF on disk** succeeds against it, with the security
+headers checked on a live response. The build itself should be run once on
+a machine with registry access before a deploy is trusted to it — said here
+rather than left to be discovered.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

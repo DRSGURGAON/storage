@@ -1,0 +1,75 @@
+# =============================================================================
+# The whole thing, on one machine.
+#
+# Enough to run a real pilot: postgres with a volume, the API with a volume
+# for the PDFs it generates, and nginx serving the frontend and proxying
+# /api to the API. `docker compose up --build` and the schema is applied,
+# the system rows are seeded, and http://localhost:8080 is a working
+# workspace signup.
+#
+# What this is not: a production topology. There is no TLS here (put a
+# reverse proxy or a load balancer in front and terminate there), no
+# backups, and no replica. See docs/architecture/deployment.md.
+# =============================================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-warehouse_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-warehouse}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      # The API's entrypoint migrates before it serves, so it must not start
+      # against a postgres that is still initialising -- `service_healthy`
+      # below is what makes `depends_on` mean "ready", not "created".
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-warehouse_app} -d ${POSTGRES_DB:-warehouse}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-warehouse_app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-warehouse}
+      JWT_SECRET: ${JWT_SECRET:?generate one with `openssl rand -base64 48`}
+      # Where document QR codes point (the API), and where a password-reset
+      # link opens (the web app). Two different addresses on purpose.
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:8080/api}
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-http://localhost:8080}
+      # nginx sits in front, so the client address arrives in
+      # X-Forwarded-For and exactly one hop of it is trustworthy.
+      TRUST_PROXY_HOPS: '1'
+      SMTP_URL: ${SMTP_URL:-}
+      NOTIFICATION_FROM_EMAIL: ${NOTIFICATION_FROM_EMAIL:-}
+    volumes:
+      # The generated PDFs. Without this volume every document a workspace
+      # has issued disappears on the next deploy -- the local filesystem
+      # adapter is DECISIONS.md §24's stand-in for object storage, and a
+      # container's own disk is not storage.
+      - attachments:/var/lib/warehouse/attachments
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      API_PROXY_TARGET: http://api:3000
+    ports:
+      - '${WEB_PORT:-8080}:80'
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  attachments:

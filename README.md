@@ -5,19 +5,39 @@ businesses (3PL, godowns, distribution warehousing, industrial storage). The
 core principle: **enter data once, reuse everywhere, generate documents
 automatically, update stock automatically, bill from actual operations.**
 
-This repository holds the **product blueprint, engineering architecture,
-and the implementation now underway**. Phase 1 (`docs/architecture/dev-phases.md`)
-has landed tenancy, auth, and the entitlement engine: `apps/api`, a
-NestJS + PostgreSQL backend with row-level-secured multi-tenancy, JWT
-signup/login, the seeded RBAC catalog, and a working 2-free-copies
-subscription engine, all covered by integration tests against a real
-database. Masters, operations, and billing modules are not built yet —
-see `apps/api/README.md` to run what exists so far.
+This repository holds the **product blueprint, the engineering
+architecture, and the built product**.
+
+Twenty-two phases in (`docs/architecture/dev-phases.md`), that is: a
+NestJS + PostgreSQL API with row-level-secured multi-tenancy, the whole
+inbound chain (gate entry → inward → GRN → put-away → warehouse receipt),
+the stock engine, the whole outbound chain (release order → pick →
+dispatch → gate pass → POD), returns, transfers and verifications, billing
+runs through to invoices, payments and customer statements, twenty-four
+PDF document templates rendered by a real browser, a reports library, a
+customer portal, and the subscription/entitlement engine that meters it —
+**41 test suites, 327 tests**, every one against a live database rather
+than a mock. On top of it, `apps/web`: every screen in the scope
+document's screen map, checked in a real browser at desktop and phone
+width.
+
+```bash
+cp .env.example .env       # set POSTGRES_PASSWORD and JWT_SECRET
+docker compose up --build  # http://localhost:8080
+```
+
+See [`docs/architecture/deployment.md`](docs/architecture/deployment.md)
+for what that does, what it does not do yet (backups, object storage, a
+payment gateway), and what a Play Store listing would additionally need.
 
 ## Where to start
 
-- [`apps/api/`](apps/api/README.md) — the backend implementation, as far as
-  it's built.
+- [`apps/api/`](apps/api/README.md) — the backend: every endpoint, and why
+  it is shaped the way it is.
+- [`apps/web/`](apps/web/README.md) — the operator frontend and the
+  customer portal.
+- [`docs/architecture/deployment.md`](docs/architecture/deployment.md) —
+  running it somewhere real.
 - [`docs/blueprint/`](docs/blueprint/README.md) — the functional product
   requirements, organized by numbered section (§1–§82).
 - [`docs/blueprint-saas-layer/`](docs/blueprint-saas-layer/README.md) — a

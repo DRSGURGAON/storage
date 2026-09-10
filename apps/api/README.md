@@ -824,6 +824,11 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
+It is containerised: `apps/api/Dockerfile` carries Node, Chromium (every
+document is rendered by a real browser) and the fonts a rupee sign needs,
+and applies migrations and the system seed before it serves anything. See
+[`../../docs/architecture/deployment.md`](../../docs/architecture/deployment.md).
+
 **41 suites, 327 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 

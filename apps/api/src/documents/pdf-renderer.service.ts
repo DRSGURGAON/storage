@@ -54,9 +54,22 @@ export class PdfRendererService implements OnModuleDestroy {
   private async getBrowser(): Promise<Browser> {
     if (!this.browserPromise) {
       const executablePath = this.config.get<string>('PUPPETEER_CHROMIUM_EXECUTABLE');
+      if (!executablePath) {
+        // `puppeteer-core` never looks for a browser on its own -- that is
+        // the whole difference between it and `puppeteer`, which bundles a
+        // download. Left to itself it raises "An `executablePath` or
+        // `channel` must be specified for `puppeteer-core`", which reaches
+        // an operator as a 500 on the first Generate click and names
+        // nothing they can set. So it is said here instead, with the
+        // variable in it.
+        throw new Error(
+          'PUPPETEER_CHROMIUM_EXECUTABLE is not set, so no browser can be launched to render PDFs. ' +
+            'Point it at a Chrome or Chromium binary (the container image sets it to /usr/bin/chromium).',
+        );
+      }
       this.browserPromise = loadPuppeteerCore().then(({ default: puppeteer }) =>
         puppeteer.launch({
-          executablePath: executablePath || undefined,
+          executablePath,
           args: ['--no-sandbox'],
         }),
       );
