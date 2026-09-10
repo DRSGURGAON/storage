@@ -27,8 +27,11 @@ docker compose up --build  # http://localhost:8080
 ```
 
 See [`docs/architecture/deployment.md`](docs/architecture/deployment.md)
-for what that does, what it does not do yet (backups, object storage, a
-payment gateway), and what a Play Store listing would additionally need.
+for what that does and what it does not do yet (a payment gateway,
+off-site backups, error monitoring), and
+[`ops/twa/README.md`](ops/twa/README.md) for putting it on a phone — five
+minutes to a real installed app, or the whole path to a Play Store
+listing.
 
 ## Where to start
 

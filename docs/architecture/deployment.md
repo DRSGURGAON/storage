@@ -106,8 +106,18 @@ Settings → Your account (`tenancy-and-security.md` §3b).
 
 A TWA additionally needs the site served over HTTPS on a domain you
 control, and `/.well-known/assetlinks.json` on that domain carrying your
-signing key's fingerprint. Neither exists until the app is deployed
-somewhere public — deploy first, then package.
+signing key's fingerprint. The second half is built in: set
+`ANDROID_PACKAGE_NAME` and `ANDROID_SHA256_FINGERPRINT` and the web
+container writes and serves that file at start-up; leave either unset and
+it serves nothing, because a file with the wrong fingerprint fails
+verification in a way that reads like a signing bug. `ops/twa/README.md`
+has the whole path, including the mistake everyone makes with Play App
+Signing.
+
+The domain still has to be yours. **`ops/twa/README.md` §1 is the five
+minute version**: an HTTPS tunnel in front of `docker compose up`, and
+Chrome on the phone will install the app — real icon, real standalone
+window — with no Android build at all.
 
 There is deliberately **no service worker**. An offline cache on an
 operational app means somebody can be shown a stock figure that was true an

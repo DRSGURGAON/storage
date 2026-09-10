@@ -20,6 +20,10 @@ RUN npm run build --workspace @warehouse/web
 FROM nginx:1.27-alpine AS runtime
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
+# Runs before nginx starts, and writes the Digital Asset Links file only if
+# this deployment actually claims an Android app.
+COPY apps/web/30-assetlinks.sh /docker-entrypoint.d/30-assetlinks.sh
+RUN chmod +x /docker-entrypoint.d/30-assetlinks.sh && mkdir -p /etc/nginx/well-known
 # nginx's own entrypoint renders anything in templates/ with envsubst, so
 # API_PROXY_TARGET is a deployment setting rather than a rebuild.
 ENV API_PROXY_TARGET=http://api:3000 \

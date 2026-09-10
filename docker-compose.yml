@@ -64,6 +64,11 @@ services:
       dockerfile: apps/web/Dockerfile
     environment:
       API_PROXY_TARGET: http://api:3000
+      # Set both to have this domain claim your Android app, so the TWA
+      # opens without a URL bar. Until then nothing is claimed, which is
+      # the honest default -- see ops/twa/README.md.
+      ANDROID_PACKAGE_NAME: ${ANDROID_PACKAGE_NAME:-}
+      ANDROID_SHA256_FINGERPRINT: ${ANDROID_SHA256_FINGERPRINT:-}
     ports:
       - '${WEB_PORT:-8080}:80'
     depends_on:

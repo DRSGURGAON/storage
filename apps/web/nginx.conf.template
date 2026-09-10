@@ -39,6 +39,27 @@ server {
     client_max_body_size 25m;
   }
 
+  # Digital Asset Links, for a Play Store listing built as a Trusted Web
+  # Activity. Android fetches this file to confirm that the APK and this
+  # domain belong to the same people; without it the app opens with a URL
+  # bar across the top, which is the difference between "an app" and "a
+  # browser somebody skinned".
+  #
+  # It has to be its own location: the SPA fallback below answers every
+  # unknown path with index.html, so without this Android would fetch the
+  # app's HTML, fail to parse it as JSON, and report a verification failure
+  # that looks like a signing problem.
+  #
+  # The file is written at container start by 30-assetlinks.sh, and only
+  # when ANDROID_PACKAGE_NAME and ANDROID_SHA256_FINGERPRINT are both set.
+  # A 404 here means "no app is claimed", which is honest; a file with the
+  # wrong fingerprint in it would be worse than none.
+  location = /.well-known/assetlinks.json {
+    alias /etc/nginx/well-known/assetlinks.json;
+    default_type application/json;
+    add_header Cache-Control "no-cache";
+  }
+
   # Every other path is the single-page app's own routing.
   location / {
     try_files $uri $uri/ /index.html;
