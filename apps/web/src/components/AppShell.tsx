@@ -19,6 +19,7 @@ import {
 import { Space } from 'antd';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from '../lib/session';
+import { GlobalSearch } from './GlobalSearch';
 
 const { Header, Sider, Content } = Layout;
 
@@ -230,6 +231,8 @@ export function AppShell() {
               style={{ marginRight: 'auto' }}
             />
           )}
+          {/* §4's one box, over the one /search endpoint. */}
+          <GlobalSearch />
           {session?.tenant.isDemo && <Tag color="red">DEMO</Tag>}
           <Dropdown
             menu={{

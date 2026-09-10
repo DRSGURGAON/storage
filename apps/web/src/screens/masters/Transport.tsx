@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card, Col, Form, Input, InputNumber, Row, Tabs, Tag } from 'antd';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { CreateButton, ListPage } from '../../components/ListPage';
 import { FormDrawer } from '../../components/FormDrawer';
 import { api, type Page } from '../../lib/api';
@@ -47,6 +48,9 @@ interface Driver {
  */
 export function Transport() {
   const [creating, setCreating] = useState<'transporter' | 'vehicle' | 'driver' | null>(null);
+  // Global search sends a vehicle hit here; without the tab it would land
+  // on Transporters with a vehicle number in the box and no rows.
+  const [params] = useSearchParams();
   const { can } = useSession();
   // Loaded once for the *labels* in the tables below (a row carries only a
   // transporter id). The pickers search server-side instead.
@@ -60,6 +64,7 @@ export function Transport() {
   return (
     <Card styles={{ body: { paddingTop: 0 } }}>
       <Tabs
+        defaultActiveKey={params.get('tab') ?? 'transporters'}
         items={[
           {
             key: 'transporters',

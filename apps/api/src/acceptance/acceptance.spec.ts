@@ -160,6 +160,24 @@ describe('Acceptance: the §78 walkthrough and §79 cross-module cases', () => {
     const pass = await api().post('/gate-passes').set(auth(operator)).send({ dispatchId: dispatch.body.id }).expect(201);
     await api().post(`/gate-passes/${pass.body.id}/gate-out`).set(auth(operator)).expect(201);
 
+    // A gate pass is the one searchable record with no screen of its own --
+    // it is read on its dispatch -- so the hit carries that dispatch, or it
+    // is a result nobody can open (ux-system.md §4).
+    const passHit = await api()
+      .get(`/search?q=${encodeURIComponent(pass.body.number)}`)
+      .set(auth(operator))
+      .expect(200);
+    expect(passHit.body.items[0]).toMatchObject({
+      type: 'gate_pass',
+      label: pass.body.number,
+      parentId: dispatch.body.id,
+    });
+    const dispatchHit = await api()
+      .get(`/search?q=${encodeURIComponent(dispatch.body.number)}`)
+      .set(auth(operator))
+      .expect(200);
+    expect(dispatchHit.body.items[0]).toMatchObject({ type: 'dispatch', parentId: null });
+
     // §79: dispatch 40 → stock = 60, and the reservation left with the goods.
     stock = await lots(riceId);
     expect(stock[0]).toMatchObject({ physicalQty: '60.000', reservedQty: '0.000', availableQty: '60.000' });

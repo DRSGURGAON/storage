@@ -1355,6 +1355,47 @@ one seeded higher plan) render, and the modal fits a 390px phone — which
 it did not at first, because antd's `width` is a fixed pixel width and 520
 of them is wider than the screen it was being read on.
 
+## Phase 20 — global search, with somewhere to land (§4)
+
+`GET /search` has done the hard part since Phase 8: one ranked SQL union
+across customers, products, vehicles, GRNs, dispatches, gate passes, PODs,
+invoices and document numbers, with each branch dropped entirely when the
+caller lacks the permission that governs it and every warehouse-bound
+branch narrowed by scope. It had no UI at all, which made every one of
+those claims untested from a user's point of view — the one screen §4
+describes did not exist.
+
+The box is in the shell's header on every staff screen, debounced at
+250ms, never fired below two characters (the endpoint refuses one with a
+400 rather than scanning every indexed column, so sending it would turn
+ordinary typing into a stream of errors), grouped by type, each hit
+showing exactly what §4 asks for: `GRN/26-27/000045 · ABC Traders ·
+Approved`. Below `lg` it collapses to an icon that opens a full-screen
+sheet — a usable search field and a legible header cannot share 390px, and
+this is precisely the feature someone standing at a gate with a phone
+needs.
+
+Two things had to change for "clicking one navigates straight to that
+record" to be true rather than aspirational:
+
+- **A gate pass has no screen.** It is issued and read on its dispatch, so
+  a hit that could not say *which* dispatch was a result nobody could
+  open. Hits now carry `parentId` — the dispatch for a gate pass, null
+  everywhere the id is itself the destination.
+- **Three types are read in a list, not a page.** Products, vehicles and
+  documents have no detail route, so those hits land on the list with
+  `?q=` applied, and `ListPage` now seeds its search box from the URL.
+  That also makes every list linkable in the state someone is looking at,
+  which is worth having on its own; the alternative — page one of
+  Products with the typed term thrown away — is how a search box teaches
+  people not to use it.
+
+Verified in a browser against the demo workspace: a full GRN number
+returns that GRN first, a customer hit opens the customer, a product hit
+lands on Products filtered to one row with the term still in the box, and
+the phone sheet holds its own results rather than spilling them over the
+page behind it.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

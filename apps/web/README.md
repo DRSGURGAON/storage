@@ -44,6 +44,12 @@ notifications; settings (company,
 users, notification rules, number series, operations, plan and usage, audit
 log); and the **customer portal**, which a `customer` login lands in instead of the staff app.
 
+Every staff screen carries **global search** in its header (ux-system §4):
+one box over the API's one ranked `GET /search`, results grouped by type,
+each one opening its record — or, for the types this app reads in a list
+rather than on a page, that list already filtered to what was typed. On a
+phone it is an icon that opens a full-screen sheet.
+
 A route the navigation offers but that has no screen yet renders an
 explicit "not built yet" page. The navigation is generated from what the
 API supports, which is still ahead of the UI in a few places, and a blank

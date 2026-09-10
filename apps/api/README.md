@@ -584,7 +584,10 @@ provider said.
   Search is one ranked SQL union across customers, SKUs, vehicles, GRNs,
   dispatches, gate passes, PODs, invoices and document numbers; exact
   identifier matches rank above prefixes above substrings, and each
-  branch is dropped when the caller lacks the permission governing it.
+  branch is dropped when the caller lacks the permission governing it. A
+  hit carries `parentId` where the record has no screen of its own — the
+  dispatch, for a gate pass — so the client has somewhere to send a person
+  who searched for one.
   Neither declares a single permission because both are aggregations of
   already-permitted reads — a per-branch decision no route decorator can
   express, so they carry `JwtAuthGuard` alone and say so in a comment

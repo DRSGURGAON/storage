@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Alert, Button, Card, Empty, Input, Space, Table, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { api, query, type Page } from '../lib/api';
 
 export interface ListPageProps<T> {
@@ -48,9 +49,20 @@ export function ListPage<T extends { id: string }>({
   rowKey,
   unpaged,
 }: ListPageProps<T>) {
-  const [search, setSearch] = useState('');
+  // `?q=` seeds the box, so a list is linkable in the state someone is
+  // actually looking at -- and so global search (ux-system.md §4) can land
+  // on the four types that have no screen of their own with the term
+  // still applied, rather than on page one of everything.
+  const [urlParams] = useSearchParams();
+  const urlQuery = urlParams.get('q') ?? '';
+  const [search, setSearch] = useState(urlQuery);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    setSearch(urlQuery);
+    setPage(1);
+  }, [urlQuery]);
 
   const params = { q: search || undefined, limit: pageSize, offset: (page - 1) * pageSize, ...filters };
   const { data, isFetching, error, refetch } = useQuery({
@@ -77,6 +89,11 @@ export function ListPage<T extends { id: string }>({
         <Space wrap>
           <Input.Search
             allowClear
+            // Keyed on the URL term so arriving with a new `?q=` re-mounts
+            // the box with it shown. Without the key antd keeps the text it
+            // had, and the list and the box disagree about what is filtering it.
+            key={urlQuery}
+            defaultValue={urlQuery}
             placeholder={searchPlaceholder ?? 'Search'}
             style={{ width: 220, maxWidth: '60vw' }}
             onSearch={(value) => {

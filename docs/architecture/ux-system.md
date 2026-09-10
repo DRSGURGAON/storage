@@ -105,6 +105,22 @@ straight to that record.
 > customer name contains the same digits. Each branch is dropped entirely
 > when the caller lacks the permission that governs it, and every
 > warehouse-bound branch is narrowed by warehouse scope.
+>
+> The box itself is `apps/web/src/components/GlobalSearch.tsx`, in the
+> header of every staff screen (an icon opening a full-screen sheet below
+> `lg`, because a usable search field and a legible header do not share
+> 390px). Debounced at 250ms and never fired below two characters, which
+> the endpoint refuses outright rather than scanning every indexed column.
+>
+> "Clicking one navigates straight to that record" needed one thing from
+> the API and one from the client. Four of the nine types have no screen
+> of their own — a product, a vehicle and a document are read in their
+> list, a gate pass on its dispatch — so a hit now carries `parentId` (the
+> dispatch, for a gate pass; null everywhere the id is the destination),
+> and the list screens read `?q=` from the URL so the other three land on
+> the list *already filtered to what was typed*. Dropping someone on page
+> one of Products with their term discarded is how a search box teaches
+> people not to use it.
 
 ## 5. Universal Document Centre (§22)
 
