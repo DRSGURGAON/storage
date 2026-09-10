@@ -7,6 +7,7 @@ import { PG_CONNECTION } from '../db/db.module';
 import { assertWarehouseInScope, loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { NumberingService } from '../numbering/numbering.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { StockMovement, StockService } from '../stock/stock.service';
 import { CreateGrnItemDto } from './dto/create-grn-item.dto';
 import { CreateGrnDto } from './dto/create-grn.dto';
@@ -188,6 +189,7 @@ export class GrnsService {
     private readonly numbering: NumberingService,
     private readonly audit: AuditService,
     private readonly stock: StockService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private async resolveTransportRefs(
@@ -784,11 +786,27 @@ export class GrnsService {
   }
 
   submit(actor: AuthenticatedUser, id: string, ipAddress?: string) {
-    return this.transition(actor, id, ipAddress, ['draft'], async (tx) => {
+    return this.transition(actor, id, ipAddress, ['draft'], async (tx, before) => {
       await tx`
         update grns set status = 'submitted', submitted_at = now(), submitted_by = ${actor.userId}
         where id = ${id} and tenant_id = ${actor.tenantId}
       `;
+      // §56: the people who can approve it are told, inside this transaction,
+      // so a rolled-back submit leaves no notification claiming otherwise.
+      await this.notifications.emitWithin(tx, actor.tenantId, {
+        ruleCode: 'grn_pending_approval',
+        title: `GRN ${before.number} is waiting for approval`,
+        body: `Submitted by ${actor.roleCode.replace(/_/g, ' ')} for checking and approval.`,
+        entityType: 'grn', entityId: id, warehouseId: before.warehouse_id, excludeUserId: actor.userId,
+      });
+      if (before.has_discrepancy) {
+        await this.notifications.emitWithin(tx, actor.tenantId, {
+          ruleCode: 'stock_discrepancy',
+          title: `GRN ${before.number} has a quantity discrepancy`,
+          body: 'Received quantities do not match what was expected on at least one line.',
+          entityType: 'grn', entityId: id, severity: 'warning', warehouseId: before.warehouse_id, excludeUserId: actor.userId,
+        });
+      }
     });
   }
 

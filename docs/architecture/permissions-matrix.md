@@ -117,6 +117,15 @@ Legend: ✅ full access to the permission · ➖ not granted.
   set (see `tenancy-and-security.md` §2) rather than the staff permission
   codes with a filter bolted on, so there is no path where a portal session
   could exercise a staff-only permission code even if the frontend allowed it.
+
+  > **Implemented** (Phase 8): the `customer` role is seeded with an
+  > *empty* permission list, which is what makes the paragraph above true
+  > rather than merely intended — `PermissionsGuard` refuses every staff
+  > endpoint to a portal session before its handler runs. The portal's own
+  > routes carry `PortalGuard` instead, which admits only an active
+  > `customer` membership, so the two directions are closed independently.
+  > The "own only" cells are served by `/portal/*` (`portal.service.ts`),
+  > not by staff endpoints with a customer filter.
 - `tenant_users.warehouse_ids`, when set for a Warehouse Manager/Operator,
   narrows every one of that role's permissions above to the listed
   warehouses; it does not grant new permissions.

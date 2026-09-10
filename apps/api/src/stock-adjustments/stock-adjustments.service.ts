@@ -7,6 +7,7 @@ import { assertWarehouseInScope, loadWarehouseScope } from '../auth/warehouse-sc
 import { SETTINGS_BY_KEY } from '../company/tenant-settings.registry';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
+import { NotificationsService } from '../notifications/notifications.service';
 import { NumberingService } from '../numbering/numbering.service';
 import { StockMovement, StockService } from '../stock/stock.service';
 import { CreateStockAdjustmentDto } from './dto/create-stock-adjustment.dto';
@@ -123,6 +124,7 @@ export class StockAdjustmentsService {
     private readonly numbering: NumberingService,
     private readonly audit: AuditService,
     private readonly stock: StockService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(actor: AuthenticatedUser, dto: CreateStockAdjustmentDto, ipAddress?: string) {
@@ -323,8 +325,15 @@ export class StockAdjustmentsService {
   }
 
   submit(actor: AuthenticatedUser, id: string, ipAddress?: string) {
-    return this.transition(actor, id, ipAddress, ['draft'], async (tx) => {
+    return this.transition(actor, id, ipAddress, ['draft'], async (tx, before) => {
       await tx`update stock_adjustments set status = 'pending_manager' where id = ${id} and tenant_id = ${actor.tenantId}`;
+      await this.notifications.emitWithin(tx, actor.tenantId, {
+        ruleCode: 'stock_adjustment_pending',
+        title: `Stock adjustment ${before.number} needs approval`,
+        body: 'A stock adjustment has been submitted and is waiting for a manager.',
+        entityType: 'stock_adjustment', entityId: id, severity: 'warning',
+        warehouseId: before.warehouse_id, excludeUserId: actor.userId,
+      });
     });
   }
 

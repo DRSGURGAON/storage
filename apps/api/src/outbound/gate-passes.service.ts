@@ -6,6 +6,7 @@ import { AuthenticatedUser } from '../auth/jwt-payload';
 import { assertWarehouseInScope, loadWarehouseScope } from '../auth/warehouse-scope';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
+import { NotificationsService } from '../notifications/notifications.service';
 import { NumberingService } from '../numbering/numbering.service';
 import { DispatchesService } from './dispatches.service';
 import { CreateGatePassDto, ListGatePassesQuery } from './dto/outbound.dtos';
@@ -76,6 +77,7 @@ export class GatePassesService {
     private readonly audit: AuditService,
     private readonly posting: OutboundPostingService,
     private readonly dispatches: DispatchesService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(actor: AuthenticatedUser, dto: CreateGatePassDto, ipAddress?: string) {
@@ -213,6 +215,13 @@ export class GatePassesService {
         where id = ${id} and tenant_id = ${actor.tenantId}
       `;
       await tx`update dispatches set status = 'gate_out' where id = ${before.dispatch_id} and tenant_id = ${actor.tenantId} and status in ('draft', 'loaded')`;
+      // §56: the goods are on the road, so somebody now owes a proof of delivery.
+      await this.notifications.emitWithin(tx, actor.tenantId, {
+        ruleCode: 'pod_pending',
+        title: `Dispatch ${before.dispatch_number} has left; POD outstanding`,
+        body: `Gate pass ${before.number} was cleared. Capture the proof of delivery once the consignee signs.`,
+        entityType: 'dispatch', entityId: before.dispatch_id, warehouseId: before.warehouse_id, excludeUserId: actor.userId,
+      });
       return this.dispatches.releaseOrderAudit(posted);
     });
   }

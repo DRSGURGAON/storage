@@ -501,6 +501,39 @@ rows with no error at all.
   "prevent duplicate invoice posting"); cancelling before issue hands the
   run back to `previewed` so the corrected invoice comes from the same
   computation.
+- `GET /dashboard` and `GET /search?q=` (authentication only, no
+  permission of their own) — `ux-system.md` §3 and §4. The dashboard's
+  tiles are the engines' own queries (`stock_ledger`, `stock_lots`,
+  `invoices.balance_due`), narrowed by warehouse scope, with the billing
+  tiles **omitted** rather than zeroed for a role that cannot see money.
+  Search is one ranked SQL union across customers, SKUs, vehicles, GRNs,
+  dispatches, gate passes, PODs, invoices and document numbers; exact
+  identifier matches rank above prefixes above substrings, and each
+  branch is dropped when the caller lacks the permission governing it.
+  Neither declares a single permission because both are aggregations of
+  already-permitted reads — a per-branch decision no route decorator can
+  express, so they carry `JwtAuthGuard` alone and say so in a comment
+  (`PermissionsGuard` fails closed on an undeclared route by design).
+- `GET /notifications?unreadOnly=`, `POST /notifications/:id/read`,
+  `POST /notifications/read-all` (authentication only — a notification is
+  addressed to one person, and the only rows these reach are the
+  caller's). Blueprint §56: who hears about what is **data**
+  (`notification_rules`, seeded system-wide, overridable per tenant), the
+  person who caused an event is never notified about it, a
+  warehouse-scoped member only hears about their own warehouses, and
+  emission runs inside the caller's transaction so a rolled-back action
+  leaves no notification claiming otherwise. Emitted today on GRN submit,
+  GRN discrepancy, stock-adjustment submit, gate-out (POD outstanding),
+  a portal return request, and an invoice going overdue. Only `in_app` is
+  delivered; a rule listing email/WhatsApp/SMS logs that they were not.
+- `GET /audit-logs?entityType=&entityId=&action=&userId=&from=&to=`
+  (`view_audit_log`, Owner/Admin) — §57's viewer over `audit_logs`.
+- `GET /plan/usage` (`view_plan_usage`) — §13, one `checkEntitlement` per
+  metered feature, the same read a paywall makes.
+- `GET /pricing` — §14, **public and unauthenticated**, pivoted from
+  `plan_feature_limits` across every public plan so it cannot drift from
+  what the entitlement engine enforces. A feature with no row reads as
+  `disabled`, fail-closed.
 - **Customer portal** (`GET /portal/me`, `/stock`, `/goods-receipts`,
   `/dispatches`, `/release-orders`, `/invoices`, `/statement`,
   `/documents`, `/documents/:id/download`, and
@@ -609,6 +642,11 @@ header.
 ```bash
 npm test
 ```
+
+A demo workspace can be seeded with `npm run seed:demo` — it drives the
+real services end to end (masters → receipts → put-away → release →
+dispatch → gate-out → billing run → issued invoice) rather than inserting
+rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
 All against the real local database (`DATABASE_URL`), not mocks:
 
@@ -843,6 +881,23 @@ All against the real local database (`DATABASE_URL`), not mocks:
   each resolved count line pointing back at the adjustment that fixed it;
   the tenth template rendering differently blank versus completed; and
   reject/cancel plus tenant isolation.
+- `console/console.spec.ts` — the dashboard's numbers traced to the
+  ledger (50 posted, one GRN still awaiting approval) with the billing
+  tile **absent** for an Operator and a fresh tenant's dashboard empty
+  rather than broken; search finding a GRN by number, a customer by name
+  and by exact GSTIN (which ranks first), a SKU by prefix, with the
+  invoice branch dropped for an Operator and a one-character term
+  refused; notifications reaching the Owner and Manager but **not** the
+  Operator who submitted the GRN, a discrepancy raising its own warning,
+  reading being per person (the Manager's read leaves the Owner's unread,
+  and one user's notification 404s for another), read-all clearing the
+  count; the audit viewer filtered by entity and by action, refused to
+  Manager and Operator, empty across tenants; plan usage showing 1 of 2
+  GRN copies used and then 2 of 2 with `upgradeRequired` after spending
+  the last one **through the real document endpoint**, refused to an
+  Operator; pricing served with no token at all; and the Document Centre
+  paging (limit/offset returning different rows) and filtering by
+  customer, type and date.
 - `portal/portal.spec.ts` — two customers with real goods, documents and
   dispatches behind them, then: a portal membership refused without a
   customer, with an unknown customer, with warehouse scoping, and a staff

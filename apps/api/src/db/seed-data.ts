@@ -326,6 +326,25 @@ export const SYSTEM_CHARGE_TYPES = [
   { code: 'WAITING_DETENTION', name: 'Waiting / Detention', category: 'other', defaultBasis: 'per_hour', triggerEvent: null },
 ] as const;
 
+/**
+ * Blueprint §56's notification catalogue, seeded system-wide
+ * (`tenant_id is null`) like roles and charge types, and overridable per
+ * tenant by inserting a row with the same code. `audience_role_codes`
+ * is what decides who hears about an event -- data, not a switch
+ * statement in the emitter -- and `channels` is `{in_app}` for every V1
+ * rule, since email/WhatsApp/SMS are integration points only (§56).
+ */
+export const SYSTEM_NOTIFICATION_RULES = [
+  { code: 'grn_pending_approval', channels: ['in_app'], audience: ['owner', 'admin', 'warehouse_manager'] },
+  { code: 'stock_discrepancy', channels: ['in_app'], audience: ['owner', 'admin', 'warehouse_manager'] },
+  { code: 'stock_adjustment_pending', channels: ['in_app'], audience: ['owner', 'admin', 'warehouse_manager'] },
+  { code: 'pod_pending', channels: ['in_app'], audience: ['owner', 'admin', 'warehouse_manager', 'warehouse_operator'] },
+  { code: 'customer_request_pending', channels: ['in_app'], audience: ['owner', 'admin', 'warehouse_manager'] },
+  { code: 'payment_overdue', channels: ['in_app'], audience: ['owner', 'admin', 'billing_executive', 'accountant'] },
+  { code: 'payment_due', channels: ['in_app'], audience: ['owner', 'admin', 'billing_executive', 'accountant'] },
+  { code: 'agreement_expiring', channels: ['in_app'], audience: ['owner', 'admin'] },
+] as const;
+
 /** billing-engine.md §6: GST rate catalogue, system-wide, tenant-editable per tax_rates' own comment. */
 export const SYSTEM_TAX_RATES = [
   { code: 'GST18', name: 'GST 18%', ratePct: 18 },

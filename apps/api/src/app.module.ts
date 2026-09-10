@@ -6,6 +6,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AgreementsModule } from './agreements/agreements.module';
 import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
+import { ConsoleModule } from './console/console.module';
 import { CompanyModule } from './company/company.module';
 import { CustomersModule } from './customers/customers.module';
 import { DbModule } from './db/db.module';
@@ -17,6 +18,7 @@ import { GrnsModule } from './grns/grns.module';
 import { HealthController } from './health/health.controller';
 import { InspectionsModule } from './inspections/inspections.module';
 import { InwardsModule } from './inwards/inwards.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { NumberingModule } from './numbering/numbering.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { ProductsModule } from './products/products.module';
@@ -84,6 +86,8 @@ import { ScopedThrottlerGuard, throttlerConfig } from './throttling';
     InvoicingModule,
     ReceivablesModule,
     PortalModule,
+    ConsoleModule,
+    NotificationsModule,
     WarehouseReceiptsModule,
   ],
   controllers: [HealthController],

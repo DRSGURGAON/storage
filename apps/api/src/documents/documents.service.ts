@@ -6,6 +6,7 @@ import { AuditService } from '../audit/audit.service';
 import { hasPermission } from '../auth/has-permission';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
+import { loadWarehouseScope } from '../auth/warehouse-scope';
 import { withTenant } from '../db/tenant-context';
 import { EntitlementService } from '../entitlement/entitlement.service';
 import { loadCompanyContext } from './company-context';
@@ -232,20 +233,50 @@ export class DocumentEngineService {
     return toApi(row);
   }
 
-  async list(actor: AuthenticatedUser, query: { documentType?: string; sourceId?: string; latestOnly?: boolean }) {
+  /**
+   * ux-system.md §5's Document Centre. It returned a bare, unpaginated
+   * array until Phase 8: fine while a tenant had a handful of documents,
+   * and a growing full-table read after that -- on the one screen whose
+   * whole job is to accumulate. It now filters on the four things §5 names
+   * (type, customer, warehouse, date range), searches the document number,
+   * narrows to the caller's warehouse scope, and pages like every other
+   * list in the API.
+   */
+  async list(
+    actor: AuthenticatedUser,
+    query: { documentType?: string; sourceId?: string; customerId?: string; warehouseId?: string; q?: string; from?: string; to?: string; latestOnly?: boolean; limit?: number; offset?: number },
+  ) {
     const typeFilter = query.documentType ?? null;
     const sourceFilter = query.sourceId ?? null;
+    const customerFilter = query.customerId ?? null;
+    const warehouseFilter = query.warehouseId ?? null;
+    const pattern = query.q ? `%${query.q}%` : null;
+    const from = query.from ?? null;
+    const to = query.to ?? null;
     const latestOnly = query.latestOnly ?? true;
+    const limit = query.limit ?? 25;
+    const offset = query.offset ?? 0;
 
-    const rows = await withTenant(this.sql, actor.tenantId, (tx) => tx<DocumentRow[]>`
-      select ${tx.unsafe(SELECT_COLUMNS)} from documents
-      where tenant_id = ${actor.tenantId}
-        and (${typeFilter}::text is null or document_type = ${typeFilter})
-        and (${sourceFilter}::uuid is null or source_id = ${sourceFilter})
-        and (${!latestOnly}::boolean or is_latest)
-      order by generated_at desc
-    `);
-    return rows.map(toApi);
+    return withTenant(this.sql, actor.tenantId, async (tx) => {
+      const scope = await loadWarehouseScope(tx, actor);
+      const where = tx`
+        where tenant_id = ${actor.tenantId}
+          and (${scope}::uuid[] is null or warehouse_id is null or warehouse_id = any(${scope}))
+          and (${typeFilter}::text is null or document_type = ${typeFilter})
+          and (${sourceFilter}::uuid is null or source_id = ${sourceFilter})
+          and (${customerFilter}::uuid is null or customer_id = ${customerFilter})
+          and (${warehouseFilter}::uuid is null or warehouse_id = ${warehouseFilter})
+          and (${pattern}::text is null or document_number ilike ${pattern})
+          and (${from}::date is null or generated_at >= ${from}::date)
+          and (${to}::date is null or generated_at < (${to}::date + 1))
+          and (${!latestOnly}::boolean or is_latest)`;
+      const rows = await tx<DocumentRow[]>`
+        select ${tx.unsafe(SELECT_COLUMNS)} from documents ${where}
+        order by generated_at desc limit ${limit} offset ${offset}
+      `;
+      const [{ count }] = await tx<{ count: string }[]>`select count(*)::text as count from documents ${where}`;
+      return { items: rows.map(toApi), total: Number(count), limit, offset };
+    });
   }
 
   async downloadBytes(actor: AuthenticatedUser, id: string) {

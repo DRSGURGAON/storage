@@ -1678,3 +1678,69 @@ Reading a customer statement flips the overdue flags for that tenant
 first. The nightly job is the schedule, not the only path, and the
 statement is the one screen where an invoice still marked `issued` two
 weeks past its due date would actively mislead.
+
+## §45 — the fourth, fifth and sixth times RLS turned a working write into a no-op
+
+`DECISIONS.md` §44 closed with a rule: *a write outside `withTenant` that
+reports success has not necessarily written anything.* Phase 8 broke it
+three more times, in three different ways, and each is worth recording
+because none of them looked like a mistake at the point of writing.
+
+- **The plan & usage page** read `tenant_subscriptions` on the bare
+  connection. The row exists, the query returns nothing, and the endpoint
+  answers "this workspace has no subscription" — a *plausible* error
+  message for a workspace that plainly has one, which is what makes this
+  failure mode dangerous. Reads are as exposed as writes; the difference
+  is that a bad read tells a story rather than silently doing nothing.
+- **The demo seeding script** backdated `stock_ledger`, `grns` and
+  `putaways` on the bare connection to give the demo ten days of history.
+  All three matched zero rows, and the script sailed on to build a
+  billing run that found nothing to bill.
+- **The live billing walkthrough** did the same thing from `psql`, where
+  there is no `withTenant` at all — the session simply has no
+  `app.tenant_id` — and produced a storage accrual of zero that looked
+  like a product bug for a good minute.
+
+The pattern behind all six occurrences is one thing: **RLS is enforced on
+the connection, not on the query**, so every code path that is not a
+request handler has to say which tenant it is acting as. Request handlers
+never get this wrong, because `withTenant` is how they reach the database
+at all. Everything else — a scheduled job, a seeding script, a
+verification query typed into `psql`, a page that reads a subscription —
+is where it goes wrong, and the symptom is always silence.
+
+Two habits came out of it, both used from here on: a job or script that
+must span tenants **loops over `tenants` and enters `withTenant` per
+tenant** rather than issuing one global statement, and a fixture that
+backdates data **asserts that it moved rows** rather than trusting the
+absence of an error.
+
+## §46 — the demo workspace is built by driving the product, not by inserting rows
+
+Blueprint §45 wants a demo tenant that shows the system working.
+`apps/api/src/db/seed-demo.ts` builds it by calling the real services in
+the order a user would: sign up, add customers, warehouses, bins and
+SKUs, price a rate card, receive three GRNs and put them away, ship two
+release orders through picking, dispatch and gate-out, leave a third
+reserved so the dashboard has something pending, then run a billing
+period and issue the invoice.
+
+Hand-written `INSERT`s would have been faster and would have rotted on
+the first status-machine change — worse, they could produce states the
+application itself refuses to create, so the demo would be showing
+something the product cannot do. Driving the services means the demo is
+only seedable if the flow actually works; the script is a smoke test that
+happens to leave data behind.
+
+Two details the first version got wrong, both fixed:
+
+- **`is_demo` is set last, not first.** Setting it up front looked
+  tidier and made the half-built wreckage of a failed run indistinguishable
+  from a finished demo — so the next run's "already exists, nothing to do"
+  guard skipped it forever. The flag now means *completed*, and a
+  workspace occupying the slug without it is reported as the failed run it
+  is rather than quietly accepted.
+- **`users` is global identity.** Removing a workspace leaves its login
+  addresses behind, and the next seeding attempt fails signup with a bare
+  409 from three layers down. The script now checks for an account with no
+  membership and says exactly that.

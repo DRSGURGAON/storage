@@ -715,8 +715,30 @@ orders, invoices, account statement and documents (with the download
 re-checking ownership at issue time), and lets them raise a return
 request against a dispatch they actually received. The staff API is
 closed to portal sessions by the permission matrix and the portal to
-staff by its guard — the two halves are independent. Dashboard, search,
-notifications, the audit viewer, plan/usage and pricing follow.
+staff by its guard — the two halves are independent.
+
+**The console surfaces landed too** (`apps/api/src/console/`,
+`notifications/`): the dashboard composed from the engines' own queries
+with the money tiles absent (not zeroed) for a role that cannot see
+money; global search as one ranked SQL union across customers, SKUs,
+vehicles, GRNs, dispatches, gate passes, PODs, invoices and document
+numbers, each branch dropped when the caller lacks its permission;
+in-app notifications driven by seeded `notification_rules` (who hears
+about what is data, and the person who caused an event is never told
+about it); the audit viewer behind `view_audit_log`; the Plan & Usage
+page reading the same `checkEntitlement` a paywall uses; and a public
+pricing page pivoted from `plan_feature_limits` so it cannot drift from
+what is enforced. The Document Centre gained the filters and pagination
+§5 asks for, replacing an unbounded full-table read. A demo workspace is
+seeded by `npm run seed:demo`, which drives the real services rather than
+inserting rows (`DECISIONS.md` §46).
+
+Still open from this phase: the portal-specific RLS policy
+(`app.customer_id` / `app.actor_kind`), signed time-limited document
+URLs, and the email/WhatsApp/SMS notification adapters — all noted in
+their own documents rather than silently skipped.
+
+**Status: complete** apart from those three, which are named above.
 
 - Schema: `notification_rules`/`notifications`, `audit_logs`,
   `approval_chain_templates`/`approval_instances`/`approval_steps` from

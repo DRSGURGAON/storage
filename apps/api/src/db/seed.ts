@@ -10,6 +10,7 @@ import {
   SYSTEM_AGREEMENT_TEMPLATE,
   SYSTEM_CHARGE_TYPES,
   SYSTEM_ROLES,
+  SYSTEM_NOTIFICATION_RULES,
   SYSTEM_TAX_RATES,
   UNMETERED_FEATURE_KEYS,
 } from './seed-data';
@@ -138,6 +139,16 @@ async function main() {
       `;
     }
     console.log(`seeded ${SYSTEM_TAX_RATES.length} system tax rates`);
+
+    for (const rule of SYSTEM_NOTIFICATION_RULES) {
+      await sql`
+        insert into notification_rules (id, tenant_id, code, channels, audience_role_codes, is_active)
+        values (gen_random_uuid(), null, ${rule.code}, ${rule.channels as unknown as string[]}, ${rule.audience as unknown as string[]}, true)
+        on conflict (code) where tenant_id is null
+        do update set channels = excluded.channels, audience_role_codes = excluded.audience_role_codes
+      `;
+    }
+    console.log(`seeded ${SYSTEM_NOTIFICATION_RULES.length} system notification rules`);
 
     await sql`
       insert into agreement_templates (id, tenant_id, name, version, clauses)

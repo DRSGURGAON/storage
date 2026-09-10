@@ -5,6 +5,7 @@ import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
 import { AuditService } from '../audit/audit.service';
 import { DocumentEngineService } from '../documents/documents.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { NumberingService } from '../numbering/numbering.service';
 import { buildCustomerStatement } from '../receivables/statements.service';
 import { PortalListQuery } from './dto/portal.dtos';
@@ -34,6 +35,7 @@ export class PortalService {
     private readonly documents: DocumentEngineService,
     private readonly numbering: NumberingService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private customerOf(actor: AuthenticatedUser): string {
@@ -294,6 +296,14 @@ export class PortalService {
           values (gen_random_uuid(), ${actor.tenantId}, ${row.id}, ${line.productId}, ${line.quantity})
         `;
       }
+      // §56: a customer asking for something is the one event staff must not miss.
+      const [customer] = await tx<{ name: string }[]>`select coalesce(legal_name, name) as name from customers where id = ${customerId}`;
+      await this.notifications.emitWithin(tx, actor.tenantId, {
+        ruleCode: 'customer_request_pending',
+        title: `${customer.name} has requested a return (${row.number})`,
+        body: dto.reason,
+        entityType: 'return_request', entityId: row.id, severity: 'warning', warehouseId: dispatch.warehouse_id,
+      });
       return row;
     });
     await this.audit.record({

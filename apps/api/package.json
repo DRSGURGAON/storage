@@ -10,6 +10,7 @@
     "start:prod": "node dist/main.js",
     "migrate": "ts-node -r tsconfig-paths/register src/db/migrate.ts",
     "seed": "ts-node -r tsconfig-paths/register src/db/seed.ts",
+    "seed:demo": "ts-node -r tsconfig-paths/register src/db/seed-demo.ts",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch"
   },

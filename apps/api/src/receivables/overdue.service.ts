@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import type postgres from 'postgres';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /**
  * `workflow-and-statuses.md` §3: "Overdue is not a manual click — a
@@ -32,7 +33,10 @@ import { withTenant } from '../db/tenant-context';
 export class OverdueService {
   private readonly logger = new Logger(OverdueService.name);
 
-  constructor(@Inject(PG_CONNECTION) private readonly sql: postgres.Sql) {}
+  constructor(
+    @Inject(PG_CONNECTION) private readonly sql: postgres.Sql,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_1AM, { name: 'flip-overdue-invoices' })
   async scheduled() {
@@ -55,6 +59,14 @@ export class OverdueService {
       `);
       for (const r of rows) {
         flipped.push({ id: r.id, number: r.number, tenantId: tenant.id, dueDate: r.due_date, balanceDue: r.balance_due });
+        // §56's payment_overdue, once per invoice as it crosses -- not nightly for as long as it stays overdue,
+        // because the flip only ever matches an invoice that was not already `overdue`.
+        await this.notifications.emit(tenant.id, {
+          ruleCode: 'payment_overdue',
+          title: `Invoice ${r.number} is overdue`,
+          body: `${r.balance_due} was due on ${r.due_date}.`,
+          entityType: 'invoice', entityId: r.id, severity: 'critical',
+        });
       }
     }
     return flipped;

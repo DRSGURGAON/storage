@@ -25,11 +25,7 @@ export class DocumentsController {
   @Get()
   @RequirePermission('view_documents')
   list(@CurrentUser() user: AuthenticatedUser, @Query() query: ListDocumentsQuery) {
-    return this.documents.list(user, {
-      documentType: query.documentType,
-      sourceId: query.sourceId,
-      latestOnly: query.latestOnly ?? true,
-    });
+    return this.documents.list(user, { ...query, latestOnly: query.latestOnly ?? true });
   }
 
   @Get(':id')

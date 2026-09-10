@@ -72,6 +72,18 @@ charts" per the design direction in §34):
   `approval_instances` where `status = 'pending'` and the user's role
   matches the current step), Stock Summary, Billing Summary, Ageing Alerts.
 
+> **Implemented** (`apps/api/src/console/dashboard.service.ts`, Phase 8):
+> `GET /dashboard`. Today's inward/outward come straight off
+> `stock_ledger`, current stock off `stock_lots`, outstanding off
+> `invoices.balance_due` — the same rows those modules serve, never a
+> second computation. Every tile is narrowed by the caller's warehouse
+> scope, and the billing tiles are **omitted entirely** (not zeroed) for a
+> role without `view_customer_statement`, so an Operator cannot read a
+> zero as "nothing is owed". Pending Approvals is currently the count of
+> GRNs, put-aways, PODs, open release orders and stock adjustments waiting
+> on someone; the `approval_instances` version arrives with the generic
+> approval chain.
+
 ## 4. Global Search (§21)
 
 One search endpoint, one result renderer, fanning out across customer, SKU,
@@ -84,6 +96,16 @@ boxes. Results are grouped by type with a one-line summary per hit
 (`GRN/26-27/000045 · ABC Traders · Approved`) and clicking one navigates
 straight to that record.
 
+> **Implemented** (`apps/api/src/console/search.service.ts`):
+> `GET /search?q=`. One SQL union across customers, products, vehicles,
+> GRNs, dispatches, gate passes, PODs, invoices and document numbers, so
+> ranking is a single `order by` rather than a merge of nine result sets.
+> Rank is by *how* the row matched — exact identifier, then prefix, then
+> substring — so a full GRN number puts that GRN first even when a
+> customer name contains the same digits. Each branch is dropped entirely
+> when the caller lacks the permission that governs it, and every
+> warehouse-bound branch is narrowed by warehouse scope.
+
 ## 5. Universal Document Centre (§22)
 
 One screen, backed directly by the `documents` table
@@ -92,6 +114,12 @@ default. Filters: document type, customer, warehouse, date range, status.
 No module maintains its own "my documents" list — GRN's detail page links
 into this same Document Centre pre-filtered to that GRN's chain, rather
 than rendering a parallel document list of its own.
+
+> **Implemented**: `GET /documents` filters on document type, customer,
+> warehouse, date range and document number, defaults to `is_latest`,
+> narrows by warehouse scope, and pages like every other list. It returned
+> an unpaginated full-table read until Phase 8 — on the one screen whose
+> whole purpose is to accumulate.
 
 ## 6. Document Lifecycle (§23)
 
@@ -185,6 +213,11 @@ plan name and status, renewal date, and a table of feature → used → limit
 place usage is shown in full; it exists precisely so individual screens
 don't need to (§42).
 
+> **Implemented**: `GET /plan/usage` (`view_plan_usage`). The used/limit/
+> remaining figures are one `checkEntitlement` call per metered feature —
+> the same side-effect-free read a paywall makes — so this page and the
+> block on a click cannot disagree.
+
 ## 14. Pricing Page (§44)
 
 Rendered directly from `plans` and `plan_feature_limits` where
@@ -194,6 +227,13 @@ portal/reports/QR verification/support derived from the same rows the
 entitlement engine checks against, so the pricing page can never drift out
 of sync with what is actually enforced. Final price points are configured
 data (`plans.price_monthly`/`price_yearly`), not hard-coded in the page.
+
+> **Implemented**: `GET /pricing`, public and unauthenticated (like the QR
+> verify endpoint), pivoting `plan_feature_limits` across every
+> `is_public` plan. Adding a plan or changing a limit changes the page with
+> no code edit, and a feature with no row reads as `disabled` —
+> fail-closed, matching `entitlement-engine.md` §3 rather than guessing
+> "unlimited".
 
 ## 15. Error UX (§47)
 

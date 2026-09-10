@@ -144,7 +144,8 @@ describe('Document engine', () => {
       .get(`/documents?sourceId=${quotationId}`)
       .set('Authorization', `Bearer ${owner}`)
       .expect(200);
-    expect(list.body).toHaveLength(0);
+    expect(list.body.items).toHaveLength(0);
+    expect(list.body.total).toBe(0);
   });
 
   it('commits a document, is idempotent on retry, and regenerate creates a new version and revokes the old QR', async () => {
@@ -196,14 +197,14 @@ describe('Document engine', () => {
       .get(`/documents?sourceId=${quotationId}&latestOnly=false`)
       .set('Authorization', `Bearer ${owner}`)
       .expect(200);
-    expect(list.body).toHaveLength(2);
+    expect(list.body.items).toHaveLength(2);
 
     const latestOnlyList = await api()
       .get(`/documents?sourceId=${quotationId}`)
       .set('Authorization', `Bearer ${owner}`)
       .expect(200);
-    expect(latestOnlyList.body).toHaveLength(1);
-    expect(latestOnlyList.body[0].id).toBe(regenerated.body.id);
+    expect(latestOnlyList.body.items).toHaveLength(1);
+    expect(latestOnlyList.body.items[0].id).toBe(regenerated.body.id);
 
     // Public verify: current version valid, superseded version revoked, unknown token not_found.
     const validVerify = await api().get(`/verify/${regenerated.body.qrToken}`).expect(200);
@@ -274,7 +275,8 @@ describe('Document engine', () => {
       .get(`/documents?sourceId=${thirdQuotationId}`)
       .set('Authorization', `Bearer ${paywallOwner}`)
       .expect(200);
-    expect(list.body).toHaveLength(0);
+    expect(list.body.items).toHaveLength(0);
+    expect(list.body.total).toBe(0);
   });
 
   it("tenant B cannot view, download, or list tenant A's documents", async () => {
@@ -292,7 +294,7 @@ describe('Document engine', () => {
       .get(`/documents?sourceId=${quotationId}`)
       .set('Authorization', `Bearer ${otherOwner}`)
       .expect(200);
-    expect(otherList.body).toHaveLength(0);
+    expect(otherList.body.items).toHaveLength(0);
 
     // Cross-tenant document/preview and generate attempts also 404 (the source quotation isn't tenant B's).
     await api().post(`/quotations/${quotationId}/document/preview`).set('Authorization', `Bearer ${otherOwner}`).expect(404);
