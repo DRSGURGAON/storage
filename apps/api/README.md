@@ -472,6 +472,35 @@ rows with no error at all.
   received is refused; status is derived (`delivered`/`short`/`damaged`/
   `rejected`), the dispatch completes, and the order completes once every
   note against it has. Moves no stock.
+- `POST/GET /billing-runs[/:id]` and `/discard` (`generate_billing_run`) —
+  billing-engine.md §4–§5's preview, computed from operations and committed
+  to nothing. Storage is accrued **day by day from the ledger** for every
+  `(product, batch)` the customer held (free days counted from that key's
+  own first inward), handling charges come from the completions in the
+  period (`grn_approved`, `gate_out`, `loading_confirmed`,
+  `putaway_completed`, `pick_confirmed`) matched by
+  `charge_types.trigger_event`, and `manualLines` are the one hand-typed
+  charge, still routed through the same preview. Every intermediate number
+  — the daily quantity series, chargeable unit-days, rate, free days,
+  minimum charge — is stored in `billing_runs.calculation` for the preview
+  to render rather than recompute (§66). Stock with **no rate at any
+  level** lands in `calculation.errors` and blocks invoicing; an event
+  whose charge type is priced nowhere lands in `calculation.unpriced` and
+  is simply not billed (`DECISIONS.md` §43). Re-running a
+  customer/warehouse/period replaces the live preview; once its period is
+  invoiced, re-running is refused with the invoice number.
+- `POST/GET /invoices[/:id]` (`create_invoice`), `/submit`, `/cancel`
+  (`create_invoice`), `/approve`, `/issue` (`approve_invoice`),
+  `/document[/preview]` — §40's Tax Invoice, created only from a billing
+  run. Both party snapshots are frozen at creation and the GST treatment is
+  decided there and then from the company's state code against the
+  customer's place of supply: same state splits each line into CGST + SGST,
+  a different state charges IGST, and the totals round to whole rupees with
+  the remainder in `round_off`. The due date defaults to the invoice date
+  plus the customer's credit days. A billing run is invoiced **once** (§79
+  "prevent duplicate invoice posting"); cancelling before issue hands the
+  run back to `previewed` so the corrected invoice comes from the same
+  computation.
 - `POST/GET /return-requests[/:id]` and `/cancel` (`create_return_request`),
   `/approve`, `/reject` (`approve_grn`) — §37. With `originalDispatchId`,
   every line must be on that dispatch, for its customer, in no more than
@@ -768,6 +797,29 @@ All against the real local database (`DATABASE_URL`), not mocks:
   each resolved count line pointing back at the adjustment that fixed it;
   the tenth template rendering differently blank versus completed; and
   reject/cancel plus tenant isolation.
+- `invoicing/invoicing.spec.ts` — nine days of history made by moving the
+  ledger, the GRNs and the put-aways back together, so the accrual and the
+  handling charges agree about when things happened. 100 bags with 2 free
+  days over a 10-day period bill 800 unit-days across 8 days, with the
+  stored daily series asserted line by line (10 days, 8 chargeable, all at
+  100); the GRN's inward handling billed per unit while `UNLOADING` — which
+  triggers on the same event but is priced nowhere — is listed as unpriced
+  and not billed; re-running replacing the live preview rather than
+  stacking a second (the first 404s afterwards) and taking a manual line;
+  a discarded preview refusing to be invoiced; a customer whose only SKU
+  has no storage rate producing a named error and an invoice refused with
+  it; then the invoice itself — CGST 153 + SGST 153 on 1,700 in-state, the
+  per-line split asserted too, a due date at 15 credit days, both
+  snapshots frozen, the run marked `invoiced` and a second invoice **and**
+  a re-preview of that period both refused; the draft → pending approval →
+  approved → issued walk with approval refused to the Billing Executive
+  and an issued invoice refused cancellation; the twentieth template
+  rendering, committing and verifying. Then IGST for an out-of-state
+  customer with CGST/SGST zero on every line, and a later overlapping
+  period billing the storage again but listing that GRN's handling as
+  already billed; a cancelled draft handing its run back to `previewed`
+  for a corrected invoice; plus the Operator refused throughout, filters
+  and tenant isolation.
 - `returns/returns.spec.ts` — 100 in and 40 out through the whole
   outbound chain first, so there is a dispatch to return against; a
   request for 41 refused with "carried 40", one for another customer

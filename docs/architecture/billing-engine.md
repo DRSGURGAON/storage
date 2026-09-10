@@ -92,6 +92,19 @@ verbatim in `billing_run_lines` and echoed in `billing_runs.calculation`
 (§66's transparency requirement) — the preview screen renders directly from
 these columns, it does not recompute or hide the formula.
 
+> **Implemented** (`apps/api/src/invoicing/billing-runs.service.ts`, Phase 7):
+> this section read literally. For each `(product, batch)` key the customer
+> held, quantity-on-hand is rebuilt for every day of the period by summing
+> `qty_in - qty_out` from `stock_ledger` up to that day; `free_days` is
+> applied against that key's first inward, not against the period start; and
+> the daily series, the chargeable unit-days, the rate, the free days and the
+> minimum charge all land in `billing_runs.calculation` for the preview to
+> render. `unit_day`, `pallet_day`, `box_day` (via `products.units_per_package`),
+> `cbm_day` (via `products.volume_cbm`) and `flat_month` are computed;
+> `sqft_month` records an error, since no floor-area allocation per customer
+> exists to compute it from yet. `billing.partial_month_policy` decides
+> whether a partial first/last month is charged whole or pro-rated.
+
 ## 5. Billing run → invoice (§39)
 
 ```
@@ -112,7 +125,25 @@ live preview that could be invoiced twice. Once `invoiced`, a billing run is
 immutable; correcting an issued invoice goes through a Credit/Debit Note
 (§41), never an edit of the original invoice or a re-run of its billing run.
 
+> **Implemented**: `POST /billing-runs` → `POST /invoices` is exactly this
+> flow. Handling charges come from *completions* — `grn_approved`,
+> `gate_out`, `loading_confirmed`, `putaway_completed`, `pick_confirmed` —
+> matched to charge types by `charge_types.trigger_event`, and each event is
+> checked against the invoiced runs that already carry it so an overlapping
+> period cannot bill it twice. A run whose `calculation.errors` is non-empty
+> refuses to be invoiced (`DECISIONS.md` §43). Cancelling a draft invoice
+> returns its run to `previewed` so the corrected invoice comes from the same
+> computation.
+
 ## 6. Tax (§40)
+
+> **Implemented**: computed once in `InvoicesService.createFromRun` from
+> `tenants.state_code` against the customer's `place_of_supply` (falling back
+> to their state code, then their billing address's), stored on the invoice
+> *and* per line as `cgst_amount`/`sgst_amount`/`igst_amount`, with the
+> grand total rounded to whole rupees and the difference kept in
+> `round_off`. A line with no tax rate on its rate card line takes the
+> tenant's `billing.default_tax_rate_code` (GST18 unless changed).
 
 `invoices.tax_treatment` decides whether a line's tax splits into
 CGST+SGST (`intra_state`: buyer and seller state codes match) or IGST

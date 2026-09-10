@@ -57,6 +57,8 @@ export const PROVISIONAL_SOURCE_STATUSES: Record<string, readonly string[]> = {
   pod: ['pending'],
   // Until its GRN posts, a return inward is an arrival note; after, it is the record of what came back.
   return_inward: ['draft', 'inspected'],
+  // An approved or issued invoice is a tax document someone may already have filed.
+  invoice: ['draft', 'pending_approval'],
 };
 
 /**

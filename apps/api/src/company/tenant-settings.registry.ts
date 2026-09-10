@@ -68,6 +68,27 @@ export const TENANT_SETTINGS: readonly SettingDefinition[] = [
     readBy: 'OutboundPostingService.postingPoint / DispatchesService.confirm',
   },
   {
+    key: 'billing.partial_month_policy',
+    type: 'string',
+    default: 'full',
+    allowed: ['full', 'prorate'],
+    description:
+      'How a flat_month / sqft_month storage rate treats a billing period that covers ' +
+      'part of a calendar month: charge the full month, or pro-rate by days ' +
+      '(billing-engine.md §4).',
+    readBy: 'BillingRunsService.storageLines',
+  },
+  {
+    key: 'billing.default_tax_rate_code',
+    type: 'string',
+    default: 'GST18',
+    description:
+      'Tax rate applied to a billed line whose rate card line names none. Storage and ' +
+      'warehousing services (SAC 9967) attract 18% GST by default; a tenant billing ' +
+      'exempt or nil-rated services changes this or sets the rate on the rate card line.',
+    readBy: 'BillingRunsService.taxRateFor',
+  },
+  {
     key: 'approvals.stock_adjustment.owner_required',
     type: 'boolean',
     default: false,

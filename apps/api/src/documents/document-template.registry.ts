@@ -17,6 +17,7 @@ import {
   PodDocumentTemplate,
 } from './templates/outbound-document.templates';
 import { ReturnInwardDocumentTemplate } from './templates/return-inward-document.template';
+import { InvoiceDocumentTemplate } from './templates/invoice-document.template';
 import { ReleaseOrderDocumentTemplate } from './templates/release-order-document.template';
 import { StockStatementDocumentTemplate } from './templates/stock-statement-document.template';
 import { StockVerificationDocumentTemplate } from './templates/stock-verification-document.template';
@@ -52,6 +53,7 @@ export class DocumentTemplateRegistry {
     gatePassTemplate: GatePassDocumentTemplate,
     podTemplate: PodDocumentTemplate,
     returnInwardTemplate: ReturnInwardDocumentTemplate,
+    invoiceTemplate: InvoiceDocumentTemplate,
   ) {
     this.templates.set(quotationTemplate.documentType, quotationTemplate);
     this.templates.set(agreementTemplate.documentType, agreementTemplate);
@@ -72,6 +74,7 @@ export class DocumentTemplateRegistry {
     this.templates.set(gatePassTemplate.documentType, gatePassTemplate);
     this.templates.set(podTemplate.documentType, podTemplate);
     this.templates.set(returnInwardTemplate.documentType, returnInwardTemplate);
+    this.templates.set(invoiceTemplate.documentType, invoiceTemplate);
   }
 
   get(documentType: string): DocumentTemplate {

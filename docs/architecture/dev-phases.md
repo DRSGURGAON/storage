@@ -670,6 +670,20 @@ in `stock-engine.md` §2 now has a writer.
 
 ## Phase 7 — Storage Charges, Handling Charges, Invoice, Debit/Credit, Payment, Statement
 
+**Status: billing runs and invoices landed** (`apps/api/src/invoicing/`).
+The run rebuilds storage day by day from `stock_ledger` (free days
+against each key's first inward, the whole daily series kept for the
+preview), adds handling charges from the operational *completions* that
+happened in the period, accepts explicit manual lines, and refuses to be
+invoiced while any stock it found has no rate at any level. The invoice
+freezes both party snapshots, decides CGST+SGST versus IGST once from
+the two state codes, rounds to whole rupees into `round_off`, and walks
+draft → pending approval → approved → issued with approval above the
+Billing Executive. A run is invoiced once; cancelling a draft invoice
+hands it back (`DECISIONS.md` §43). The Tax Invoice is the twentieth
+template. Credit/debit notes, payments and the customer statement
+follow.
+
 - Schema: `schema/60_billing.sql`.
 - Docs: `billing-engine.md` in full.
 - Deliverable: Billing Run preview → Invoice → Payment → Customer Statement,

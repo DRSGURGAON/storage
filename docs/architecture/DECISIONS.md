@@ -1560,3 +1560,66 @@ Approving a return request rides `approve_grn`. The matrix has only
 `create_return_request` for this module, and the approval is a receiving
 decision — "will we take these goods back" is the same authority as
 "will we sign for these goods", and it stops at the same role.
+
+## §43 — the billing run computes, the invoice freezes, and neither guesses
+
+`billing-engine.md` §1 sets one rule the whole module answers to: every
+charge traces back to an operational record, and nothing is silently
+wrong. Building it turned that into four decisions.
+
+**A missing rate is not always the same kind of problem.** Stock that sat
+in a warehouse all month with no storage rate at any level is an
+*error*: the goods were stored, the money is owed, and issuing an invoice
+without that line would under-bill silently. So the run records the SKU
+in `calculation.errors` and `POST /invoices` refuses the run outright
+until the rate card is fixed and the preview re-run. But a *handling
+event* whose charge type is priced nowhere is different: a tenant that
+does not bill for unloading has not made a mistake by leaving
+`UNLOADING` unpriced, and forcing them to add a zero rate to invoice
+their storage would be the system inventing work. Those land in
+`calculation.unpriced` — visible in the preview, not billed, not
+blocking. The distinction is between *stock we are holding* (always
+chargeable, so an unpriced one is a gap) and *a service we performed*
+(chargeable only if the tenant says so).
+
+**Storage is accrued day by day, from the ledger, not from the current
+balance.** For every `(product, batch)` the customer had in the
+warehouse, the run reconstructs quantity-on-hand for each day of the
+period by summing `qty_in - qty_out` up to that day, applies
+`free_days` from the resolved rate line against the key's *first*
+inward, and stores the whole daily series in `billing_runs.calculation`.
+The live walkthrough is what proves this is not decoration: 100 bags
+received, 40 dispatched mid-period, and the series steps 100 → 60 on the
+day the truck left, giving 600 chargeable unit-days rather than the
+1,000 a current-balance reading would have billed or the 600 a
+closing-balance reading would have. §66's transparency requirement is
+satisfied by the preview rendering that stored series, never
+recomputing it.
+
+**A period is invoiced once.** Re-previewing a customer/warehouse/period
+deletes the previous `previewed` row and writes a fresh one, so there is
+never a second live preview to invoice twice; and once a run for that
+key is `invoiced`, re-previewing it is refused with the invoice number,
+because the correction path for an issued bill is a credit or debit note
+(§41), not a second invoice. Individually, each *handling event* is
+checked against the invoiced runs that already carry it, so an
+overlapping period bills the storage again (correctly — different days)
+but not the same GRN's inward handling. Cancelling a draft invoice hands
+its run back to `previewed`, which is what makes "wrong period, start
+over" possible without inventing a new billing key.
+
+**The invoice freezes what the run computed and decides GST once.**
+Party details go into `customer_snapshot`/`company_snapshot` at creation
+and the treatment is derived there and then from `tenants.state_code`
+against the customer's `place_of_supply`: same state splits the line's
+tax into CGST + SGST, a different state charges IGST, and both are
+stored per line. A later edit to either master cannot re-tax a document
+someone has already filed. The grand total is rounded to whole rupees
+with the difference kept in `round_off`, so the arithmetic on the paper
+adds up exactly.
+
+One thing deliberately *not* done: no charge type triggers on a
+document being *created*. Every event the run reads is a completion —
+GRN approved, gate-out posted, loading confirmed, put-away completed,
+pick confirmed — because a draft that is later cancelled must never have
+generated a charge.

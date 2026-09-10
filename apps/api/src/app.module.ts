@@ -20,6 +20,7 @@ import { NumberingModule } from './numbering/numbering.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { ProductsModule } from './products/products.module';
 import { PutawaysModule } from './putaways/putaways.module';
+import { InvoicingModule } from './invoicing/invoicing.module';
 import { OutboundModule } from './outbound/outbound.module';
 import { PickListsModule } from './pick-lists/pick-lists.module';
 import { ReleaseOrdersModule } from './release-orders/release-orders.module';
@@ -75,6 +76,7 @@ import { ScopedThrottlerGuard, throttlerConfig } from './throttling';
     PickListsModule,
     OutboundModule,
     ReturnsModule,
+    InvoicingModule,
     WarehouseReceiptsModule,
   ],
   controllers: [HealthController],
