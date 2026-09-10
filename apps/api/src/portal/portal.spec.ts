@@ -265,8 +265,11 @@ describe('Customer portal', () => {
     const members = await api().get("/users").set(auth(owner)).expect(200);
     const membership = (members.body.items ?? members.body).find((m: { email: string }) => m.email === `bolt-${suffix}@test.local`);
     await api().patch(`/users/${membership.id}`).set(auth(owner)).send({ status: 'disabled' }).expect(200);
-    // The token is still signed and unexpired; the membership is what decides.
-    const refused = await api().get('/portal/me').set(auth(boltPortal)).expect(403);
+    // The token is still signed and unexpired; the membership is what
+    // decides. 401 rather than 403 since `JwtStrategy` began checking that
+    // the membership is live: a customer whose access was withdrawn should
+    // be signed out, not shown a permission error on every portal page.
+    const refused = await api().get('/portal/me').set(auth(boltPortal)).expect(401);
     expect(refused.body.message).toMatch(/no longer active/);
   });
 });

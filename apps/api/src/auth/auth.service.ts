@@ -133,6 +133,10 @@ export class AuthService {
       tenantId: created.tenantId,
       tenantUserId: created.tenantUserId,
       roleCode: 'owner',
+      // A row created a moment ago is at epoch 0, but it is read rather
+      // than assumed: the claim's whole job is to match the column, and a
+      // literal here is a second place for the two to drift apart.
+      epoch: await this.sessionEpoch(created.userId),
     });
 
     await this.audit.record({
@@ -155,8 +159,8 @@ export class AuthService {
 
   async login(dto: LoginDto, ipAddress?: string) {
     const [user] = await this.sql<
-      { id: string; password_hash: string | null }[]
-    >`select id, password_hash from users where email = ${dto.email}`;
+      { id: string; password_hash: string | null; session_epoch: number }[]
+    >`select id, password_hash, session_epoch from users where email = ${dto.email}`;
 
     // No user at all -- nothing to attribute a login_failed row to (no
     // tenant, no user_id), so unlike every other failure below, this one
@@ -233,6 +237,7 @@ export class AuthService {
       tenantUserId: chosen.tenant_user_id,
       roleCode: chosen.role_code,
       customerId: chosen.customer_id,
+      epoch: user.session_epoch,
     });
 
     await this.audit.record({
@@ -251,6 +256,14 @@ export class AuthService {
       role: chosen.role_code,
       customerId: chosen.customer_id,
     };
+  }
+
+  /** The account's current session counter, stamped into every token it mints. */
+  private async sessionEpoch(userId: string): Promise<number> {
+    const [row] = await this.sql<{ session_epoch: number }[]>`
+      select session_epoch from users where id = ${userId}
+    `;
+    return row?.session_epoch ?? 0;
   }
 
   private issueToken(payload: JwtPayload): string {

@@ -19,6 +19,8 @@ interface FormDrawerProps<T> {
   children: (form: FormInstance) => ReactNode;
   /** Last chance to shape the payload -- strip blanks, coerce numbers. */
   transform?: (values: Record<string, unknown>) => unknown;
+  /** Overrides "Save" where the action has a name of its own ("Set password"). */
+  submitLabel?: string;
 }
 
 /**
@@ -43,6 +45,7 @@ export function FormDrawer<T>({
   onSaved,
   children,
   transform,
+  submitLabel = 'Save',
 }: FormDrawerProps<T>) {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
@@ -90,7 +93,7 @@ export function FormDrawer<T>({
         <Space>
           <Button onClick={onClose}>Cancel</Button>
           <Button type="primary" loading={saving} onClick={submit}>
-            Save
+            {submitLabel}
           </Button>
         </Space>
       }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Alert, Button, Card, Form, Input, Tabs, Typography } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useSession } from '../lib/session';
 
@@ -70,6 +70,9 @@ export function Login() {
                   <Button type="primary" htmlType="submit" block loading={busy}>
                     Sign in
                   </Button>
+                  <div style={{ marginTop: 12, textAlign: 'center' }}>
+                    <Link to="/forgot-password">Forgotten your password?</Link>
+                  </div>
                 </Form>
               ),
             },

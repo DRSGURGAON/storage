@@ -123,8 +123,12 @@ const NAV: NavItem[] = [
     key: 'settings',
     label: 'Settings',
     icon: <SettingOutlined />,
-    permissions: ['manage_company_settings', 'manage_users_and_roles', 'view_audit_log', 'view_plan_usage'],
+    // No permission list on the group: every one of its children used to
+    // need one, so a warehouse operator saw no Settings at all -- and now
+    // that changing your own password lives here, that would hide the one
+    // settings page everybody has.
     children: [
+      { key: '/settings/account', label: 'Your account' },
       { key: '/settings/company', label: 'Company', permissions: ['manage_company_settings'] },
       { key: '/settings/users', label: 'Users', permissions: ['manage_users_and_roles'] },
       { key: '/settings/notifications', label: 'Notifications', permissions: ['manage_company_settings'] },
@@ -239,6 +243,12 @@ export function AppShell() {
               items: [
                 { key: 'email', label: session?.user.email, disabled: true },
                 { type: 'divider' },
+                {
+                  key: 'account',
+                  icon: <UserOutlined />,
+                  label: 'Your account',
+                  onClick: () => navigate('/settings/account'),
+                },
                 {
                   key: 'signout',
                   icon: <LogoutOutlined />,

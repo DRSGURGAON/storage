@@ -158,10 +158,15 @@ describe('Users (memberships)', () => {
       .send({ status: 'disabled' })
       .expect(200);
 
+    // 401, not 403. A disabled membership is not "you may not do this" --
+    // it is "this session is over", and the difference decides what the
+    // client does: a 403 leaves someone staring at a permission error on
+    // every screen, while a 401 signs them out. The refusal moved to
+    // `JwtStrategy` when it started checking the membership is still live.
     await request(app.getHttpServer())
       .get('/users')
       .set('Authorization', `Bearer ${memberToken}`)
-      .expect(403);
+      .expect(401);
   });
 
   it('refuses to let an owner change their own membership', async () => {

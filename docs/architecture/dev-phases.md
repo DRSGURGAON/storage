@@ -1396,6 +1396,55 @@ lands on Products filtered to one row with the term still in the box, and
 the phone sheet holds its own results rather than spilling them over the
 page behind it.
 
+## Phase 21 — passwords, and sessions that can be ended (blocker)
+
+Found by asking what a tester would hit on day one. A password could be set
+exactly once — at signup, or by whoever invited you — and there was no
+"change my password", no "I forgot it", and no way for an Owner to issue a
+new one. A workspace's only recovery was a row edited by hand in psql.
+
+Four routes now, one per real situation: change it (knowing the current
+one), ask for a link, use the link, and an Owner setting a member's
+directly. The last is the one that works with no mail server, and in a
+warehouse it is the common case — the person who forgot their password is
+standing in front of the person who can fix it.
+
+**The part that took a second attempt is what makes a reset mean
+anything.** Sessions are stateless JWTs with a twelve-hour life, so
+changing a password locked nobody out: whoever knew the old one kept a
+working token for the rest of the day. The first fix compared the token's
+`iat` against `password_changed_at` and did not work, because `iat` has
+one-second resolution — a token minted at 10.2s and a password changed at
+10.9s are the same second, and the test that signed in and immediately
+changed its password watched the old token keep working. The fix is a
+counter: `users.session_epoch`, carried in every token, incremented by
+every password write, compared on every request.
+
+That same per-request lookup answers a question nobody had been asking. A
+membership disabled at 9am kept working until that evening; now it stops
+at the next request. Both refusals moved to **401 rather than 403** — "this
+session is over" instead of "you may not do this" — which changes what the
+client does with them: a 401 signs someone out, a 403 leaves them reading a
+permission error on every screen. Two existing tests asserted the old 403
+and were updated deliberately, not adjusted to pass.
+
+Three things the browser caught that the tests did not:
+
+- The change-password form sent its own `confirm` field along with the
+  two real ones, and the API validates with `forbidNonWhitelisted` — a 400
+  that reads to the user as "wrong password".
+- The reset link was being built from `PUBLIC_APP_URL`, which is the
+  *API's* address (it is where document QR codes point). A reset mail has
+  to open a screen, not a JSON endpoint. `PUBLIC_WEB_URL` now exists.
+- Settings was hidden entirely from a warehouse operator, because every
+  child of it needed a permission — which would have hidden the one
+  settings page everybody has.
+
+Verified end to end in a real browser: forgot → link → reset, the old
+password refused afterwards, changing it from Your account signing this
+browser out, an Owner issuing a member's password and that member's open
+session dying with it, and all three new screens at 390px.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

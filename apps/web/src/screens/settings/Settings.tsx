@@ -242,6 +242,10 @@ interface Member {
 
 export function UserSettings() {
   const [inviting, setInviting] = useState(false);
+  // The member whose password is being set. Held as the whole row rather
+  // than an id so the drawer can say whose account it is about -- "set a
+  // password" with no name attached is how the wrong person gets one.
+  const [resetting, setResetting] = useState<Member | null>(null);
   const { session } = useSession();
 
   return (
@@ -267,8 +271,44 @@ export function UserSettings() {
               </Space>
             ),
           },
+          {
+            title: '',
+            width: 140,
+            render: (_, row) =>
+              // Not offered for your own row: your own password is changed
+              // where you have to type the current one. The API refuses it
+              // there too -- this only avoids offering a button that 400s.
+              row.email === session?.user.email ? null : (
+                <Button size="small" onClick={() => setResetting(row)}>
+                  Set password
+                </Button>
+              ),
+          },
         ]}
       />
+      <FormDrawer
+        open={Boolean(resetting)}
+        title={resetting ? `Set a password for ${resetting.fullName}` : 'Set a password'}
+        path={resetting ? `/users/${resetting.id}/password` : '/users'}
+        invalidate={['/users']}
+        submitLabel="Set password"
+        onClose={() => setResetting(null)}
+      >
+        {() => (
+          <>
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="They will be signed out everywhere"
+              description="Any session this person has open stops working immediately, and they sign in again with what you set here. Tell them the password yourself — nothing is emailed."
+            />
+            <Form.Item name="newPassword" label="New password" rules={[{ required: true, min: 8 }]}>
+              <Input.Password autoComplete="new-password" />
+            </Form.Item>
+          </>
+        )}
+      </FormDrawer>
       <FormDrawer open={inviting} title="Add a member" path="/users" invalidate={['/users']} onClose={() => setInviting(false)}>
         {() => (
           <>

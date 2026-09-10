@@ -10,6 +10,7 @@ import { Login } from './screens/Login';
 import { Dashboard } from './screens/Dashboard';
 import { Onboarding } from './screens/Onboarding';
 import { NotBuilt } from './screens/NotBuilt';
+import { AccountSettings, ForgotPassword, ResetPassword } from './screens/Password';
 import { PaywallProvider } from './components/Paywall';
 import { Customers } from './screens/masters/Customers';
 import { CustomerDetail } from './screens/masters/CustomerDetail';
@@ -141,6 +142,10 @@ createRoot(document.getElementById('root')!).render(
               <PaywallProvider>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                {/* Both anonymous: someone who cannot sign in is exactly
+                    who needs them. */}
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route element={<RequireSession />}>
                   <Route path="portal" element={<PortalShell />}>
                     <Route index element={<PortalOverview />} />
@@ -204,6 +209,7 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="return-requests" element={<ReturnRequests />} />
                     <Route path="return-requests/:id" element={<ReturnRequestDetail />} />
                     <Route path="notifications" element={<Notifications />} />
+                    <Route path="settings/account" element={<AccountSettings />} />
                     <Route path="settings/company" element={<CompanySettings />} />
                     <Route path="settings/users" element={<UserSettings />} />
                     <Route path="settings/plan" element={<PlanSettings />} />

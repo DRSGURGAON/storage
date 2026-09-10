@@ -12,6 +12,15 @@ export type AuditAction =
   | 'document_regenerate'
   | 'login'
   | 'login_failed'
+  // Credential changes are security events, not settings edits, and an
+  // Owner reading the audit log should be able to tell the three apart:
+  // someone changing their own password, an Owner issuing one for a
+  // member, and a reset completed through an emailed link by whoever was
+  // holding it.
+  | 'password_changed'
+  | 'password_change_failed'
+  | 'password_reset'
+  | 'password_set_for_member'
   | 'permission_denied';
 
 export interface RecordAuditParams {

@@ -42,7 +42,9 @@ built from the API's own catalogue, so a report added on the server
 appears here with its filters and column types and no frontend change);
 notifications; settings (company,
 users, notification rules, number series, operations, plan and usage, audit
-log); and the **customer portal**, which a `customer` login lands in instead of the staff app.
+log, and **your account** — where anyone, whatever their role, changes their
+own password); **forgotten-password and reset** screens outside the session
+entirely; and the **customer portal**, which a `customer` login lands in instead of the staff app.
 
 Every staff screen carries **global search** in its header (ux-system §4):
 one box over the API's one ranked `GET /search`, results grouped by type,
@@ -160,5 +162,5 @@ that is a bare array where a page was expected — and every one of those
 was found this way. It misses what a component test would catch: a
 rendering regression in one component, with no API involved. If this app
 grows a piece of genuinely tricky client-side logic, that piece should get
-a unit test; today the tricky logic is all on the server, and it has 322
+a unit test; today the tricky logic is all on the server, and it has 327
 of them.

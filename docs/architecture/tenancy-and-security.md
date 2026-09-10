@@ -103,6 +103,59 @@ issue time (see §5 below).
   are wired as global guards so a route cannot ship without passing them.
   MFA and SSO/OIDC are described here but not built in V1.
 
+### 3a. Changing a password, and what that does to a session
+
+A password could be set exactly once for the first twenty phases: at
+signup, or by whoever invited you. Four routes now exist, because a
+warehouse has four situations:
+
+| Route | Who | Needs |
+| --- | --- | --- |
+| `POST /auth/change-password` | signed in | the current password |
+| `POST /auth/forgot-password` | anyone | an email address |
+| `POST /auth/reset-password` | anyone | a link from that email |
+| `POST /users/:id/password` | Owner/Admin (`manage_users_and_roles`) | nothing but the permission |
+
+The last one is the path that works with no mail server at all, and on a
+warehouse floor it is the common one: the person who forgot their password
+is standing in front of the person who can fix it. It refuses the caller's
+own membership — an Owner changes their own password where the current one
+has to be typed, or this route would be a way around ever knowing it.
+
+`forgot-password` answers identically whether or not the address has an
+account, and is rate-limited per credential rather than per IP, so it
+cannot be walked down a list. The token is 256 bits of randomness stored
+only as a SHA-256: the plaintext exists in the email and nowhere else, so a
+dump of `password_reset_tokens` cannot be used to take an account over. It
+is single-use and expires in an hour, and using one cancels every other
+outstanding link for that account.
+
+**What makes any of this mean something is `users.session_epoch`**
+(`schema/99b_password_credentials.sql`). Sessions are stateless JWTs with a
+twelve-hour life, so without it a reset locks nobody out: whoever knew the
+old password keeps a working token for the rest of the day — the exact
+situation a reset exists to end. Every token carries the epoch it was
+minted under, every password write increments it, and `JwtStrategy` refuses
+anything behind the current value.
+
+It is a counter rather than a timestamp comparison because `iat` has
+one-second resolution: a token minted at 10.2s and a password changed at
+10.9s are indistinguishable by time, and the first implementation of this
+check let exactly that token through. `password_changed_at` is still
+recorded — it is what an audit trail and a support conversation need — but
+the counter is what enforces.
+
+The same lookup answers a second question that used to go unasked: is this
+membership still active? A membership disabled at 9am kept working until
+that evening. Both refusals are **401, not 403** — "this session is over"
+rather than "you may not do this" — which is the difference between a
+client signing someone out and leaving them staring at a permission error
+on every screen.
+
+The cost is one indexed lookup per authenticated request, next to the
+several every handler already makes. That is the price of a session that
+can be ended.
+
 ## 4. Authorization (RBAC)
 
 - `roles` + `permissions` + `role_permissions` implement the granular

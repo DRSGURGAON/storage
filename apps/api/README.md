@@ -690,6 +690,13 @@ provider said.
   this found.
 - `GET /audit-logs?entityType=&entityId=&action=&userId=&from=&to=`
   (`view_audit_log`, Owner/Admin) — §57's viewer over `audit_logs`.
+- `POST /auth/change-password`, `POST /auth/forgot-password`,
+  `POST /auth/reset-password` and `POST /users/:id/password`
+  (`manage_users_and_roles`) — the four ways a password changes, and
+  `users.session_epoch` is what makes any of them end the sessions that
+  were already open. See `tenancy-and-security.md` §3a; the reset link
+  needs `SMTP_URL` and `PUBLIC_WEB_URL`, and without them the Owner-issued
+  path is the way back in.
 - `GET /plan/usage` (`view_plan_usage`) — §13, one `checkEntitlement` per
   metered feature, the same read a paywall makes.
 - `GET /plan/upgrade/:featureCode` (`view_plan_usage`) — §11's "what does
@@ -817,7 +824,7 @@ real services end to end (masters → receipts → put-away → release →
 dispatch → gate-out → billing run → issued invoice) rather than inserting
 rows, so it only succeeds if the flow does (`DECISIONS.md` §46).
 
-**40 suites, 322 tests**, all against the real local database
+**41 suites, 327 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,

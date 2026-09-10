@@ -6,7 +6,9 @@ import { withTenant } from '../db/tenant-context';
 import { positiveNumber, ThrottlePerCredential } from '../throttling';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
+import { ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/password.dto';
 import { LoginDto } from './dto/login.dto';
+import { PasswordService } from './password.service';
 import { SignupDto } from './dto/signup.dto';
 import { AuthenticatedUser } from './jwt-payload';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -20,6 +22,7 @@ const AUTH_LIMIT = {
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly passwords: PasswordService,
     @Inject(PG_CONNECTION) private readonly sql: postgres.Sql,
   ) {}
 
@@ -45,6 +48,43 @@ export class AuthController {
   @Throttle({ default: AUTH_LIMIT })
   login(@Body() dto: LoginDto, @Ip() ip: string) {
     return this.authService.login(dto, ip);
+  }
+
+  /**
+   * Signed in, and knows the current password. Rate-limited like the
+   * anonymous auth routes rather than skipped: this route verifies an
+   * argon2 hash too, so it is the same 64 MiB of work per call, reachable
+   * by anyone holding any valid token.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: AUTH_LIMIT })
+  @Post('change-password')
+  changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordDto,
+    @Ip() ip: string,
+  ) {
+    return this.passwords.change(user, dto.currentPassword, dto.newPassword, ip);
+  }
+
+  /**
+   * Anonymous, and answers the same either way -- so it is keyed on the
+   * email being asked about rather than the caller's address, or one
+   * script behind one IP could walk a list of addresses looking for which
+   * ones come back slower.
+   */
+  @ThrottlePerCredential()
+  @Throttle({ default: AUTH_LIMIT })
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto, @Ip() ip: string) {
+    return this.passwords.forget(dto.email, ip);
+  }
+
+  @ThrottlePerCredential()
+  @Throttle({ default: AUTH_LIMIT })
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto, @Ip() ip: string) {
+    return this.passwords.reset(dto.token, dto.newPassword, ip);
   }
 
   /** An authenticated session polling its own identity is not the shape the limits exist for. */
