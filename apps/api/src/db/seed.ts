@@ -4,6 +4,8 @@ import {
   FEATURE_KEYS,
   FREE_PLAN,
   FREE_PLAN_DOCUMENT_LIMIT,
+  FREE_PLAN_WAREHOUSES,
+  PAID_PLANS,
   METERED_FEATURE_KEYS,
   PERMISSIONS,
   ROLE_PERMISSIONS,
@@ -114,8 +116,60 @@ async function main() {
         do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
       `;
     }
+    // One godown on Free. Enough to run a real warehouse end to end and
+    // decide whether this is worth paying for -- which is the only job the
+    // free plan has.
+    await sql`
+      insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value, period)
+      values (gen_random_uuid(), ${freePlan.id}, 'WAREHOUSE', 'counted', ${FREE_PLAN_WAREHOUSES}, 'lifetime')
+      on conflict (plan_id, feature_code)
+      do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
+    `;
     console.log(
       `seeded FREE plan with ${METERED_FEATURE_KEYS.length} metered + ${UNMETERED_FEATURE_KEYS.length} unlimited feature limits`,
+    );
+
+    // The paid plans. Everything is unlimited on them except the godown
+    // count, which is what they are priced on -- see PAID_PLANS in
+    // seed-data.ts, which is the one place to change a price.
+    //
+    // Upserted rather than inserted, so changing a price and re-running the
+    // seed moves it. `plan_feature_limits` is upserted the same way, which
+    // is what lets a plan's allowance be raised without a migration.
+    for (const plan of PAID_PLANS) {
+      const [row] = await sql<{ id: string }[]>`
+        insert into plans (id, code, name, description, is_public, is_active, trial_days,
+                           price_monthly, price_yearly, currency, sort_order)
+        values (gen_random_uuid(), ${plan.code}, ${plan.name}, ${plan.description}, true, true,
+                ${plan.trialDays}, ${plan.priceMonthly}, ${plan.priceYearly}, 'INR', ${plan.sortOrder})
+        on conflict (code) do update set
+          name = excluded.name, description = excluded.description,
+          trial_days = excluded.trial_days, price_monthly = excluded.price_monthly,
+          price_yearly = excluded.price_yearly, currency = excluded.currency,
+          sort_order = excluded.sort_order, is_public = excluded.is_public, is_active = excluded.is_active
+        returning id
+      `;
+      await sql`
+        insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value, period)
+        values (gen_random_uuid(), ${row.id}, 'WAREHOUSE', 'counted', ${plan.warehouses}, 'lifetime')
+        on conflict (plan_id, feature_code)
+        do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
+      `;
+      // Every document type, unlimited. An absent row resolves to disabled
+      // (entitlement-engine.md §3, fail-closed), so "unlimited" has to be
+      // written down -- a paid plan that simply omitted these would refuse
+      // to generate anything at all.
+      for (const feature of [...METERED_FEATURE_KEYS, ...UNMETERED_FEATURE_KEYS]) {
+        await sql`
+          insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value, period)
+          values (gen_random_uuid(), ${row.id}, ${feature.code}, 'unlimited', null, 'lifetime')
+          on conflict (plan_id, feature_code)
+          do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
+        `;
+      }
+    }
+    console.log(
+      `seeded ${PAID_PLANS.length} paid plans (${PAID_PLANS.map((p) => `${p.code} ${p.warehouses}x`).join(', ')})`,
     );
 
     for (const chargeType of SYSTEM_CHARGE_TYPES) {

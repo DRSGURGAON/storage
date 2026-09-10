@@ -12,6 +12,7 @@ import { Onboarding } from './screens/Onboarding';
 import { NotBuilt } from './screens/NotBuilt';
 import { AccountSettings, ForgotPassword, ResetPassword } from './screens/Password';
 import { DeleteAccountInfo, PrivacyPolicy } from './screens/Legal';
+import { Pricing } from './screens/Pricing';
 import { PaywallProvider } from './components/Paywall';
 import { Customers } from './screens/masters/Customers';
 import { CustomerDetail } from './screens/masters/CustomerDetail';
@@ -149,6 +150,8 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/reset-password" element={<ResetPassword />} />
                 {/* The two URLs a Play Store listing points at. Public,
                     because a reviewer opens them without an account. */}
+                {/* ux-system §14: read before there is an account to read it with. */}
+                <Route path="/pricing" element={<Pricing />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
                 <Route path="/delete-account" element={<DeleteAccountInfo />} />
                 <Route element={<RequireSession />}>

@@ -5,6 +5,7 @@ import type postgres from 'postgres';
 import request from 'supertest';
 import { AppModule } from '../app.module';
 import { PG_CONNECTION } from '../db/db.module';
+import { putOnPlan } from '../testing/subscription';
 import { withTenant } from '../db/tenant-context';
 
 /**
@@ -64,6 +65,10 @@ describe('Acceptance: the §78 walkthrough and §79 cross-module cases', () => {
         .expect(201)
     ).body.accessToken;
     tenantId = JSON.parse(Buffer.from(owner.split('.')[1], 'base64url').toString()).tenantId;
+    // §78's walkthrough runs across two godowns, which is a paid feature:
+    // plans are priced per godown and Free allows one. Signed up, then
+    // upgraded -- the order a real customer does it in.
+    await putOnPlan(sql, `ac-${suffix}`);
     for (const [role, key] of [['warehouse_manager', 'mgr'], ['warehouse_operator', 'op'], ['accountant', 'acc']] as const) {
       const email = `${key}-${suffix}@test.local`;
       await api().post('/users').set(auth(owner)).send({ email, fullName: role, password, roleCode: role }).expect(201);

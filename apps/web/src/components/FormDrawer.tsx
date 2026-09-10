@@ -3,6 +3,7 @@ import { App, Button, Drawer, Form, Space } from 'antd';
 import type { FormInstance } from 'antd';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../lib/api';
+import { usePaywall } from './Paywall';
 
 interface FormDrawerProps<T> {
   open: boolean;
@@ -51,6 +52,7 @@ export function FormDrawer<T>({
   const [saving, setSaving] = useState(false);
   const queryClient = useQueryClient();
   const { message } = App.useApp();
+  const { showPaywall } = usePaywall();
 
 
   const submit = async () => {
@@ -64,6 +66,16 @@ export function FormDrawer<T>({
       onSaved?.(saved);
       onClose();
     } catch (error) {
+      // A 402 is not a save that failed -- it is a plan that does not
+      // stretch this far. It gets §11's upgrade prompt, with the checklist
+      // of what unlocking buys, rather than a red toast the drawer sits
+      // behind. The drawer closes first: nothing typed into it can be
+      // saved on this plan, and leaving it open under the modal only makes
+      // the "Save" button look like it might work on a second press.
+      if (showPaywall(error)) {
+        onClose();
+        return;
+      }
       message.error(error instanceof ApiError ? error.message : 'Could not save');
     } finally {
       setSaving(false);

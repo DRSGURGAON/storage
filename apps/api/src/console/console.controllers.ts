@@ -1,6 +1,6 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Ip, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsOptional, IsString, IsUUID, Max, Min, MinLength } from 'class-validator';
+import { IsDateString, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AuthenticatedUser } from '../auth/jwt-payload';
@@ -24,6 +24,26 @@ export class AuditLogQuery {
   @IsOptional() @IsDateString() to?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 50;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) offset = 0;
+}
+
+/**
+ * What an Owner sends when they ask to upgrade.
+ *
+ * Declared above the controllers on purpose: a class named in a parameter
+ * decorator is read when the controller class is *defined*, not when a
+ * request arrives, so one declared further down the file throws
+ * "Cannot access 'RequestUpgradeDto' before initialization" at import time
+ * and the whole application refuses to boot. Which it did.
+ */
+export class RequestUpgradeDto {
+  @IsString()
+  @MinLength(2)
+  planCode!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 }
 
 /**
@@ -82,6 +102,22 @@ export class PlatformController {
   @RequirePermission('view_plan_usage')
   upgradeOptions(@CurrentUser() user: AuthenticatedUser, @Param('featureCode') featureCode: string) {
     return this.plans.upgradeOptions(user, featureCode);
+  }
+
+  /**
+   * The upgrade button. Owner/Admin, like everything else about the plan.
+   *
+   * It records the ask and notifies; it does not move the workspace onto
+   * the plan. That happens after the money does.
+   */
+  @Post('plan/upgrade-request')
+  @RequirePermission('view_plan_usage')
+  requestUpgrade(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RequestUpgradeDto,
+    @Ip() ip: string,
+  ) {
+    return this.plans.requestUpgrade(user, dto.planCode, dto.note, ip);
   }
 
   @Get('audit-logs')

@@ -1,9 +1,12 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type postgres from 'postgres';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
+import { AuditService } from '../audit/audit.service';
 import { EntitlementService } from '../entitlement/entitlement.service';
+import { limitKindFor } from '../entitlement/resource-limits';
+import { EmailChannel } from '../notifications/channels/email.channel';
 
 /**
  * `ux-system.md` §13's Plan & Usage page and §14's public Pricing page.
@@ -26,7 +29,11 @@ export class PlanService {
   constructor(
     @Inject(PG_CONNECTION) private readonly sql: postgres.Sql,
     private readonly entitlements: EntitlementService,
+    private readonly audit: AuditService,
+    private readonly email: EmailChannel,
   ) {}
+
+  private readonly logger = new Logger(PlanService.name);
 
   async usage(actor: AuthenticatedUser) {
     // Through `withTenant`: `tenant_subscriptions` is tenant-scoped and under
@@ -140,7 +147,7 @@ export class PlanService {
     const better = candidates.filter((p) => offersMore(currentLimit, p.limit_type, p.limit_value));
 
     return {
-      feature: { code: feature.code, name: feature.name, module: feature.module },
+      feature: { code: feature.code, name: feature.name, module: feature.module, limitKind: limitKindFor(feature.code) },
       current: {
         planCode: current?.plan_code ?? null,
         planName: current?.plan_name ?? null,
@@ -204,6 +211,89 @@ export class PlanService {
           return { planCode: p.code, limitType: row?.limit_type ?? 'disabled', limit: row?.limit_value ?? null };
         }),
       })),
+    };
+  }
+
+  /**
+   * "We want to upgrade."
+   *
+   * v1 takes no card (`DECISIONS.md` §13: no gateway is chosen), so this
+   * is the honest version of an upgrade button: it records the ask, tells
+   * the operator, and says plainly that somebody will be in touch. What it
+   * must not do is look like a purchase — a button that appears to charge
+   * and does not is worse than one that says what it is.
+   *
+   * The plan is not changed here. Moving a workspace onto a paid plan is
+   * the vendor's act, after the money arrives, and doing it on a click
+   * would give away the product to anyone who found the endpoint.
+   */
+  async requestUpgrade(actor: AuthenticatedUser, planCode: string, note: string | undefined, ipAddress?: string) {
+    const [plan] = await this.sql<{ code: string; name: string; price_monthly: string | null }[]>`
+      select code, name, price_monthly from plans where code = ${planCode} and is_public and is_active
+    `;
+    if (!plan) throw new NotFoundException('No such plan');
+
+    const { tenant, requester } = await withTenant(this.sql, actor.tenantId, async (tx) => {
+      const [t] = await tx<{ legal_name: string; slug: string }[]>`
+        select legal_name, slug from tenants where id = ${actor.tenantId}
+      `;
+      const [u] = await tx<{ email: string; full_name: string }[]>`
+        select u.email, u.full_name from tenant_users tu join users u on u.id = tu.user_id
+        where tu.id = ${actor.tenantUserId}
+      `;
+      return { tenant: t, requester: u };
+    });
+
+    await this.audit.record({
+      tenantId: actor.tenantId,
+      userId: actor.userId,
+      userRoleCode: actor.roleCode,
+      action: 'upgrade_requested',
+      entityType: 'tenant',
+      entityId: actor.tenantId,
+      newValue: {
+        planCode: plan.code,
+        planName: plan.name,
+        note: note ?? null,
+        requestedBy: requester?.email ?? null,
+      },
+      ipAddress,
+    });
+
+    // Logged at warn so it stands out in whatever the container writes:
+    // until there is a gateway, a human reading this line is the entire
+    // sales pipeline, and a request nobody sees is a customer lost.
+    this.logger.warn(
+      `UPGRADE REQUEST: ${tenant?.legal_name ?? actor.tenantId} (${tenant?.slug}) wants ${plan.name} ` +
+        `-- ${requester?.full_name} <${requester?.email}>` +
+        (note ? ` -- "${note}"` : ''),
+    );
+
+    if (this.email.configured && process.env.SALES_NOTIFICATION_EMAIL) {
+      try {
+        await this.email.send({
+          to: process.env.SALES_NOTIFICATION_EMAIL,
+          subject: `Upgrade request: ${tenant?.legal_name} wants ${plan.name}`,
+          body:
+            `${tenant?.legal_name} (${tenant?.slug}) has asked to move to ${plan.name}.\n\n` +
+            `Asked by: ${requester?.full_name} <${requester?.email}>\n` +
+            (note ? `Note: ${note}\n` : '') +
+            `\nMove them across once the payment is in.\n`,
+          severity: 'critical',
+        });
+      } catch (error) {
+        // Never fails the request: the customer has done their part, and
+        // the audit row and the log line are both still there.
+        this.logger.error(`Could not send the upgrade notification: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+
+    return {
+      requested: true,
+      plan: { code: plan.code, name: plan.name },
+      message:
+        `Thanks — we have your request for ${plan.name}. Somebody will be in touch to arrange payment, ` +
+        'and nothing changes on your workspace until then.',
     };
   }
 

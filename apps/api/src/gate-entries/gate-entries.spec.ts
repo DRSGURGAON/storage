@@ -1,8 +1,11 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
+import type postgres from 'postgres';
 import request from 'supertest';
 import { AppModule } from '../app.module';
+import { PG_CONNECTION } from '../db/db.module';
+import { putOnPlan } from '../testing/subscription';
 
 /**
  * Blueprint §16: the vehicle gate log, Phase 4's first slice. Deliberately
@@ -13,6 +16,7 @@ import { AppModule } from '../app.module';
  */
 describe('Gate Entries', () => {
   let app: INestApplication;
+  let sql: postgres.Sql;
   const suffix = randomUUID().slice(0, 8);
   const password = 'correcthorsebattery';
   let owner = '';
@@ -30,6 +34,10 @@ describe('Gate Entries', () => {
       .post('/auth/signup')
       .send({ companyLegalName: `${slug} Pvt Ltd`, tenantSlug: slug, email, fullName: 'Owner', password })
       .expect(201);
+    // Signed up on Free, then upgraded -- what a real customer does, and
+    // what these tests need: plans are priced per godown and Free allows
+    // one, so anything involving a second warehouse is a paid feature.
+    await putOnPlan(sql, slug);
     return res.body.accessToken as string;
   };
   const minimalDto = (overrides: Record<string, unknown> = {}) => ({
@@ -44,6 +52,7 @@ describe('Gate Entries', () => {
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     await app.init();
+    sql = app.get(PG_CONNECTION);
     owner = await signup(`ge-a-${suffix}`, `owner-a-${suffix}@test.local`);
     otherOwner = await signup(`ge-b-${suffix}`, `owner-b-${suffix}@test.local`);
 

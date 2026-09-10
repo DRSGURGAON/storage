@@ -1980,3 +1980,61 @@ everywhere and someone may still want to sign the printed copy.
 
 A missing image is never an error. A letterhead that could fail a document
 would be decoration causing a paperwork outage.
+
+## §52 — Priced per godown, and why a godown is not counted like a document
+
+Three ways to price this product were live, and two of them are traps.
+
+**Per user** is the default in B2B software and wrong here. A warehouse
+has a gate operator, a supervisor, a manager and an accountant, and only
+one of them is the customer. Charging for the gate operator does not
+produce more revenue; it produces one shared login on a sticky note, which
+destroys the audit trail — the thing the whole product is built to keep.
+
+**Per document** is worse. This software exists so that a business whose
+paperwork is its work stops doing that paperwork by hand. Metering the
+paperwork means the software argues with the day: a busy month costs more,
+and somebody starts deciding which GRNs are worth generating. A price that
+makes the product less used is not a price.
+
+**Per godown** is the only dimension that tracks what a customer is worth.
+A single-godown operator and a ten-godown network differ in exactly that,
+and the number is stable, visible to both sides, and impossible to argue
+about. So: Free (1 godown, 2 copies of each document), Starter ₹2,999
+(1 godown, everything else unlimited), Growth ₹7,999 (3), Scale ₹19,999
+(10). Everything that is not a godown — documents, users, customer logins,
+storage — is unlimited from Starter up. The figures are seed data in
+`seed-data.ts`, not constants in the code, because a price nobody can
+change without a deploy is a price nobody changes.
+
+**The engine had one kind of limit and needed two.** Everything metered
+until now is *consumed*: a document generation is written to
+`usage_ledger`, counted within a period, and never given back. A godown is
+*held*. Modelling it as consumption breaks in both directions — a
+workspace that opened a godown and closed it would keep paying for the
+slot, and a monthly period would issue three fresh godowns every month, so
+"3 godowns" would mean 36 a year.
+
+So `resource-limits.ts` declares the second kind: counted live from the
+table, no ledger, no period, no idempotency key. `consumeEntitlement`
+throws if it is handed one — there is nothing to consume, and a caller
+reaching for it has misunderstood. The check runs inside the create
+transaction, after `select … from tenants … for update`, so it sees the
+row about to be inserted and two simultaneous clicks cannot both find room
+for a fourth godown. Only `is_active` rows count, which is what makes
+"close the one you stopped using" a real answer rather than a support
+ticket.
+
+**Wording is part of the enforcement.** The first build reused the
+consumable sentence and told an owner *"You have used your 1 free godown
+copy on the Free plan"* — nothing was used, nothing was copied, and the
+one sentence in the product whose job is to be persuasive read like a bug.
+The 402 now carries `limitKind`, and the client words both the headline
+and the reassurance from it: for a document, *nothing you already made is
+affected*; for a godown, *closing one frees the slot, history intact*.
+
+**And it was not being shown at all.** `FormDrawer` — the shared drawer
+behind every master screen — treated the 402 as a failed save and rendered
+the upgrade prompt as a red toast. Nothing in the code looked wrong;
+clicking "New warehouse" twice in a browser is what found it. A paywall
+that only exists in the API is not a paywall.

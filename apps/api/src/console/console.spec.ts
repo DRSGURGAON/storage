@@ -214,55 +214,84 @@ describe('Console: dashboard, search, notifications, audit, plan and pricing', (
     expect(feature.byPlan.find((b: { planCode: string }) => b.planCode === 'FREE')).toMatchObject({ limitType: 'counted', limit: 2 });
   });
 
-  it('answers "what does upgrading buy me?" from the same limit rows the engine enforces', async () => {
-    // On FREE alone -- the only plan v1 ships (v1-scope-specification.md
-    // §12: upgrades are arranged offline) -- there is honestly nothing to
-    // offer, and the endpoint says so rather than inventing a tier.
-    const onlyFree = await api().get('/plan/upgrade/GRN_GENERATION').set(auth(owner)).expect(200);
-    expect(onlyFree.body).toMatchObject({
+  it('answers "what does upgrading buy me?" from the shipped price list', async () => {
+    // These are the real plans, seeded from PAID_PLANS -- not fixtures.
+    // Every document is unlimited above Free, so a workspace that ran out
+    // of GRN copies is offered all three, cheapest first.
+    const options = await api().get('/plan/upgrade/GRN_GENERATION').set(auth(owner)).expect(200);
+    expect(options.body).toMatchObject({
       feature: { code: 'GRN_GENERATION', name: 'GRN generation' },
       current: { planCode: 'FREE', planName: 'Free', limitType: 'counted', limit: 2 },
-      options: [],
     });
-
-    // Publish two higher plans: one that genuinely gives more GRN copies,
-    // and one that is more expensive but meters this feature exactly the
-    // same. Only the first is an answer to "I ran out of GRN copies".
-    const growth = randomUUID();
-    const sidegrade = randomUUID();
-    await sql`
-      insert into plans (id, code, name, description, is_public, is_active, trial_days, price_monthly, price_yearly, currency, sort_order)
-      values (${growth}, ${'GROWTH-' + suffix}, 'Growth', 'more', true, true, 14, 2999, 29990, 'INR', 10),
-             (${sidegrade}, ${'SIDE-' + suffix}, 'Sideways', 'same', true, true, 0, 4999, 49990, 'INR', 20)
-    `;
-    await sql`
-      insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value)
-      values (gen_random_uuid(), ${growth}, 'GRN_GENERATION', 'counted', 500),
-             (gen_random_uuid(), ${sidegrade}, 'GRN_GENERATION', 'counted', 2)
-    `;
-    try {
-      const options = await api().get('/plan/upgrade/GRN_GENERATION').set(auth(owner)).expect(200);
-      expect(options.body.options).toHaveLength(1);
-      expect(options.body.options[0]).toMatchObject({
-        name: 'Growth',
-        priceMonthly: 2999,
-        currency: 'INR',
-        limitType: 'counted',
-        limit: 500,
-        trialDays: 14,
-      });
-
-      // A feature the higher plan has no row for is disabled there, not
-      // unlimited (entitlement-engine.md §3), so it is not an upgrade.
-      const unrelated = await api().get('/plan/upgrade/INVOICE_GENERATION').set(auth(owner)).expect(200);
-      expect(unrelated.body.options).toEqual([]);
-    } finally {
-      await sql`delete from plan_feature_limits where plan_id in (${growth}, ${sidegrade})`;
-      await sql`delete from plans where id in (${growth}, ${sidegrade})`;
+    expect(options.body.options.map((o: { code: string }) => o.code)).toEqual(['STARTER', 'GROWTH', 'SCALE']);
+    expect(options.body.options[0]).toMatchObject({
+      code: 'STARTER',
+      currency: 'INR',
+      limitType: 'unlimited',
+      limit: null,
+      trialDays: 14,
+    });
+    // A price of zero here would mean somebody shipped the plans without
+    // pricing them, and the upgrade prompt would offer a free upgrade.
+    for (const option of options.body.options) {
+      expect(option.priceMonthly).toBeGreaterThan(0);
+      expect(option.priceYearly).toBeGreaterThan(0);
+      // Ten months for twelve. Worth asserting: an annual price that is
+      // twelve times the monthly is not a discount, it is a mistake.
+      expect(option.priceYearly).toBeLessThan(option.priceMonthly * 12);
     }
+
+    // Godowns are what the plans are actually priced on, so the ladder is
+    // visible there rather than only in the marketing copy.
+    const godowns = await api().get('/plan/upgrade/WAREHOUSE').set(auth(owner)).expect(200);
+    expect(godowns.body.current).toMatchObject({ planCode: 'FREE', limit: 1 });
+    expect(godowns.body.options.map((o: { code: string; limit: number }) => [o.code, o.limit])).toEqual([
+      ['GROWTH', 3],
+      ['SCALE', 10],
+    ]);
+    // Starter is absent on purpose: it allows one godown, exactly as Free
+    // does, so it is not an answer to "I ran out of godowns" -- however
+    // much more it costs.
+    expect(godowns.body.options.map((o: { code: string }) => o.code)).not.toContain('STARTER');
 
     await api().get('/plan/upgrade/GRN_GENERATION').set(auth(operator)).expect(403);
     await api().get('/plan/upgrade/NOT_A_FEATURE').set(auth(owner)).expect(404);
+  });
+
+  it('takes an upgrade request, records it, and changes nothing until somebody is paid', async () => {
+    // A godown is held, a document is spent, and the client wording differs
+    // for each -- so the API says which kind of limit it is rather than
+    // making every client keep its own list.
+    const godowns = await api().get('/plan/upgrade/WAREHOUSE').set(auth(owner)).expect(200);
+    expect(godowns.body.feature.limitKind).toBe('resource');
+    const grns = await api().get('/plan/upgrade/GRN_GENERATION').set(auth(owner)).expect(200);
+    expect(grns.body.feature.limitKind).toBe('consumable');
+
+    const before = await api().get('/plan/usage').set(auth(owner)).expect(200);
+    expect(before.body.plan.code).toBe('FREE');
+
+    const asked = await api()
+      .post('/plan/upgrade-request')
+      .set(auth(owner))
+      .send({ planCode: 'GROWTH', note: 'Three godowns in Gurgaon' })
+      .expect(201);
+    expect(asked.body).toMatchObject({ requested: true, plan: { code: 'GROWTH', name: 'Growth' } });
+    expect(asked.body.message).toContain('nothing changes on your workspace');
+
+    // The audit row is the pipeline until there is a gateway, so it is the
+    // part worth asserting. It is also the part that breaks silently: a new
+    // action has to be added to `audit_logs_action_check` as well as to the
+    // TypeScript union, and skipping the SQL half turns this into a 500.
+    const trail = await api().get('/audit-logs?action=upgrade_requested').set(auth(owner)).expect(200);
+    expect(trail.body.total).toBe(1);
+    expect(trail.body.items[0].newValue).toMatchObject({ planCode: 'GROWTH', note: 'Three godowns in Gurgaon' });
+
+    // Asking is not paying: the workspace is still on Free afterwards.
+    const after = await api().get('/plan/usage').set(auth(owner)).expect(200);
+    expect(after.body.plan.code).toBe('FREE');
+
+    await api().post('/plan/upgrade-request').set(auth(owner)).send({ planCode: 'NOT_A_PLAN' }).expect(404);
+    await api().post('/plan/upgrade-request').set(auth(operator)).send({ planCode: 'GROWTH' }).expect(403);
   });
 
   it('pages and filters the Document Centre instead of returning everything', async () => {

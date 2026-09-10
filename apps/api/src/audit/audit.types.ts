@@ -26,6 +26,9 @@ export type AuditAction =
   // left to say who it was.
   | 'account_deleted'
   | 'workspace_deletion_requested'
+  // Somebody asked to move to a paid plan. Until there is a gateway this
+  // row is the sales pipeline.
+  | 'upgrade_requested'
   | 'permission_denied';
 
 export interface RecordAuditParams {

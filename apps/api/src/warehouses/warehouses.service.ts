@@ -10,6 +10,9 @@ import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUser } from '../auth/jwt-payload';
 import { PG_CONNECTION } from '../db/db.module';
 import { loadWarehouseScope } from '../auth/warehouse-scope';
+import { EntitlementService } from '../entitlement/entitlement.service';
+import { loadPaywallContext } from '../entitlement/paywall';
+import { PaywallException } from '../entitlement/paywall.exception';
 import { withTenant } from '../db/tenant-context';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
@@ -67,12 +70,23 @@ export class WarehousesService {
   constructor(
     @Inject(PG_CONNECTION) private readonly sql: postgres.Sql,
     private readonly audit: AuditService,
+    private readonly entitlement: EntitlementService,
   ) {}
 
   async create(actor: AuthenticatedUser, dto: CreateWarehouseDto, ipAddress?: string) {
     let row: WarehouseRow;
     try {
       row = await withTenant(this.sql, actor.tenantId, async (tx) => {
+        // Plans are sold per godown per month, so this is where a Starter
+        // subscription stops being a Growth one. Checked inside the same
+        // transaction as the insert, and behind a lock on the tenant row,
+        // so two people clicking "New warehouse" at once cannot both find
+        // room for the last slot.
+        const room = await this.entitlement.assertResourceAvailable(tx, actor.tenantId, 'WAREHOUSE');
+        if (!room.allowed) {
+          throw new PaywallException(await loadPaywallContext(tx, actor.tenantId, 'WAREHOUSE'), room);
+        }
+
         const [inserted] = await tx<WarehouseRow[]>`
           insert into warehouses ${tx({
             id: randomUUID(),

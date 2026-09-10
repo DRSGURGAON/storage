@@ -259,6 +259,15 @@ export const METERED_FEATURE_KEYS = [
   { code: 'RETURN_INWARD', module: 'operations', name: 'Return inward' },
 ] as const;
 
+/**
+ * Limited, but not by *generating* anything: a godown exists until it is
+ * closed, and closing one gives the slot back. `resource-limits.ts` is what
+ * counts these; `usage_ledger` deliberately does not.
+ */
+export const RESOURCE_FEATURE_KEYS = [
+  { code: 'WAREHOUSE', module: 'masters', name: 'Godown' },
+] as const;
+
 export const UNMETERED_FEATURE_KEYS = [
   { code: 'CUSTOMER_KYC', module: 'masters', name: 'Customer KYC' },
   { code: 'RATE_CARD', module: 'masters', name: 'Rate card' },
@@ -269,6 +278,9 @@ export const UNMETERED_FEATURE_KEYS = [
 
 export const FEATURE_KEYS = [
   ...METERED_FEATURE_KEYS.map((f) => ({ ...f, isMeterable: true })),
+  // Meterable, so it appears on the Plan & Usage page next to the document
+  // counts -- "2 of 3 godowns" is exactly what an owner wants to see there.
+  ...RESOURCE_FEATURE_KEYS.map((f) => ({ ...f, isMeterable: true })),
   ...UNMETERED_FEATURE_KEYS.map((f) => ({ ...f, isMeterable: false })),
 ];
 
@@ -284,6 +296,68 @@ export const FREE_PLAN = {
   priceMonthly: 0,
   priceYearly: 0,
 };
+
+/**
+ * ============================================================================
+ * THE PRICE LIST. This is the file to edit.
+ * ============================================================================
+ *
+ * Sold **per godown per month**, because that is the sentence a warehouse
+ * owner already thinks in. Per-seat was the alternative and is wrong for
+ * this trade: a godown's logins are gate guards and loaders, and charging
+ * for the tenth one is an argument at every renewal about who really needs
+ * an account.
+ *
+ * So `WAREHOUSE` is the only number that changes between plans, and every
+ * document is unlimited above Free. That is deliberate. Metering documents
+ * would put the customer in the position of rationing GRNs at the end of a
+ * busy month -- the exact moment the software is meant to be helping -- and
+ * it makes the bill unpredictable, which is what kills a renewal.
+ *
+ * The prices below are a **starting point, not a decision**: change them
+ * here, re-run `npm run seed`, and the pricing page, the plan comparison
+ * and the upgrade prompt all move together, because all three read these
+ * rows rather than a copy of them.
+ *
+ * `priceYearly` is ten months for twelve -- two free, the usual shape of an
+ * annual discount, and worth having because annual cash up front is what a
+ * young SaaS actually needs.
+ */
+export const PAID_PLANS = [
+  {
+    code: 'STARTER',
+    name: 'Starter',
+    description: 'One godown, everything unlimited. For a single warehouse getting off paper.',
+    warehouses: 1,
+    priceMonthly: 2999,
+    priceYearly: 29990,
+    trialDays: 14,
+    sortOrder: 10,
+  },
+  {
+    code: 'GROWTH',
+    name: 'Growth',
+    description: 'Up to three godowns, under one login and one set of numbers.',
+    warehouses: 3,
+    priceMonthly: 7999,
+    priceYearly: 79990,
+    trialDays: 14,
+    sortOrder: 20,
+  },
+  {
+    code: 'SCALE',
+    name: 'Scale',
+    description: 'Up to ten godowns, for an operator running a network.',
+    warehouses: 10,
+    priceMonthly: 19999,
+    priceYearly: 199990,
+    trialDays: 14,
+    sortOrder: 30,
+  },
+] as const;
+
+/** How many godowns the Free plan allows. One: enough to run a real warehouse and see whether this works. */
+export const FREE_PLAN_WAREHOUSES = 1;
 
 /**
  * Transcribed from schema/10_masters.sql's own comment on `uoms.code`.

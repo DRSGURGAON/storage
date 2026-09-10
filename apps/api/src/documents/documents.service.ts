@@ -12,7 +12,7 @@ import { EntitlementService } from '../entitlement/entitlement.service';
 import { loadPaywallContext } from '../entitlement/paywall';
 import { inlineImages, loadCompanyContext } from './company-context';
 import { DocumentTemplateRegistry } from './document-template.registry';
-import { PaywallException } from './paywall.exception';
+import { PaywallException } from '../entitlement/paywall.exception';
 import { PdfRendererService } from './pdf-renderer.service';
 import { QrService } from './qr.service';
 import { elevatedPermissionForRegeneration } from './regeneration-policy';

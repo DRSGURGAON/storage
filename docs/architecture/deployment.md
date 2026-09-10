@@ -210,9 +210,14 @@ Named rather than implied:
 
 - **Error monitoring.** No Sentry, no structured log shipping. The logs are
   whatever the container writes.
-- **A payment gateway.** `DECISIONS.md` §13. V1 runs on the seeded Free
-  plan with upgrades arranged offline, and the upgrade prompt says so
-  rather than inventing a tier.
+- **A payment gateway.** `DECISIONS.md` §13. Four plans are published and
+  priced (Free, Starter ₹2,999, Growth ₹7,999, Scale ₹19,999 — per godown
+  per month), but nothing charges a card. `POST /plan/upgrade-request`
+  audits the request, logs it at `warn` and emails
+  `SALES_NOTIFICATION_EMAIL`; moving a workspace to the plan it asked for
+  is a manual update to `tenant_subscriptions` once payment is in. Set
+  that address before you sell anything, or the pipeline is somebody
+  remembering to read the logs.
 - **An off-site copy, and a schedule.** `ops/backup.sh` takes a backup;
   nothing here runs it every night, copies it to another machine, or
   encrypts it. Those are decisions about where your data may live, and a

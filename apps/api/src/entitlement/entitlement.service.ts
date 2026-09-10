@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type postgres from 'postgres';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
+import { resourceLimitFor } from './resource-limits';
 import {
   CheckEntitlementResult,
   ConsumeEntitlementParams,
@@ -33,10 +34,22 @@ interface ResolvedLimit {
 export class EntitlementService {
   constructor(@Inject(PG_CONNECTION) private readonly sql: postgres.Sql) {}
 
+  /**
+   * "May this workspace do X, and how much is left?" -- for both kinds of
+   * limit.
+   *
+   * The routing is here rather than in the callers on purpose. Plan &
+   * Usage, the upgrade prompt and every paywall preview all ask this one
+   * question, and when a resource feature was answered by the ledger
+   * instead they all reported "0 of 3 godowns" for a workspace using
+   * three. One entry point that knows the difference is one place to get
+   * it right.
+   */
   async checkEntitlement(
     tenantId: string,
     featureCode: string,
   ): Promise<CheckEntitlementResult> {
+    if (resourceLimitFor(featureCode)) return this.checkResourceLimit(tenantId, featureCode);
     return withTenant(this.sql, tenantId, (tx) =>
       this.evaluate(tx, tenantId, featureCode),
     );
@@ -46,6 +59,16 @@ export class EntitlementService {
     params: ConsumeEntitlementParams,
   ): Promise<ConsumeEntitlementResult> {
     const { tenantId, featureCode, idempotencyKey } = params;
+
+    // A resource is not consumed -- it is held and given back. Spending one
+    // in the ledger would charge a workspace for a godown it later closed,
+    // and hand it a fresh allowance every month. This is a programming
+    // mistake rather than a runtime condition, so it says so.
+    if (resourceLimitFor(featureCode)) {
+      throw new Error(
+        `${featureCode} is a resource limit, not a consumable one -- use assertResourceAvailable inside the caller's transaction`,
+      );
+    }
 
     return withTenant(this.sql, tenantId, async (tx) => {
       // A prior call with this exact idempotency key already ran to
@@ -177,6 +200,74 @@ export class EntitlementService {
          'failed', false, ${params.reason}, ${params.idempotencyKey})
       on conflict (tenant_id, idempotency_key) do nothing
     `);
+  }
+
+  /**
+   * How many of a limited resource this workspace may have, and how many it
+   * has -- for the plan page, before anything is created.
+   *
+   * Side-effect free, like `checkEntitlement`. `assertResourceAvailable`
+   * below is the one that refuses.
+   */
+  async checkResourceLimit(tenantId: string, featureCode: string): Promise<CheckEntitlementResult> {
+    return withTenant(this.sql, tenantId, (tx) => this.evaluateResource(tx, tenantId, featureCode));
+  }
+
+  /**
+   * Refuses to let the caller create one more, inside the caller's own
+   * transaction.
+   *
+   * The transaction matters twice. It sees the caller's uncommitted state,
+   * so a count taken here is the one the insert is about to add to; and it
+   * takes a lock on the tenant row first, so two people clicking "New
+   * warehouse" at the same moment cannot both count three and both insert a
+   * fourth. Warehouse creation is rare enough that serialising it per
+   * workspace costs nothing, and a limit that a double-click walks past is
+   * not a limit.
+   */
+  async assertResourceAvailable(
+    tx: postgres.TransactionSql,
+    tenantId: string,
+    featureCode: string,
+  ): Promise<CheckEntitlementResult> {
+    await tx`select 1 from tenants where id = ${tenantId} for update`;
+    return this.evaluateResource(tx, tenantId, featureCode);
+  }
+
+  private async evaluateResource(
+    tx: postgres.TransactionSql,
+    tenantId: string,
+    featureCode: string,
+  ): Promise<CheckEntitlementResult> {
+    const resource = resourceLimitFor(featureCode);
+    if (!resource) {
+      throw new Error(`${featureCode} is not a resource limit -- add it to resource-limits.ts`);
+    }
+
+    if (!(await this.checkSubscriptionActive(tx, tenantId))) {
+      return { allowed: false, reason: 'SUBSCRIPTION_INACTIVE', remaining: 0, limit: null, used: 0, upgradeRequired: true };
+    }
+
+    const limit = await this.resolveLimit(tx, tenantId, featureCode);
+    const used = await resource.count(tx, tenantId);
+
+    if (!limit || limit.limitType === 'disabled') {
+      return { allowed: false, reason: 'FEATURE_DISABLED', remaining: 0, limit: 0, used, upgradeRequired: false };
+    }
+    if (limit.limitType === 'unlimited') {
+      return { allowed: true, reason: null, remaining: null, limit: null, used, upgradeRequired: false };
+    }
+
+    const allowance = limit.limitValue ?? 0;
+    const remaining = Math.max(0, allowance - used);
+    return {
+      allowed: used < allowance,
+      reason: used < allowance ? null : 'LIMIT_REACHED',
+      remaining,
+      limit: allowance,
+      used,
+      upgradeRequired: used >= allowance,
+    };
   }
 
   private async evaluate(

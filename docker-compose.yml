@@ -47,6 +47,10 @@ services:
       TRUST_PROXY_HOPS: '1'
       SMTP_URL: ${SMTP_URL:-}
       NOTIFICATION_FROM_EMAIL: ${NOTIFICATION_FROM_EMAIL:-}
+      # Where "I want to upgrade" lands. Unset, the request is still
+      # audited and logged at warn -- but nobody is emailed, and until
+      # there is a payment gateway that email is the sales pipeline.
+      SALES_NOTIFICATION_EMAIL: ${SALES_NOTIFICATION_EMAIL:-}
     volumes:
       # The generated PDFs. Without this volume every document a workspace
       # has issued disappears on the next deploy -- the local filesystem

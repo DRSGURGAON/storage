@@ -75,6 +75,9 @@ Resolution order, first match wins:
    plan's configuration is not silently free, it is explicitly off. This
    is a deliberate fail-closed default; a plan must opt a feature in.
 
+`checkEntitlement` routes a *resource* feature (§12) to a live count
+instead of the ledger; everything else in this section applies unchanged.
+
 If the resolved row is `limit_type = 'unlimited'`, `allowed = true` and
 `remaining = null`. If `disabled`, `allowed = false`,
 `reason = 'FEATURE_DISABLED'`. If `counted`, compute `used` from
@@ -209,3 +212,58 @@ badge, a disabled button with an upgrade tooltip, the paywall screen from
 write endpoint regardless of what the frontend showed (§14: "never trust
 frontend-only restrictions"). A user who bypasses the UI and calls the API
 directly gets exactly the same block a normal user would see.
+
+## 12. Resource limits: the kind that is held, not spent
+
+Everything above describes a **consumable**: a document generation happens
+once, is written to `usage_ledger`, and the count only rises within its
+period. `checkEntitlement`/`consumeEntitlement` were built for exactly
+that, and for a document it is the right model.
+
+A godown is not consumable. "Three godowns" means three *at a time*. Put
+that in the ledger and it is wrong in both directions: a workspace that
+opened and closed one would keep paying for a slot it gave back, and a
+monthly period would hand out three fresh godowns every month.
+
+So a second kind of limit exists, declared in
+`apps/api/src/entitlement/resource-limits.ts`:
+
+```ts
+RESOURCE_LIMITS.WAREHOUSE = {
+  featureCode: 'WAREHOUSE',
+  count(tx, tenantId) { /* select count(*) ... where is_active */ },
+}
+```
+
+The plan side is unchanged — a resource limit is an ordinary
+`plan_feature_limits` row with `limit_type = 'counted'` — but the *used*
+figure is counted live rather than read from the ledger, so there is no
+period, no idempotency key, and nothing to spend.
+
+Three rules follow, and each is enforced in code rather than by
+convention:
+
+- **`consumeEntitlement` throws** for a resource feature. There is nothing
+  to consume, and a caller reaching for it has misunderstood the feature.
+- **`assertResourceAvailable(tx, tenantId, featureCode)` runs inside the
+  caller's own transaction**, after taking `select … from tenants … for
+  update`. The transaction is what lets it see the row the caller is about
+  to insert; the lock is what stops two simultaneous "New warehouse"
+  clicks both counting three and both inserting a fourth. Creating a
+  godown is rare enough that serialising it per workspace costs nothing,
+  and a limit a double-click walks past is not a limit.
+- **Only active rows count.** Closing a godown returns its slot
+  immediately, and everything it holds — stock history, receipts,
+  invoices — stays exactly where it is. Deleting is not offered.
+
+The 402 says which kind it is (`limitKind: 'resource' | 'consumable'`), so
+a client can word its prompt correctly without keeping its own list of
+features. It is the difference between *"you have used your 2 free
+copies"* and *"the Free plan includes 1 godown, and it is in use"* — and
+between reassuring somebody that nothing they made was lost and telling
+them that closing one they no longer operate frees the slot.
+
+Adding a resource limit is: a `feature_keys` row with `is_meterable`, a
+`plan_feature_limits` row per plan, an entry in `RESOURCE_LIMITS`, and an
+`assertResourceAvailable` call inside the create transaction. Nothing else
+in the engine changes.

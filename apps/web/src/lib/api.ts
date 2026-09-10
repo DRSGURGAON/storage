@@ -22,6 +22,8 @@ export interface PaywallBody {
   message: string;
   featureCode: string;
   featureName: string;
+  /** 'resource' is held and given back (a godown); 'consumable' is spent (a document). */
+  limitKind: 'resource' | 'consumable';
   planCode: string | null;
   planName: string | null;
   reason: string | null;

@@ -90,7 +90,8 @@ alter table audit_logs add constraint audit_logs_action_check check (
     'stock_adjustment', 'status_change', 'document_generate', 'document_regenerate',
     'login', 'login_failed', 'permission_denied',
     'password_changed', 'password_change_failed', 'password_reset', 'password_set_for_member',
-    'account_deleted', 'workspace_deletion_requested'
+    'account_deleted', 'workspace_deletion_requested',
+    'upgrade_requested'
   )
 );
 

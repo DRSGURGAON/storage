@@ -20,7 +20,7 @@ interface UpgradeOption {
 }
 
 interface UpgradeOptions {
-  feature: { code: string; name: string; module: string };
+  feature: { code: string; name: string; module: string; limitKind: 'resource' | 'consumable' };
   current: {
     planCode: string | null;
     planName: string | null;
@@ -98,12 +98,18 @@ function PaywallModal({ paywall, onClose }: { paywall: PaywallBody | null; onClo
   if (!paywall) return null;
   const used = paywall.used;
   const limit = paywall.limit;
+  const noun = paywall.featureName.toLowerCase();
+  const heldNotSpent = paywall.limitKind === 'resource';
 
   return (
     <Modal
       open
       onCancel={onClose}
-      title={`${paywall.featureName} — free copies used up`}
+      title={
+        heldNotSpent
+          ? `${paywall.featureName} — plan limit reached`
+          : `${paywall.featureName} — free copies used up`
+      }
       width={520}
       // §64's phone pass: antd's `width` is a fixed pixel width, so a 520px
       // modal is 130px wider than the screen it is being read on. The cap
@@ -125,9 +131,10 @@ function PaywallModal({ paywall, onClose }: { paywall: PaywallBody | null; onClo
           >
             {/*
               §11 names this action "View Plans", and it says that while
-              assuming there are plans to view. With one published plan
-              there are not, and a button promising otherwise would be
-              answered by the page it opens.
+              assuming there are plans to view. There are four now, but a
+              feature already unlimited on every one of them has no upgrade
+              to offer, and a button promising otherwise would be answered
+              by the page it opens.
             */}
             {data && data.options.length === 0 ? 'See plan & usage' : 'View plans'}
           </Button>
@@ -143,12 +150,27 @@ function PaywallModal({ paywall, onClose }: { paywall: PaywallBody | null; onClo
             status="exception"
           />
         )}
-        <Alert
-          type="info"
-          showIcon
-          message="Nothing you have already made is affected"
-          description="Documents you generated stay where they are, and you can open, re-open and re-print every one of them. This limit is only on generating a copy of something new."
-        />
+        {/*
+          The reassurance has to be true of the thing that was blocked. A
+          godown is not a copy that was spent: the way out of this limit
+          without paying is to close one you no longer operate, and saying
+          so is more useful than promising that nothing was lost.
+        */}
+        {heldNotSpent ? (
+          <Alert
+            type="info"
+            showIcon
+            message={`Closing a ${noun} frees its slot`}
+            description={`Your plan counts the ${noun}s that are open. Close one you no longer operate and the slot comes back straight away — its stock history, receipts and documents stay exactly where they are.`}
+          />
+        ) : (
+          <Alert
+            type="info"
+            showIcon
+            message="Nothing you have already made is affected"
+            description="Documents you generated stay where they are, and you can open, re-open and re-print every one of them. This limit is only on generating a copy of something new."
+          />
+        )}
         {maySeePlan && !isLoading && data && <WhatUnlockingBuys data={data} />}
         {!maySeePlan && (
           <Paragraph type="secondary" style={{ marginBottom: 0 }}>
@@ -164,11 +186,13 @@ function PaywallModal({ paywall, onClose }: { paywall: PaywallBody | null; onClo
  * §11's "short checklist of what unlocking buys" -- or, when there is
  * honestly nothing to sell yet, the truth instead.
  *
- * v1 ships one plan (`v1-scope-specification.md` §12: upgrades are
- * arranged with the vendor rather than bought in-app, because no gateway
- * is chosen -- `DECISIONS.md` §13). A prompt that invented a "Pro" tier
- * here would be the one lie in the product a customer is guaranteed to
- * test.
+ * Four plans ship (Free, Starter, Growth, Scale), but a feature can still
+ * have nothing above it -- everything except godowns is unlimited from
+ * Starter up, so a workspace already on Scale has no larger allowance to
+ * be sold. Upgrades are arranged with the vendor rather than bought in-app
+ * (`v1-scope-specification.md` §12, `DECISIONS.md` §13: no gateway is
+ * chosen), and a prompt that invented a tier above the real ones would be
+ * the one lie in the product a customer is guaranteed to test.
  */
 function WhatUnlockingBuys({ data }: { data: UpgradeOptions }) {
   if (data.options.length === 0) {
@@ -177,7 +201,7 @@ function WhatUnlockingBuys({ data }: { data: UpgradeOptions }) {
         type="warning"
         showIcon
         message="There is no self-serve upgrade yet"
-        description={`${data.current.planName ?? 'This workspace'} is the only published plan. A larger allowance is arranged directly with us — nothing is charged from inside the app.`}
+        description={`${data.current.planName ?? 'This workspace'} already allows as much of this as any plan we publish. If you need more, ask us directly — nothing is charged from inside the app.`}
       />
     );
   }
@@ -203,7 +227,9 @@ function WhatUnlockingBuys({ data }: { data: UpgradeOptions }) {
             description={
               option.limitType === 'unlimited'
                 ? `Unlimited ${data.feature.name.toLowerCase()}`
-                : `${option.limit} copies instead of ${data.current.limit ?? 0}`
+                : data.feature.limitKind === 'resource'
+                  ? `${option.limit} ${data.feature.name.toLowerCase()}s instead of ${data.current.limit ?? 0}`
+                  : `${option.limit} copies instead of ${data.current.limit ?? 0}`
             }
           />
         </List.Item>

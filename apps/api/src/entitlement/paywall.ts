@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { CheckEntitlementResult } from './entitlement.types';
+import { resourceLimitFor } from './resource-limits';
 
 /**
  * Who the block happened to, in the words a person would use: the feature
@@ -61,8 +62,38 @@ export function paywallMessage(ctx: PaywallContext, result: CheckEntitlementResu
   if (result.limit === null) {
     return `You have reached ${plan}’s limit for ${feature}.`;
   }
+
+  // A resource is held, not spent, so "you have used your 1 free godown
+  // copy" is wrong twice over: nothing was consumed, and closing one gives
+  // the slot straight back. Say what is in use and what the plan allows,
+  // which is also the sentence that makes the upgrade obvious.
+  if (resourceLimitFor(ctx.featureCode)) {
+    const allowed = result.limit === 1 ? `1 ${feature}` : `${result.limit} ${plural(feature)}`;
+    const inUse =
+      result.used === result.limit
+        ? result.limit === 1
+          ? 'and it is in use'
+          : `and all ${result.limit} are in use`
+        : `and ${result.used} of those are in use`;
+    return `${capitalise(plan)} includes ${allowed}, ${inUse}.`;
+  }
+
   const copies = result.limit === 1 ? 'copy' : 'copies';
   return `You have used your ${result.limit} free ${feature} ${copies} on ${plan}.`;
+}
+
+/**
+ * Enough pluralisation for a feature name, which is a short noun phrase
+ * chosen by us and stored in `feature_keys.name` -- not arbitrary text.
+ */
+function plural(noun: string): string {
+  if (/(s|x|z|ch|sh)$/i.test(noun)) return `${noun}es`;
+  if (/[^aeiou]y$/i.test(noun)) return `${noun.slice(0, -1)}ies`;
+  return `${noun}s`;
+}
+
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function lowerFirst(text: string): string {

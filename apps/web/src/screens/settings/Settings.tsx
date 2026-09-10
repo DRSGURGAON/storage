@@ -470,6 +470,109 @@ interface PlanUsage {
  * `checkEntitlement` call a paywall makes, so the figure on this page and
  * the one that blocks a click cannot disagree.
  */
+/**
+ * The upgrade button, and what it honestly is.
+ *
+ * There is no payment gateway (`DECISIONS.md` §13), so this asks rather
+ * than charges — and says so before the click, not after. A button that
+ * looks like a purchase and turns out to be a form is the kind of thing a
+ * customer remembers about a vendor.
+ */
+function UpgradeCard({ currentPlanCode }: { currentPlanCode?: string }) {
+  const { message } = App.useApp();
+  const [asking, setAsking] = useState<PricingPlan | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [form] = Form.useForm();
+  const { data } = useQuery({
+    queryKey: ['/pricing'],
+    queryFn: () => api<{ plans: PricingPlan[] }>('/pricing'),
+  });
+
+  // Only what is actually a move: the plan a workspace is already on is
+  // not an upgrade, and neither is Free.
+  const options = (data?.plans ?? []).filter(
+    (p) => p.code !== currentPlanCode && (p.priceMonthly ?? 0) > 0,
+  );
+  if (options.length === 0) return null;
+
+  return (
+    <Card
+      title="Move to a bigger plan"
+      extra={
+        <a href="/pricing" target="_blank" rel="noreferrer">
+          Compare plans
+        </a>
+      }
+    >
+      <Typography.Paragraph type="secondary">
+        Plans are priced per godown, per month. Everything else — documents, users, customer
+        logins — is unlimited on all of them.
+      </Typography.Paragraph>
+      <Space wrap>
+        {options.map((plan) => (
+          <Button key={plan.code} onClick={() => setAsking(plan)}>
+            {plan.name} · {money(plan.priceMonthly)}/mo
+          </Button>
+        ))}
+      </Space>
+
+      <Modal
+        open={Boolean(asking)}
+        title={asking ? `Move to ${asking.name}` : 'Upgrade'}
+        okText="Send the request"
+        okButtonProps={{ loading: busy }}
+        onCancel={() => setAsking(null)}
+        style={{ maxWidth: 'calc(100vw - 32px)' }}
+        onOk={async () => {
+          let values: { note?: string };
+          try {
+            values = await form.validateFields();
+          } catch {
+            return;
+          }
+          setBusy(true);
+          try {
+            const result = await api<{ message: string }>('/plan/upgrade-request', {
+              method: 'POST',
+              body: { planCode: asking!.code, ...(values.note ? { note: values.note } : {}) },
+            });
+            setAsking(null);
+            form.resetFields();
+            message.success(result.message, 8);
+          } catch (error) {
+            message.error(error instanceof ApiError ? error.message : 'Could not send the request');
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Nothing is charged now"
+          description={`We will be in touch to arrange payment, and your workspace stays exactly as it is until then. ${asking?.trialDays ? `${asking.trialDays} days free once you start.` : ''}`}
+        />
+        <Form form={form} layout="vertical">
+          <Form.Item name="note" label="Anything we should know? (optional)">
+            <Input.TextArea rows={3} maxLength={500} placeholder="How many godowns, when you want to start…" />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </Card>
+  );
+}
+
+interface PricingPlan {
+  code: string;
+  name: string;
+  description: string | null;
+  trialDays: number;
+  priceMonthly: number | null;
+  priceYearly: number | null;
+  currency: string;
+}
+
 export function PlanSettings() {
   const { data, isLoading, error } = useQuery({ queryKey: ['/plan/usage'], queryFn: () => api<PlanUsage>('/plan/usage') });
 
@@ -501,6 +604,8 @@ export function PlanSettings() {
           </Typography.Paragraph>
         )}
       </Card>
+
+      <UpgradeCard currentPlanCode={data?.plan.code} />
 
       <Card title="Usage">
         <Table

@@ -1612,6 +1612,79 @@ one that matters. A backup nobody has restored is a hope.
 
 Full suite: 42 suites, 336 tests.
 
+## Phase 25 — something to sell, and a price on it
+
+Everything before this phase made the product work. This one makes it
+sellable: a price list, a limit that is worth paying to lift, and a way to
+ask.
+
+**Priced per godown, per month.** Not per user — an operator on the gate
+and a manager on the invoice are the same customer, and charging for the
+gate operator is how a warehouse ends up sharing one login. Not per
+document either: metering the paperwork of a business whose paperwork is
+the point makes the software argue with the day. What genuinely differs
+between a customer worth ₹3,000 a month and one worth ₹20,000 is how many
+godowns they run, so that is what the plans count. Everything else —
+documents, users, customer logins, storage — is unlimited on every paid
+plan.
+
+Seeded, not hard-coded (`apps/api/src/db/seed-data.ts`): Free (1 godown,
+2 copies of each document), Starter ₹2,999 (1 godown, everything
+unlimited), Growth ₹7,999 (3), Scale ₹19,999 (10). Annual is ten months
+for twelve. The numbers are a starting point and are meant to be changed;
+they live in one array and a re-seed moves them, because a price in the
+code is a price nobody adjusts.
+
+**A godown is a limit of a kind the engine did not have.** A document
+generation is *spent* — counted in `usage_ledger`, monotonic within its
+period. A godown is *held*: close one and the slot comes straight back.
+Putting that in the ledger would charge a workspace for a godown it gave
+up and hand it three fresh ones every month. So resource limits are
+counted live, from the table itself
+(`apps/api/src/entitlement/resource-limits.ts`, engine doc §12),
+`consumeEntitlement` refuses them outright, and the check runs inside the
+create transaction behind a lock on the tenant row — two people clicking
+"New warehouse" at the same moment cannot both count three.
+
+**The refusal is the sales pitch, so it had to read like one.** The first
+build reused the consumable sentence and told an owner *"you have used
+your 1 free godown copy"*, which is wrong twice: nothing was consumed, and
+nothing was copied. The 402 now carries `limitKind`, and both halves of
+the prompt follow it — *"The Free plan includes 1 godown, and it is in
+use"*, and, instead of reassuring somebody that their documents are safe,
+telling them the one thing that gets them unstuck without paying: closing
+a godown they no longer operate frees the slot, history intact.
+
+**And the modal had to actually appear.** It did not. `FormDrawer` — the
+shared create/edit drawer behind every master — caught the 402 and showed
+it as a red toast, because to it a 402 was just another failed save. Found
+by clicking "New warehouse" twice in a browser, which is also the only way
+it could have been found. It now routes a 402 to the upgrade prompt and
+closes the drawer, since nothing typed into it can be saved on that plan.
+
+**Asking to upgrade, with no gateway.** `POST /plan/upgrade-request`
+writes an `upgrade_requested` audit row, logs at `warn`, and emails
+`SALES_NOTIFICATION_EMAIL` when one is configured. It deliberately does
+not change the plan: money has not moved. Until a gateway is chosen
+(`DECISIONS.md` §13) a human reading that log line is the entire sales
+pipeline, which is why the request is written down three ways rather than
+one. The new audit action also needed adding to the `audit_logs_action_check`
+constraint in `99b_password_credentials.sql` — the third time this session
+that extending the TypeScript union alone turned an endpoint into a 500,
+and the reason there is now a test that walks the whole path.
+
+**The surfaces.** A public `/pricing` page and an upgrade card on Plan &
+Usage, both built by pivoting what the API returns rather than from
+written copy — a plan whose limits change is described correctly by both
+without anyone editing a page.
+
+Verified in a browser end to end: the pricing page with no session, the
+second godown refused through the real UI with the real prompt, an upgrade
+request sent from Plan & Usage and found afterwards in the audit trail,
+and both pages fitting a 390px phone.
+
+Full suite: 43 suites, 342 tests.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

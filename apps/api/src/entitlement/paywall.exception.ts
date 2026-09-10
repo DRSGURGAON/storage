@@ -1,6 +1,7 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { CheckEntitlementResult } from '../entitlement/entitlement.types';
-import { PaywallContext, paywallMessage } from '../entitlement/paywall';
+import { CheckEntitlementResult } from './entitlement.types';
+import { PaywallContext, paywallMessage } from './paywall';
+import { limitKindFor } from './resource-limits';
 
 /**
  * document-engine.md §7 / ux-system.md §11: "the user sees the upgrade
@@ -22,6 +23,10 @@ export class PaywallException extends HttpException {
         message: paywallMessage(ctx, result),
         featureCode: ctx.featureCode,
         featureName: ctx.featureName,
+        // Resource or consumable: the difference between "closing one frees
+        // the slot" and "this is counted for the month", which is the whole
+        // of what the upgrade prompt has to explain.
+        limitKind: limitKindFor(ctx.featureCode),
         planCode: ctx.planCode,
         planName: ctx.planName,
         reason: result.reason,

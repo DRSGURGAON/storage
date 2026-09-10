@@ -1,8 +1,11 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
+import type postgres from 'postgres';
 import request from 'supertest';
 import { AppModule } from '../app.module';
+import { PG_CONNECTION } from '../db/db.module';
+import { putOnPlan } from '../testing/subscription';
 
 /**
  * Blueprint §28's Stock Transfer Note, and with it the two §79 cases this
@@ -11,6 +14,7 @@ import { AppModule } from '../app.module';
  */
 describe('Stock transfers', () => {
   let app: INestApplication;
+  let sql: postgres.Sql;
   const suffix = randomUUID().slice(0, 8);
   const password = 'correcthorsebattery';
   let owner = '';
@@ -26,13 +30,17 @@ describe('Stock transfers', () => {
   const api = () => request(app.getHttpServer());
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
 
-  const signup = async (slug: string, email: string) =>
-    (
-      await api()
-        .post('/auth/signup')
-        .send({ companyLegalName: `${slug} Pvt Ltd`, tenantSlug: slug, email, fullName: 'Owner', password })
-        .expect(201)
-    ).body.accessToken as string;
+  const signup = async (slug: string, email: string) => {
+    const res = await api()
+      .post('/auth/signup')
+      .send({ companyLegalName: `${slug} Pvt Ltd`, tenantSlug: slug, email, fullName: 'Owner', password })
+      .expect(201);
+    // Signed up on Free, then upgraded -- what a real customer does, and
+    // what these tests need: plans are priced per godown and Free allows
+    // one, so anything involving a second warehouse is a paid feature.
+    await putOnPlan(sql, slug);
+    return res.body.accessToken as string;
+  };
 
   const makeBin = async (warehouseId: string, zone: string, bin: string) => {
     const z = await api().post(`/warehouses/${warehouseId}/locations`).set(auth(owner)).send({ level: 'zone', segment: zone }).expect(201);
@@ -88,6 +96,7 @@ describe('Stock transfers', () => {
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     await app.init();
+    sql = app.get(PG_CONNECTION);
     owner = await signup(`st-a-${suffix}`, `owner-a-${suffix}@test.local`);
     otherOwner = await signup(`st-b-${suffix}`, `owner-b-${suffix}@test.local`);
 

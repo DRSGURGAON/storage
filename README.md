@@ -8,15 +8,16 @@ automatically, update stock automatically, bill from actual operations.**
 This repository holds the **product blueprint, the engineering
 architecture, and the built product**.
 
-Twenty-two phases in (`docs/architecture/dev-phases.md`), that is: a
+Twenty-five phases in (`docs/architecture/dev-phases.md`), that is: a
 NestJS + PostgreSQL API with row-level-secured multi-tenancy, the whole
 inbound chain (gate entry → inward → GRN → put-away → warehouse receipt),
 the stock engine, the whole outbound chain (release order → pick →
 dispatch → gate pass → POD), returns, transfers and verifications, billing
 runs through to invoices, payments and customer statements, twenty-four
 PDF document templates rendered by a real browser, a reports library, a
-customer portal, and the subscription/entitlement engine that meters it —
-**42 test suites, 336 tests**, every one against a live database rather
+customer portal, and the subscription/entitlement engine that meters it and
+prices it per godown —
+**43 test suites, 342 tests**, every one against a live database rather
 than a mock. On top of it, `apps/web`: every screen in the scope
 document's screen map, checked in a real browser at desktop and phone
 width.
@@ -25,6 +26,14 @@ width.
 cp .env.example .env       # set POSTGRES_PASSWORD and JWT_SECRET
 docker compose up --build  # http://localhost:8080
 ```
+
+It is sold per godown per month — Free (1 godown, 2 copies of each
+document), Starter ₹2,999, Growth ₹7,999 (3), Scale ₹19,999 (10), with
+every document, user and customer login unlimited on a paid plan. The
+prices are seed data, not code: see `apps/api/src/db/seed-data.ts`, the
+public `/pricing` page, and `docs/architecture/entitlement-engine.md` §12
+for why a godown is counted differently from a document. Upgrades are
+requested in-app and arranged by hand; no gateway is wired yet.
 
 See [`docs/architecture/deployment.md`](docs/architecture/deployment.md)
 for what that does and what it does not do yet (a payment gateway,

@@ -710,8 +710,19 @@ provider said.
   above the current one that genuinely allow *more of this feature*
   (unlimited beats a count, a bigger count beats a smaller one, a missing
   row is `disabled` and never an upgrade), read from the same
-  `plan_feature_limits` rows the engine enforces. On v1's single published
-  plan the honest answer is an empty list, and the prompt says so.
+  `plan_feature_limits` rows the engine enforces, and `limitKind` saying
+  whether this is something spent (a document) or held (a godown) so the
+  prompt can word itself. Starter is absent from the answer for
+  `WAREHOUSE` on purpose: it allows one godown exactly as Free does, so it
+  is not an answer to "I ran out of godowns", however much more it costs.
+  When a feature is already unlimited on every plan the honest answer is
+  an empty list, and the prompt says so.
+- `POST /plan/upgrade-request` (`view_plan_usage`) — asking to move up,
+  with no gateway wired. Writes an `upgrade_requested` audit row, logs at
+  `warn`, and emails `SALES_NOTIFICATION_EMAIL` if SMTP is configured. It
+  deliberately does **not** change the plan: money has not moved. Three
+  records of one request, because until there is a gateway a human reading
+  that log line is the entire sales pipeline.
 - `GET /pricing` — §14, **public and unauthenticated**, pivoted from
   `plan_feature_limits` across every public plan so it cannot drift from
   what the entitlement engine enforces. A feature with no row reads as
@@ -840,7 +851,7 @@ since two of them cannot share a disk. `ops/backup.sh` and
 itself. See
 [`../../docs/architecture/deployment.md`](../../docs/architecture/deployment.md).
 
-**42 suites, 336 tests**, all against the real local database
+**43 suites, 342 tests**, all against the real local database
 (`DATABASE_URL`), not mocks:
 
 - `acceptance/acceptance.spec.ts` — blueprint §78 walked once, end to end,

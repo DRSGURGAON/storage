@@ -79,12 +79,23 @@ The Agreement screen carries §15's eleven-step wizard, drawn from the
 API's own definition, each step saving on its own and showing what is
 still outstanding before the agreement can be submitted.
 
-Running out of free copies is a screen of its own (`components/Paywall.tsx`,
-ux-system §11): the sentence, the figures and the list of what a larger
-plan would give all come from the API — the 402's own body and
+Running out is a screen of its own (`components/Paywall.tsx`, ux-system
+§11): the sentence, the figures and the list of what a larger plan would
+give all come from the API — the 402's own body and
 `GET /plan/upgrade/:featureCode` — so the page that asks someone to pay
 cannot promise something the entitlement engine does not enforce. Where
-there is nothing to sell yet, it says that instead. Generating a document
+there is nothing to sell, it says that instead.
+
+It words itself from the 402's `limitKind`, because the two kinds of limit
+need different sentences. A document was *spent*, so the reassurance is
+that everything already generated stays where it is. A godown is *held*,
+so the useful thing to say is that closing one you no longer operate frees
+the slot straight away, history intact. `FormDrawer` routes any 402 here
+rather than showing it as a failed save — it used to show "you have used
+your 1 free godown copy" as a red toast, which was the wrong words in the
+wrong place. The public price list is `screens/Pricing.tsx` at `/pricing`,
+pivoted from `GET /pricing`; `settings/Settings.tsx` carries the same
+ladder as an upgrade card that sends `POST /plan/upgrade-request`. Generating a document
 that *does* fit within the plan nudges once at the first copy and once at
 the last (§12), and never in between.
 
