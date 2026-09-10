@@ -56,6 +56,16 @@ import {
   ReturnRequests,
   ReturnRequestDetail,
 } from './screens/Remaining';
+import {
+  PortalShell,
+  PortalOverview,
+  PortalStock,
+  PortalReceipts,
+  PortalDispatches,
+  PortalInvoices,
+  PortalStatement,
+  PortalDocuments,
+} from './screens/portal/Portal';
 import 'antd/dist/reset.css';
 
 /**
@@ -75,6 +85,21 @@ function RequireSession() {
   return <Outlet />;
 }
 
+/**
+ * A customer login lands in the portal, not the staff app.
+ *
+ * The API is what actually keeps them apart -- the `customer` role holds
+ * no staff permission, and `schema/98`'s restrictive policy narrows every
+ * read to their own rows -- but sending a customer to a warehouse
+ * manager's dashboard would be confusing even where it is harmless, and
+ * sending staff into the portal would hide half the product.
+ */
+function RoleHome() {
+  const { session } = useSession();
+  if (session?.role.code === 'customer') return <Navigate to="/portal" replace />;
+  return <Outlet />;
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ConfigProvider locale={enGB} theme={{ token: { colorPrimary: '#1f6feb', borderRadius: 6 } }}>
@@ -85,6 +110,16 @@ createRoot(document.getElementById('root')!).render(
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route element={<RequireSession />}>
+                  <Route path="portal" element={<PortalShell />}>
+                    <Route index element={<PortalOverview />} />
+                    <Route path="stock" element={<PortalStock />} />
+                    <Route path="goods-receipts" element={<PortalReceipts />} />
+                    <Route path="dispatches" element={<PortalDispatches />} />
+                    <Route path="invoices" element={<PortalInvoices />} />
+                    <Route path="statement" element={<PortalStatement />} />
+                    <Route path="documents" element={<PortalDocuments />} />
+                  </Route>
+                  <Route element={<RoleHome />}>
                   <Route element={<AppShell />}>
                     <Route index element={<Dashboard />} />
                     <Route path="onboarding" element={<Onboarding />} />
@@ -143,6 +178,7 @@ createRoot(document.getElementById('root')!).render(
                       Explicit, so a menu item never leads to a blank page.
                     */}
                     <Route path="*" element={<NotBuilt />} />
+                  </Route>
                   </Route>
                 </Route>
               </Routes>

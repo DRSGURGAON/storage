@@ -27,6 +27,32 @@ configuration on the API, and no base URL compiled into the bundle.
 `VITE_API_URL` exists only for a deployment that really does serve the two
 from different hosts.
 
+## What is built
+
+Sign-in and workspace signup; the role-filtered shell and dashboard; the
+setup checklist; every master (customers with addresses and contacts,
+warehouses with their location tree, products, transport, rate cards with
+priced lines); the inbound chain (gate entry → inward → GRN → put-away →
+warehouse receipt); stock on hand, the ledger and ageing; the outbound
+chain (release order → reserve → pick → dispatch → gate pass → gate-out →
+POD); billing runs, invoices, payments and statements; quotations and
+agreements; stock transfers and verifications; returns; the Document
+Centre with its relationship graph; notifications; settings (company,
+users, plan and usage, audit log); and the **customer portal**, which a
+`customer` login lands in instead of the staff app.
+
+A route the navigation offers but that has no screen yet renders an
+explicit "not built yet" page. The navigation is generated from what the
+API supports, which is still ahead of the UI in a few places, and a blank
+page would look like missing data.
+
+Still absent, and named rather than implied: a full reports library beyond
+the stock statement and ageing, notification-rule configuration, the
+Agreement wizard's eleven separate steps, and a pass over the
+operator-facing screens on an actual phone (blueprint §64) — they are built
+responsive, but that check has not been run, and photo/signature capture is
+not built.
+
 ## How it is put together
 
 - **`src/lib/api.ts`** — the one place this app talks to the API. It
@@ -57,3 +83,20 @@ Quantities arrive as **strings**, deliberately: they are `numeric` columns
 and postgres.js hands them over as text, so a three-decimal warehouse
 quantity cannot be quietly rounded through a float. `format.quantity()` is
 the only place they become numbers.
+
+## How it is tested
+
+There are no component tests. The app is exercised by driving a real
+browser (Puppeteer) against a live API on a from-nothing database: the
+whole inbound chain, the whole outbound chain, and every screen loaded and
+looked at.
+
+That is a deliberate trade rather than an omission to fix later. Driving
+the real thing catches what a component test cannot — a wrong endpoint
+shape, a field the API can derive that the form insists on, a response
+that is a bare array where a page was expected — and every one of those
+was found this way. It misses what a component test would catch: a
+rendering regression in one component, with no API involved. If this app
+grows a piece of genuinely tricky client-side logic, that piece should get
+a unit test; today the tricky logic is all on the server, and it has 283
+of them.

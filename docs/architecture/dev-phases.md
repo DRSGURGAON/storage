@@ -939,6 +939,62 @@ is being shown, and there is no cross-tenant analytics surface in the
 codebase to exclude anything from. When one is built, this is where the
 exclusion belongs.
 
+## Phase 11 — The frontend
+
+`v1-scope-specification.md` §10 listed "no frontend exists" as the
+remaining P0 launch blocker from the scope freeze onward. `apps/web`
+closes it: React 18 + TypeScript on Vite, Ant Design, TanStack Query,
+React Router — `DECISIONS.md` §0's choices, unchanged.
+
+**What is built**: sign-in and workspace signup; the role-filtered shell;
+the dashboard; the setup checklist; every master (customers with addresses
+and contacts, warehouses with their location tree, products, transport,
+rate cards with priced lines); the inbound chain (gate entry → inward →
+GRN → put-away → warehouse receipt) with its status actions; stock on
+hand, the ledger and ageing; the outbound chain (release order → reserve →
+pick → dispatch → gate pass → gate-out → POD); billing runs, invoices,
+payments and statements; quotations and agreements; stock transfers and
+verifications; returns; the Document Centre with the relationship graph;
+notifications; company, users, plan-and-usage and audit settings; and the
+customer portal, which a `customer` login lands in instead of the staff
+app.
+
+**Three principles the code holds to.**
+
+1. *The session is read, not decoded.* `GET /auth/me` returns the caller's
+   live permission codes and the app reads its session from there. The
+   JWT's claims are the same data and one fetch cheaper, but they are a
+   snapshot from login: the API re-resolves grants per request, so a role
+   change bites the server immediately and a UI drawn from stale claims
+   would keep offering actions that no longer exist.
+2. *`can(permission)` decides what to offer, never what to allow.* The
+   navigation, the buttons and the status actions are filtered by the
+   caller's grants and the record's status — mirroring
+   `@RequirePermission` and each service's `allowedFrom` — and the API
+   applies both again. Where the two disagree, the server is right.
+3. *The API's own message reaches the screen.* `ApiError` carries it
+   through. The API says specific, useful things ("A workspace must keep at
+   least one active Owner", "Only 30 of that product is available to return
+   on this dispatch"), and replacing those with "Something went wrong"
+   throws away the most valuable thing the client was handed.
+
+**Verified by using it**, not only by building it: the whole inbound chain
+driven in a browser against a from-nothing database (gate entry → inward →
+receive → GRN → submit → check → approve, stock posted), then the whole
+outbound chain (release order → approve → reserve → pick → confirm →
+complete → dispatch → gate pass → gate-out), with the stock screen showing
+the balance fall and the reservation release afterwards.
+
+That is also how the one API bug of this phase was found: `POST /inwards`
+required a `warehouseId` it could have taken from the gate entry, and never
+checked the two agreed (`DECISIONS.md` §47).
+
+**Still not built**, and named rather than implied: a full reports library
+beyond the stock statement and ageing; notification-rule configuration; the
+Agreement wizard's eleven separate steps; and a pass over the
+operator-facing screens on an actual phone — they are built responsive, but
+§64's mobile check has not been run.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

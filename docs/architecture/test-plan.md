@@ -117,7 +117,7 @@ Every row below is covered. "Proven by" names the file and the test.
 | Rate limiting on login and public QR verification | **Done.** `auth/auth.spec.ts` *"throttles repeated login attempts against one account, without penalising the rest of the office"* — the limit is keyed per (IP, email), so one account being hammered does not lock out the next login from the same office (`DECISIONS.md` §36). `/verify/:qrToken` carries its own limit (`documents/verify.controller.ts`) |
 | File access requires a signed, scoped URL | **Done** (Phase 10b). `POST /documents/:id/download-link` mints an HMAC-signed link naming one document, its tenant and optionally its customer, expiring in five minutes; `documents.spec.ts` and `portal.spec.ts` cover the unauthenticated fetch, a flipped signature byte, a forged payload, an expired link, and links scoped to the wrong customer or tenant. The bytes still come from `LocalFilesystemAttachmentStorage` — the object store itself is still unbuilt (`DECISIONS.md` §0's update, §24) |
 | Stock postings are atomic under mid-transaction failure | **Partly.** Atomicity is structural, not chaos-tested: `StockService.postWithin()` takes the caller's transaction, so the ledger insert, the lot upsert and the caller's own status change commit together or not at all — `stock.spec.ts` proves the negative-balance refusal leaves nothing behind, and every posting spec asserts no partial rows. What is *not* done is killing the process mid-transaction to prove it; that needs a fault-injection harness this suite does not have |
-| Mobile responsiveness of the operator flows | **Not applicable yet.** There is no frontend in this repository — `apps/` contains only `api`. This row cannot be tested until one exists |
+| Mobile responsiveness of the operator flows | **Not done.** `apps/web` exists as of Phase 11 and is built responsive (the sider collapses under 992px, tables scroll), but §64's check — Gate Entry, GRN, stock lookup, picking, loading, Gate Pass, POD and photo/signature capture on an actual phone — has not been run, and photo/signature capture is not built |
 
 ## 4. Entitlement & subscription engine (saas-layer §6–§17, §41–§45; `entitlement-engine.md`)
 
@@ -151,5 +151,10 @@ Named here rather than left as silent gaps in the grid above:
   testing**. Concurrency is tested where it decides correctness — numbering
   and entitlement both run genuine parallel races — but nothing here
   measures throughput or survives a hard kill.
-- **Anything frontend**: no UI exists, so §64's mobile responsiveness and
-  every screen-level check in `ux-system.md` are untestable today.
+- **Frontend tests.** `apps/web` has no automated tests of its own. It is
+  exercised by driving a real browser against a live API — the whole
+  inbound and outbound chains, plus every screen loaded and screenshotted —
+  which catches what a component test would not (a wrong endpoint shape, a
+  required field the API can derive) and misses what one would (a
+  regression in a single component's rendering). §64's mobile check is
+  also still unrun.

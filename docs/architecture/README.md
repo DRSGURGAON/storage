@@ -11,8 +11,10 @@ leaves an implementation detail open, the decision made is recorded in
 The stack is chosen and built on (`DECISIONS.md` §0): **NestJS + TypeScript
 on PostgreSQL 16**, with `postgres` (postgres-js) for queries, Drizzle for
 schema typing, Passport-JWT + argon2 for auth, and headless Chromium
-(`puppeteer-core`) for PDF rendering. The running implementation is
-[`apps/api`](../../apps/api/README.md).
+(`puppeteer-core`) for PDF rendering, and **React 18 + Vite + Ant Design**
+for the frontend. The running implementation is
+[`apps/api`](../../apps/api/README.md) and
+[`apps/web`](../../apps/web/README.md).
 
 These documents are therefore no longer database-neutral, and are not meant
 to be: the design leans on PostgreSQL-specific machinery — row-level

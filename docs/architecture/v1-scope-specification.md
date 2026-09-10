@@ -34,9 +34,10 @@ alone.
 >   and the Stock Ageing report.
 > - Still genuinely not built, exactly as this document expected: the
 >   **payment gateway** (`DECISIONS.md` §13), a **full reports library**
->   beyond the customer stock statement and ageing, and **any frontend at
->   all** — `apps/` contains only `api`. Every screen-map row in §8
->   describes a UI that does not exist; the API behind it does.
+>   beyond the customer stock statement and ageing. The frontend, which
+>   this banner previously listed here too, was built in Phase 11
+>   (`apps/web`: React + Vite + Ant Design), so §8's screen map is now
+>   mostly built rather than aspirational.
 >
 > Individual sections below carry inline corrections where a claim would
 > otherwise mislead. Where this document and `dev-phases.md` disagree about

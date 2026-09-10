@@ -63,7 +63,10 @@ Account Statement.
   SMTP and HTTP, and the `DEMO / SAMPLE` marking every document a demo
   workspace generates now carries.
 
-**Known gaps**, listed rather than glossed: no frontend; no object store
+The frontend lives in [`apps/web`](../web/README.md) — React + Vite + Ant
+Design, covering the whole operational loop and the customer portal.
+
+**Known gaps**, listed rather than glossed: no object store
 (attachments are on the local filesystem behind an interface — the signed
 links exist, the S3 adapter does not); no payment gateway; `billing_runs`
 is outside the document-relations graph because it has no number; and

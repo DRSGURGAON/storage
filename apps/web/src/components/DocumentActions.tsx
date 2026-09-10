@@ -79,8 +79,23 @@ export function DocumentActions({ basePath, permission, disabledReason }: Docume
   return <Space>{disabledReason ? <Tooltip title={disabledReason}>{button}</Tooltip> : button}</Space>;
 }
 
-/** Opens an already-committed document through a fresh signed link. */
-export function OpenDocumentButton({ documentId, label = 'Open' }: { documentId: string; label?: string }) {
+/**
+ * Opens an already-committed document through a fresh signed link.
+ *
+ * `portal` picks the portal's own minting route. It is not cosmetic: the
+ * claims minted there carry this customer, so a link a customer forwards
+ * to their accountant stays scoped to them even though the token itself
+ * is a bearer credential.
+ */
+export function OpenDocumentButton({
+  documentId,
+  label = 'Open',
+  portal,
+}: {
+  documentId: string;
+  label?: string;
+  portal?: boolean;
+}) {
   const { message } = App.useApp();
   const [busy, setBusy] = useState(false);
   return (
@@ -91,7 +106,10 @@ export function OpenDocumentButton({ documentId, label = 'Open' }: { documentId:
       onClick={async () => {
         setBusy(true);
         try {
-          const link = await api<{ url: string }>(`/documents/${documentId}/download-link`, { method: 'POST' });
+          const path = portal
+            ? `/portal/documents/${documentId}/download-link`
+            : `/documents/${documentId}/download-link`;
+          const link = await api<{ url: string }>(path, { method: 'POST' });
           window.open(link.url, '_blank', 'noopener');
         } catch (error) {
           message.error(error instanceof ApiError ? error.message : 'Could not open the document');
