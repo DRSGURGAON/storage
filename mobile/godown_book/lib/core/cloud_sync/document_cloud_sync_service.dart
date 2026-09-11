@@ -63,6 +63,9 @@ class DocumentCloudSyncService {
 
   /// Every synced table. All of these carry a company_id column and a
   /// TEXT UUID `id` primary key (verified against migrations.dart).
+  /// storage_photos is deliberately absent: it holds device-local image
+  /// paths that mean nothing on another phone - the same honest limit
+  /// the company logo and signature have.
   static const List<String> syncedTables = [
     'customers',
     'storage_locations',

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:godown_book/core/cloud_sync/document_cloud_sync_service.dart';
 import 'package:godown_book/core/database/app_database.dart';
 import 'package:godown_book/core/database/database_constants.dart';
 import 'package:godown_book/core/database/database_helper.dart';
@@ -174,5 +175,28 @@ void main() {
     expect(claimed, greaterThanOrEqualTo(10));
 
     expect((await ChargeHeadRepository.instance.getAll()).length, 10);
+  });
+
+  test('every backed-up table exists and is company scoped', () async {
+    for (final table in DocumentCloudSyncService.syncedTables) {
+      expect(
+        DatabaseConstants.tenantTables,
+        contains(table),
+        reason: '$table is backed up but is not company-scoped',
+      );
+
+      final columns = await db.rawQuery('PRAGMA table_info($table)');
+      final names = columns.map((c) => c['name']).toSet();
+      expect(names, contains('id'), reason: table);
+      expect(names, contains('company_id'), reason: table);
+    }
+
+    // Photos hold device-local file paths, so they are deliberately not
+    // backed up - the record would point at a file the other phone
+    // does not have.
+    expect(
+      DocumentCloudSyncService.syncedTables,
+      isNot(contains('storage_photos')),
+    );
   });
 }
