@@ -117,6 +117,21 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                       _storageCard(),
                       const SizedBox(height: 16),
                       _actionsGrid(customer),
+                      const SizedBox(height: 12),
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.folder_open_outlined),
+                          title: const Text('All documents for this customer'),
+                          subtitle: const Text(
+                            'Quotations, storage receipts, bills, receipts',
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () async {
+                            await context.push('/documents', extra: customer.id);
+                            _load();
+                          },
+                        ),
+                      ),
                       const SizedBox(height: 16),
                       if (_openStorage.isNotEmpty) _storageList(),
                       if (_bills.isNotEmpty) _billsList(),

@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:printing/printing.dart';
 
-import '../../../core/constants/feature_flags.dart';
 import '../../../core/subscription/document_type.dart';
-import '../../../core/subscription/subscription_access_service.dart';
-import '../../subscription/widgets/demo_generation_gate.dart';
+import '../../../shared/widgets/document_pdf_view.dart';
 import '../controllers/company_controller.dart';
 import '../models/company_model.dart';
 import '../services/letterhead_pdf_service.dart';
@@ -27,10 +24,6 @@ class _LetterHeadPdfScreenState extends State<LetterHeadPdfScreen> {
   Object? _buildError;
   Object? _loadError;
 
-  bool? _isActive;
-  int? _remainingDemos;
-  bool _demoConfirmed = false;
-
   @override
   void initState() {
     super.initState();
@@ -51,18 +44,10 @@ class _LetterHeadPdfScreenState extends State<LetterHeadPdfScreen> {
         return;
       }
 
-      final service = SubscriptionAccessService.instance;
-      final active = await service.isSubscriptionActive();
-      final remaining = active
-          ? 0
-          : await service.getRemainingDemoGenerations(DocumentType.letterHead);
-
       if (!mounted) return;
 
       setState(() {
         _company = company;
-        _isActive = active;
-        _remainingDemos = remaining;
         _loading = false;
       });
     } catch (error) {
@@ -145,78 +130,16 @@ class _LetterHeadPdfScreenState extends State<LetterHeadPdfScreen> {
       );
     }
 
-    if (FeatureFlags.demoGenerationLimitEnforced &&
-        _isActive == false &&
-        !_demoConfirmed) {
-      if ((_remainingDemos ?? 0) <= 0) {
-        return DemoLimitReached(
-          onViewSubscription: () => context.push('/subscription'),
-        );
-      }
-
-      return DemoGenerationGate(
-        remaining: _remainingDemos!,
-        onGenerate: () => setState(() => _demoConfirmed = true),
-      );
-    }
-
-    // Whether this is genuinely an unsubscribed user's copy. Kept as a
-    // plain subscription check with no flag mixed in, so each
-    // FeatureFlag below gates exactly one behaviour independently
-    // (watermark vs. free-allowance) rather than one silently
-    // disabling the other.
-    final isDemoCopy = _isActive == false;
-
-    // Both flags are currently false for testing - documents generate
-    // clean and unlimited. Neither the watermark code nor the
-    // allowance code is removed; re-enabling either is a one-line
-    // change in FeatureFlags.
-    final showWatermark = FeatureFlags.watermarkEnabled && isDemoCopy;
     final fileName =
         'LetterHead-${company.companyName.replaceAll(RegExp(r'[^A-Za-z0-9]'), '-')}.pdf';
 
-    return PdfPreview(
-      build: (_) async {
-        try {
-          final bytes = await LetterHeadPdfService.instance.build(
-            company,
-            showWatermark: showWatermark,
-          );
-
-          if (FeatureFlags.demoGenerationLimitEnforced && isDemoCopy) {
-            await SubscriptionAccessService.instance.recordDemoGeneration(
-              DocumentType.letterHead,
-            );
-          }
-
-          return bytes;
-        } catch (error, stackTrace) {
-          debugPrint('Letter Head PDF build failed: $error\n$stackTrace');
-
-          if (mounted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) setState(() => _buildError = error);
-            });
-          }
-
-          rethrow;
-        }
-      },
-      pdfFileName: fileName,
-      canDebug: false,
-      allowPrinting: true,
-      allowSharing: true,
-      actions: [
-        PdfPreviewAction(
-          icon: const Icon(Icons.share),
-          onPressed: (context, build, format) async {
-            await Printing.sharePdf(
-              bytes: await build(format),
-              filename: fileName,
-            );
-          },
-        ),
-      ],
+    return DocumentPdfView(
+      documentType: DocumentType.letterHead,
+      fileName: fileName,
+      build: ({required showWatermark}) => LetterHeadPdfService.instance.build(
+        company,
+        showWatermark: showWatermark,
+      ),
     );
   }
 }
