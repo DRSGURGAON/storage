@@ -2,8 +2,9 @@
 
 Storage paperwork for packers and movers, and for godown owners who keep
 household goods: quotations, storage agreements, storage receipts, goods
-lists, storage bills, payment receipts, customer statements and release
-records - made on a phone, shared on WhatsApp.
+lists, storage bills, payment receipts, customer statements, release
+records, notices about unpaid rent, damage reports, handover papers and
+the bilty pack - made on a phone, shared on WhatsApp.
 
 The app is sold on a subscription. Every company gets two free copies of
 each document, marked as a demo; after that a subscription is needed,
@@ -21,7 +22,15 @@ which a Super Admin activates once payment is received.
 | Charges for a period | Storage Bill |
 | Takes money | Payment Receipt, and the balance updates |
 | Is asked "what do I owe?" | Customer Statement |
-| Hands the goods back | Release Record (customer and gate copies) |
+| Hands the goods back | Release Record (customer and gate copies), signed by the customer |
+| Takes a deposit | Security Deposit Receipt, and later a Refund Voucher or an Adjustment Note |
+| Is not paid for months | Payment Reminder, then Final Notice, then Notice Before Disposal - each one kept as proof it went out |
+| Finds goods damaged or missing | Damage / Loss Report with photographs on the same paper |
+| Sends the goods to someone else | Authority Letter, or an Indemnity Bond when the receipt is lost |
+| Moves goods by truck | Bilty / Lorry Receipt in four copies, the Goods Forwarding Note the sender signs, and a Delivery Challan - and the same bilty records the delivery |
+
+Used personal and household effects need no e-way bill, and the bilty
+and the challan say so on the paper.
 
 Storage charges are worked out four ways: a fixed amount per month, an
 amount per day, an amount per box per month, or one agreed amount. A
