@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../billing/repositories/billing_repository.dart';
+import '../../release/repositories/goods_release_repository.dart';
 import '../models/storage_booking_model.dart';
 import '../repositories/storage_booking_repository.dart';
+import '../repositories/storage_photo_repository.dart';
 import 'storage_booking_list_screen.dart';
 import 'storage_booking_pdf_screen.dart';
 
@@ -22,6 +25,9 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
   static final _dateFormat = DateFormat('dd MMM yyyy');
 
   StorageBookingModel? _booking;
+  int _photoCount = 0;
+  int _releaseCount = 0;
+  double _outstanding = 0;
   bool _loading = true;
 
   @override
@@ -32,9 +38,27 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
 
   Future<void> _load() async {
     final booking = await StorageBookingRepository.instance.getById(widget.bookingId);
+
+    var photos = 0;
+    var releases = 0;
+    var outstanding = 0.0;
+    if (booking != null) {
+      photos = await StoragePhotoRepository.instance.countForBooking(booking.id);
+      releases =
+          (await GoodsReleaseRepository.instance.getForBooking(booking.id)).length;
+      if (booking.customerId.isNotEmpty) {
+        final balance =
+            await BillingRepository.instance.balanceForCustomer(booking.customerId);
+        outstanding = balance.outstanding;
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _booking = booking;
+      _photoCount = photos;
+      _releaseCount = releases;
+      _outstanding = outstanding;
       _loading = false;
     });
   }
@@ -76,6 +100,8 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
                     padding: const EdgeInsets.all(16),
                     children: [
                       _headerCard(b),
+                      const SizedBox(height: 12),
+                      _actionsCard(b),
                       const SizedBox(height: 12),
                       _papersCard(b),
                       const SizedBox(height: 12),
@@ -141,6 +167,89 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
             if (b.receivedBy.isNotEmpty) _row('Received by', b.receivedBy),
           ],
         ),
+      ),
+    );
+  }
+
+  /// What an operator does next with these goods.
+  Widget _actionsCard(StorageBookingModel b) {
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.receipt_long_outlined),
+            title: const Text('Make Storage Bill'),
+            subtitle: Text(b.rentBilledUpto.isEmpty
+                ? 'Rent has not been billed yet'
+                : 'Billed to ${_date(b.rentBilledUpto)}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              await context.push('/bill-create', extra: b.id);
+              _load();
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.payments_outlined),
+            title: const Text('Receive Payment'),
+            subtitle: Text(_outstanding > 0
+                ? '₹${_outstanding.toStringAsFixed(0)} outstanding'
+                : 'Nothing outstanding'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final paymentId = await context
+                  .push('/payment-create', extra: {'customerId': b.customerId});
+              if (paymentId is String && mounted) {
+                await context.push('/receipt-pdf', extra: paymentId);
+              }
+              _load();
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.outbox_outlined),
+            title: const Text('Release Goods'),
+            subtitle: Text(_releaseCount == 0
+                ? 'Nothing has gone out yet'
+                : '$_releaseCount release${_releaseCount == 1 ? '' : 's'} so far'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: b.status.isOpen
+                ? () async {
+                    final releaseId = await context.push('/release-create', extra: b.id);
+                    if (releaseId is String && mounted) {
+                      await context.push('/release-pdf', extra: releaseId);
+                    }
+                    _load();
+                  }
+                : null,
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: const Text('Photos'),
+            subtitle: Text(_photoCount == 0
+                ? 'Add photos of the goods and their condition'
+                : '$_photoCount photo${_photoCount == 1 ? '' : 's'}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              await context.push('/storage-photos', extra: b.id);
+              _load();
+            },
+          ),
+          if (b.customerId.isNotEmpty) ...[
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet_outlined),
+              title: const Text('Customer Statement'),
+              subtitle: const Text('Bills, payments and the balance'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                await context.push('/statement', extra: b.customerId);
+                _load();
+              },
+            ),
+          ],
+        ],
       ),
     );
   }

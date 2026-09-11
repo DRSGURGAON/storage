@@ -9,6 +9,7 @@ class DatabaseConstants {
     'charge_heads',
     'storage_bookings',
     'booking_items',
+    'storage_photos',
     'goods_releases',
     'release_items',
     'invoices',
@@ -60,6 +61,7 @@ class DatabaseConstants {
 
   static const String storageBookingTable = 'storage_bookings';
   static const String bookingItemTable = 'booking_items';
+  static const String storagePhotoTable = 'storage_photos';
   static const String goodsReleaseTable = 'goods_releases';
   static const String releaseItemTable = 'release_items';
 

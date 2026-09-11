@@ -378,6 +378,10 @@ class Migrations {
     /* 'PARTIAL' | 'FULL' */
     release_type TEXT NOT NULL DEFAULT 'PARTIAL',
 
+    /* What the customer still owed when the goods went out, as a
+       snapshot - so the record shows what was known at the time. */
+    outstanding_at_release REAL NOT NULL DEFAULT 0,
+
     collected_by_name TEXT,
     collected_by_phone TEXT,
     collected_by_id_proof TEXT,
@@ -405,6 +409,25 @@ class Migrations {
     item_name TEXT NOT NULL,
     quantity REAL NOT NULL DEFAULT 0,
     unit TEXT NOT NULL DEFAULT 'Nos'
+  );
+  ''';
+
+  /// A photo taken of the goods - their condition, the boxes, the
+  /// packed lot or the area they are kept in. The image itself stays on
+  /// the device (file_path); only the record is backed up, the same
+  /// honest limitation the company logo and signature have.
+  static const String createStoragePhotoTable = '''
+  CREATE TABLE IF NOT EXISTS storage_photos(
+    id TEXT PRIMARY KEY,
+
+    company_id TEXT NOT NULL DEFAULT '',
+    booking_id TEXT NOT NULL,
+
+    file_path TEXT NOT NULL,
+    caption TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+
+    created_at TEXT NOT NULL
   );
   ''';
 

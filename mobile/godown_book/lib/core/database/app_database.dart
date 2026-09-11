@@ -71,6 +71,7 @@ class AppDatabase {
     await db.execute(Migrations.createQuotationLineTable);
     await db.execute(Migrations.createStorageBookingTable);
     await db.execute(Migrations.createBookingItemTable);
+    await db.execute(Migrations.createStoragePhotoTable);
     await db.execute(Migrations.createGoodsReleaseTable);
     await db.execute(Migrations.createReleaseItemTable);
 

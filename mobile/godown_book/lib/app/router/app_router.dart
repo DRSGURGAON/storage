@@ -41,11 +41,17 @@ import '../../features/quotation/screens/quotation_form_screen.dart';
 import '../../features/quotation/screens/quotation_list_screen.dart';
 import '../../features/quotation/screens/quotation_pdf_screen.dart';
 
+// Release
+import '../../features/release/screens/release_form_screen.dart';
+import '../../features/release/screens/release_list_screen.dart';
+import '../../features/release/screens/release_pdf_screen.dart';
+
 // Storage records
 import '../../features/storage_booking/screens/storage_booking_detail_screen.dart';
 import '../../features/storage_booking/screens/storage_booking_form_screen.dart';
 import '../../features/storage_booking/screens/storage_booking_list_screen.dart';
 import '../../features/storage_booking/screens/storage_booking_pdf_screen.dart';
+import '../../features/storage_booking/screens/storage_photos_screen.dart';
 
 // Users & Roles
 import '../../features/users/screens/users_roles_screen.dart';
@@ -269,6 +275,12 @@ class AppRouter {
       ),
 
       GoRoute(
+        path: '/storage-photos',
+        builder: (context, state) =>
+            StoragePhotosScreen(bookingId: state.extra as String),
+      ),
+
+      GoRoute(
         path: '/storage-pdf',
         builder: (context, state) {
           final args = state.extra as Map<String, dynamic>;
@@ -277,6 +289,26 @@ class AppRouter {
             kind: BookingDocumentKind.fromName(args['kind'] as String?),
           );
         },
+      ),
+
+      // ==========================
+      // Releasing goods
+      // ==========================
+      GoRoute(
+        path: '/releases',
+        builder: (context, state) => const ReleaseListScreen(),
+      ),
+
+      GoRoute(
+        path: '/release-create',
+        builder: (context, state) =>
+            ReleaseFormScreen(bookingId: state.extra as String?),
+      ),
+
+      GoRoute(
+        path: '/release-pdf',
+        builder: (context, state) =>
+            ReleasePdfScreen(releaseId: state.extra as String),
       ),
 
       // ==========================
