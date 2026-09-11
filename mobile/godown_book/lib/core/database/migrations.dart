@@ -293,7 +293,8 @@ class Migrations {
     expected_end_date TEXT,
     actual_end_date TEXT,
 
-    /* 'MONTHLY' | 'DAILY' - how rent_rate is applied. */
+    /* 'MONTHLY' | 'DAILY' | 'PER_BOX_MONTHLY' | 'CUSTOM' - how
+       rent_rate is applied when a bill is raised. See RentBasis. */
     rent_basis TEXT NOT NULL DEFAULT 'MONTHLY',
     rent_rate REAL NOT NULL DEFAULT 0,
     /* Free-text unit the rate is quoted per, e.g. "month", "sq.ft/month" -
@@ -488,13 +489,17 @@ class Migrations {
 
     company_id TEXT NOT NULL DEFAULT '',
 
-    /* NULL means this row is a standalone Money Receipt, not a payment
-       against any Invoice - see PaymentModel.isStandaloneReceipt. */
+    /* NULL means this receipt is not against any one bill - an advance
+       or an on-account payment. See PaymentModel.isOnAccount. */
     invoice_id TEXT,
 
-    /* Only set for a standalone Money Receipt - its own document
-       number (Company Settings -> receiptPrefix). An invoice-linked
-       payment uses that invoice's own invoice_no instead. */
+    /* Who paid, and which storage record it relates to - both live
+       references for the customer statement and for navigation. */
+    customer_id TEXT,
+    booking_id TEXT,
+
+    /* Every receipt carries its own number (Company Settings ->
+       receiptPrefix), whether or not it is against a bill. */
     receipt_no TEXT,
 
     amount REAL NOT NULL DEFAULT 0,
@@ -509,9 +514,8 @@ class Migrations {
     reference_no TEXT,
     notes TEXT,
 
-    /* Only meaningful for a standalone Money Receipt (invoice_id NULL) -
-       an invoice-linked payment already has its customer via the
-       invoice itself. */
+    /* Snapshotted so a receipt prints correctly even if the customer
+       record is edited later. */
     payer_name TEXT,
     payer_phone TEXT,
     "against" TEXT,

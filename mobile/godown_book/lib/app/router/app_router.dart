@@ -27,6 +27,15 @@ import '../../features/customers/screens/customer_list_screen.dart';
 import '../../features/master/screens/charge_head_screen.dart';
 import '../../features/master/screens/storage_location_screen.dart';
 
+// Billing
+import '../../features/billing/screens/bill_form_screen.dart';
+import '../../features/billing/screens/bill_list_screen.dart';
+import '../../features/billing/screens/bill_pdf_screen.dart';
+import '../../features/billing/screens/payment_form_screen.dart';
+import '../../features/billing/screens/payment_list_screen.dart';
+import '../../features/billing/screens/payment_receipt_pdf_screen.dart';
+import '../../features/billing/screens/statement_screen.dart';
+
 // Quotation
 import '../../features/quotation/screens/quotation_form_screen.dart';
 import '../../features/quotation/screens/quotation_list_screen.dart';
@@ -268,6 +277,59 @@ class AppRouter {
             kind: BookingDocumentKind.fromName(args['kind'] as String?),
           );
         },
+      ),
+
+      // ==========================
+      // Bills, payments and statements
+      // ==========================
+      GoRoute(
+        path: '/bills',
+        builder: (context, state) => const BillListScreen(),
+      ),
+
+      GoRoute(
+        path: '/bill-create',
+        builder: (context, state) =>
+            BillFormScreen(bookingId: state.extra as String?),
+      ),
+
+      GoRoute(
+        path: '/bill-edit',
+        builder: (context, state) =>
+            BillFormScreen(editBillId: state.extra as String),
+      ),
+
+      GoRoute(
+        path: '/bill-pdf',
+        builder: (context, state) => BillPdfScreen(billId: state.extra as String),
+      ),
+
+      GoRoute(
+        path: '/payments',
+        builder: (context, state) => const PaymentListScreen(),
+      ),
+
+      GoRoute(
+        path: '/payment-create',
+        builder: (context, state) {
+          final args = state.extra as Map<String, dynamic>?;
+          return PaymentFormScreen(
+            billId: args?['billId'] as String?,
+            customerId: args?['customerId'] as String?,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/receipt-pdf',
+        builder: (context, state) =>
+            PaymentReceiptPdfScreen(paymentId: state.extra as String),
+      ),
+
+      GoRoute(
+        path: '/statement',
+        builder: (context, state) =>
+            StatementScreen(customerId: state.extra as String),
       ),
 
       // ==========================

@@ -33,21 +33,47 @@ enum StorageStatus {
       };
 }
 
-/// How the rent rate on a booking is applied.
+/// How the storage charge on a record is worked out when a bill is
+/// raised. Four ways an operator actually charges - nothing more.
 enum RentBasis {
+  /// A fixed amount for every started month.
   monthly,
-  daily;
+
+  /// An amount for every day the goods are with us.
+  daily,
+
+  /// An amount per box or article, for every started month.
+  perBoxMonthly,
+
+  /// A flat agreed amount per bill, however long the period is.
+  custom;
 
   String get code => switch (this) {
         RentBasis.monthly => 'MONTHLY',
         RentBasis.daily => 'DAILY',
+        RentBasis.perBoxMonthly => 'PER_BOX_MONTHLY',
+        RentBasis.custom => 'CUSTOM',
       };
 
   String get label => switch (this) {
         RentBasis.monthly => 'Per month',
         RentBasis.daily => 'Per day',
+        RentBasis.perBoxMonthly => 'Per box / month',
+        RentBasis.custom => 'Fixed amount',
       };
 
-  static RentBasis fromCode(String? code) =>
-      code == 'DAILY' ? RentBasis.daily : RentBasis.monthly;
+  /// What the rate means, for a form hint or a printed line.
+  String get rateHint => switch (this) {
+        RentBasis.monthly => 'per month',
+        RentBasis.daily => 'per day',
+        RentBasis.perBoxMonthly => 'per box per month',
+        RentBasis.custom => 'per bill',
+      };
+
+  static RentBasis fromCode(String? code) => switch (code) {
+        'DAILY' => RentBasis.daily,
+        'PER_BOX_MONTHLY' => RentBasis.perBoxMonthly,
+        'CUSTOM' => RentBasis.custom,
+        _ => RentBasis.monthly,
+      };
 }

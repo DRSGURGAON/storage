@@ -594,14 +594,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             context,
             Icons.receipt_long_outlined,
             'Storage Bill',
-            '/invoices',
+            '/bills',
             color: _brandBlue,
           ),
           _actionButton(
             context,
             Icons.receipt_outlined,
             'Payment Receipt',
-            '/money-receipts',
+            '/payments',
             color: _brandTealLight,
           ),
           _actionButton(
