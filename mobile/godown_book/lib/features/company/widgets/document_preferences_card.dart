@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 class DocumentPreferencesCard extends StatelessWidget {
   const DocumentPreferencesCard({
     super.key,
+    required this.quotationPrefixController,
     required this.bookingPrefixController,
     required this.invoicePrefixController,
     required this.receiptPrefixController,
@@ -11,6 +12,7 @@ class DocumentPreferencesCard extends StatelessWidget {
     required this.defaultTermsController,
   });
 
+  final TextEditingController quotationPrefixController;
   final TextEditingController bookingPrefixController;
   final TextEditingController invoicePrefixController;
   final TextEditingController receiptPrefixController;
@@ -43,12 +45,24 @@ class DocumentPreferencesCard extends StatelessWidget {
             const SizedBox(height: 20),
 
             TextField(
+              controller: quotationPrefixController,
+              decoration: const InputDecoration(
+                labelText: "Quotation Prefix",
+                hintText: "QT",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.request_quote),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextField(
               controller: bookingPrefixController,
               decoration: const InputDecoration(
                 labelText: "Storage Receipt Prefix",
-                hintText: "DRS/QT",
+                hintText: "SR",
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.request_quote),
+                prefixIcon: Icon(Icons.inventory_2),
               ),
             ),
 
@@ -58,7 +72,7 @@ class DocumentPreferencesCard extends StatelessWidget {
               controller: invoicePrefixController,
               decoration: const InputDecoration(
                 labelText: "Storage Bill Prefix",
-                hintText: "DRS/INV",
+                hintText: "INV",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.receipt_long),
               ),
@@ -69,8 +83,8 @@ class DocumentPreferencesCard extends StatelessWidget {
             TextField(
               controller: receiptPrefixController,
               decoration: const InputDecoration(
-                labelText: "Money Receipt Prefix",
-                hintText: "DRS/MR",
+                labelText: "Payment Receipt Prefix",
+                hintText: "MR",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.payments),
               ),
@@ -82,7 +96,7 @@ class DocumentPreferencesCard extends StatelessWidget {
               controller: releasePrefixController,
               decoration: const InputDecoration(
                 labelText: "Release Record Prefix",
-                hintText: "DRS/LR",
+                hintText: "RL",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.local_shipping),
               ),

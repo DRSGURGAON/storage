@@ -27,7 +27,12 @@ import '../../features/customers/screens/customer_list_screen.dart';
 import '../../features/master/screens/charge_head_screen.dart';
 import '../../features/master/screens/storage_location_screen.dart';
 
-// Storage bookings (Warehouse Receipt)
+// Quotation
+import '../../features/quotation/screens/quotation_form_screen.dart';
+import '../../features/quotation/screens/quotation_list_screen.dart';
+import '../../features/quotation/screens/quotation_pdf_screen.dart';
+
+// Storage records
 import '../../features/storage_booking/screens/storage_booking_detail_screen.dart';
 import '../../features/storage_booking/screens/storage_booking_form_screen.dart';
 import '../../features/storage_booking/screens/storage_booking_list_screen.dart';
@@ -204,7 +209,33 @@ class AppRouter {
       ),
 
       // ==========================
-      // Storage bookings (Warehouse Receipt)
+      // Quotation
+      // ==========================
+      GoRoute(
+        path: '/quotations',
+        builder: (context, state) => const QuotationListScreen(),
+      ),
+
+      GoRoute(
+        path: '/quotation-create',
+        builder: (context, state) =>
+            QuotationFormScreen(customerId: state.extra as String?),
+      ),
+
+      GoRoute(
+        path: '/quotation-edit',
+        builder: (context, state) =>
+            QuotationFormScreen(editQuotationId: state.extra as String),
+      ),
+
+      GoRoute(
+        path: '/quotation-pdf',
+        builder: (context, state) =>
+            QuotationPdfScreen(quotationId: state.extra as String),
+      ),
+
+      // ==========================
+      // Storage records
       // ==========================
       GoRoute(
         path: '/storage',

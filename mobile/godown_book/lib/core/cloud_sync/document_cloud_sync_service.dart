@@ -66,6 +66,8 @@ class DocumentCloudSyncService {
   static const List<String> syncedTables = [
     'customers',
     'storage_locations',
+    'quotations',
+    'quotation_lines',
     'storage_bookings',
     'booking_items',
     'goods_releases',

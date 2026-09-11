@@ -68,6 +68,7 @@ class CompanyTextControllers {
   // Documents
   // ==========================
 
+  final quotationPrefix = TextEditingController();
   final bookingPrefix = TextEditingController();
   final invoicePrefix = TextEditingController();
   final receiptPrefix = TextEditingController();
@@ -115,6 +116,7 @@ class CompanyTextControllers {
     googlePay.dispose();
     paytm.dispose();
 
+    quotationPrefix.dispose();
     bookingPrefix.dispose();
     invoicePrefix.dispose();
     receiptPrefix.dispose();

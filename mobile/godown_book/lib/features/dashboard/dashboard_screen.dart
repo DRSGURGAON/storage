@@ -571,6 +571,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         children: [
           _actionButton(
             context,
+            Icons.request_quote_outlined,
+            'Quotation',
+            '/quotations',
+            color: _brandNavy,
+          ),
+          _actionButton(
+            context,
             Icons.inventory_2_outlined,
             'New Storage',
             '/storage',

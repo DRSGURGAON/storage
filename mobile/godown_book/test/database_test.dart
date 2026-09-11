@@ -163,6 +163,9 @@ void main() {
   });
 
   test('seeded rows are claimed by the first company', () async {
+    await db.close();
+    db = await openTestDatabase(claimSeeds: false);
+
     TenantScope.set('company-first');
     // Charge heads are seeded before any company exists (company_id '').
     expect(await ChargeHeadRepository.instance.getAll(), isEmpty);

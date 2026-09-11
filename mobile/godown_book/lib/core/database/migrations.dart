@@ -77,9 +77,10 @@ class Migrations {
 
     affiliated_by TEXT,
 
-    /* Document numbering prefixes, e.g. "WR" -> WR/2026-27/0001. */
-    booking_prefix TEXT NOT NULL DEFAULT 'WR',
-    release_prefix TEXT NOT NULL DEFAULT 'DO',
+    /* Document numbering prefixes, e.g. "SR" -> SR/2026/0001. */
+    quotation_prefix TEXT NOT NULL DEFAULT 'QT',
+    booking_prefix TEXT NOT NULL DEFAULT 'SR',
+    release_prefix TEXT NOT NULL DEFAULT 'RL',
     invoice_prefix TEXT NOT NULL DEFAULT 'INV',
     receipt_prefix TEXT NOT NULL DEFAULT 'MR',
 
@@ -169,6 +170,91 @@ class Migrations {
     sort_order INTEGER NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1,
     description TEXT
+  );
+  ''';
+
+  // ==========================
+  // Quotation
+  // ==========================
+
+  /// What the operator quotes a customer before the goods move - the
+  /// packing/loading/transport/storage services and their amounts.
+  /// Customer details are snapshotted on the row (customer_id is a live
+  /// reference for navigation only), so editing the Customer master
+  /// never rewrites a quotation already sent.
+  static const String createQuotationTable = '''
+  CREATE TABLE IF NOT EXISTS quotations(
+    id TEXT PRIMARY KEY,
+
+    company_id TEXT NOT NULL DEFAULT '',
+    quotation_no TEXT NOT NULL,
+    quotation_date TEXT NOT NULL,
+    valid_upto TEXT,
+
+    customer_id TEXT,
+    customer_name TEXT NOT NULL,
+    customer_phone TEXT NOT NULL DEFAULT '',
+    customer_gst TEXT,
+    customer_address TEXT,
+    customer_city TEXT,
+    customer_state TEXT,
+    customer_pincode TEXT,
+
+    /* Where the goods come from and go to - both optional, since a
+       pure storage quotation has neither. */
+    from_city TEXT,
+    to_city TEXT,
+    move_date TEXT,
+
+    /* The storage part of the quote, in plain terms. */
+    storage_months REAL NOT NULL DEFAULT 0,
+    storage_note TEXT,
+
+    goods_description TEXT,
+
+    subtotal REAL NOT NULL DEFAULT 0,
+    discount_value REAL NOT NULL DEFAULT 0,
+    gst_percent REAL NOT NULL DEFAULT 0,
+    gst_amount REAL NOT NULL DEFAULT 0,
+    cgst_amount REAL NOT NULL DEFAULT 0,
+    sgst_amount REAL NOT NULL DEFAULT 0,
+    igst_amount REAL NOT NULL DEFAULT 0,
+    grand_total REAL NOT NULL DEFAULT 0,
+
+    /* 'DRAFT' | 'SENT' | 'ACCEPTED' | 'DECLINED' - see QuotationStatus. */
+    status TEXT NOT NULL DEFAULT 'DRAFT',
+
+    notes TEXT,
+    terms TEXT,
+
+    created_at TEXT NOT NULL,
+    updated_at TEXT,
+
+    UNIQUE(company_id, quotation_no)
+  );
+  ''';
+
+  /// One service line on a quotation. A line can carry an amount, or be
+  /// marked Included / Excluded / N/A - the customer must be able to see
+  /// which services are part of the price and which are not.
+  static const String createQuotationLineTable = '''
+  CREATE TABLE IF NOT EXISTS quotation_lines(
+    id TEXT PRIMARY KEY,
+
+    company_id TEXT NOT NULL DEFAULT '',
+    quotation_id TEXT NOT NULL,
+
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    charge_head_id TEXT,
+    service_name TEXT NOT NULL,
+    description TEXT,
+
+    /* 'AMOUNT' | 'INCLUDED' | 'EXCLUDED' | 'NA' - see ChargeMode. */
+    mode TEXT NOT NULL DEFAULT 'AMOUNT',
+    quantity REAL NOT NULL DEFAULT 1,
+    rate REAL NOT NULL DEFAULT 0,
+    amount REAL NOT NULL DEFAULT 0,
+    taxable INTEGER NOT NULL DEFAULT 1
   );
   ''';
 

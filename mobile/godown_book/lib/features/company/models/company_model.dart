@@ -101,6 +101,7 @@ class CompanyModel {
   // Document Preferences
   // ==========================
 
+  final String quotationPrefix;
   final String bookingPrefix;
   final String invoicePrefix;
   final String receiptPrefix;
@@ -192,10 +193,11 @@ class CompanyModel {
     this.googlePayNumber = '',
     this.paytmNumber = '',
 
-    this.bookingPrefix = 'WR',
+    this.quotationPrefix = 'QT',
+    this.bookingPrefix = 'SR',
     this.invoicePrefix = 'INV',
     this.receiptPrefix = 'MR',
-    this.releasePrefix = 'DO',
+    this.releasePrefix = 'RL',
 
     this.defaultTerms = '',
     this.footerText = '',
@@ -254,6 +256,7 @@ class CompanyModel {
     String? googlePayNumber,
     String? paytmNumber,
 
+    String? quotationPrefix,
     String? bookingPrefix,
     String? invoicePrefix,
     String? receiptPrefix,
@@ -317,6 +320,7 @@ class CompanyModel {
       googlePayNumber: googlePayNumber ?? this.googlePayNumber,
       paytmNumber: paytmNumber ?? this.paytmNumber,
 
+      quotationPrefix: quotationPrefix ?? this.quotationPrefix,
       bookingPrefix: bookingPrefix ?? this.bookingPrefix,
       invoicePrefix: invoicePrefix ?? this.invoicePrefix,
       receiptPrefix: receiptPrefix ?? this.receiptPrefix,
@@ -382,6 +386,7 @@ class CompanyModel {
       'gpay': googlePayNumber,
       'paytm': paytmNumber,
 
+      'quotation_prefix': quotationPrefix,
       'booking_prefix': bookingPrefix,
       'invoice_prefix': invoicePrefix,
       'receipt_prefix': receiptPrefix,
@@ -447,10 +452,11 @@ class CompanyModel {
       googlePayNumber: map['gpay'] ?? '',
       paytmNumber: map['paytm'] ?? '',
 
-      bookingPrefix: map['booking_prefix'] ?? 'WR',
+      quotationPrefix: map['quotation_prefix'] ?? 'QT',
+      bookingPrefix: map['booking_prefix'] ?? 'SR',
       invoicePrefix: map['invoice_prefix'] ?? 'INV',
       receiptPrefix: map['receipt_prefix'] ?? 'MR',
-      releasePrefix: map['release_prefix'] ?? 'DO',
+      releasePrefix: map['release_prefix'] ?? 'RL',
 
       defaultTerms: map['default_terms'] ?? '',
       footerText: map['footer'] ?? '',

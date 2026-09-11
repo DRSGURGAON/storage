@@ -65,8 +65,10 @@ class AppDatabase {
     await seedChargeHeads(db);
 
     // ==========================
-    // Storage documents
+    // Documents
     // ==========================
+    await db.execute(Migrations.createQuotationTable);
+    await db.execute(Migrations.createQuotationLineTable);
     await db.execute(Migrations.createStorageBookingTable);
     await db.execute(Migrations.createBookingItemTable);
     await db.execute(Migrations.createGoodsReleaseTable);

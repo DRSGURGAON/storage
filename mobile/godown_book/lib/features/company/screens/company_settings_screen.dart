@@ -117,6 +117,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
     c.googlePay.text = company.googlePayNumber;
     c.paytm.text = company.paytmNumber;
 
+    c.quotationPrefix.text = company.quotationPrefix;
     c.bookingPrefix.text = company.bookingPrefix;
     c.invoicePrefix.text = company.invoicePrefix;
     c.receiptPrefix.text = company.receiptPrefix;
@@ -186,6 +187,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
       googlePayNumber: c.googlePay.text.trim(),
       paytmNumber: c.paytm.text.trim(),
 
+      quotationPrefix: c.quotationPrefix.text.trim(),
       bookingPrefix: c.bookingPrefix.text.trim(),
       invoicePrefix: c.invoicePrefix.text.trim(),
       receiptPrefix: c.receiptPrefix.text.trim(),
@@ -576,6 +578,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
               const SizedBox(height: 16),
 
               DocumentPreferencesCard(
+                quotationPrefixController: c.quotationPrefix,
                 bookingPrefixController: c.bookingPrefix,
                 invoicePrefixController: c.invoicePrefix,
                 receiptPrefixController: c.receiptPrefix,

@@ -3,6 +3,8 @@ class DatabaseConstants {
   /// migration, the DAO helpers and the cloud backup all read one list.
   static const List<String> tenantTables = [
     'customers',
+    'quotations',
+    'quotation_lines',
     'storage_locations',
     'charge_heads',
     'storage_bookings',
@@ -31,12 +33,12 @@ class DatabaseConstants {
   static const String databaseName = 'godown_book.db';
 
   // v1: the first schema of Godown Book - company profile, customers,
-  // storage locations, charge heads, storage bookings (Warehouse
-  // Receipt) with their items, goods releases (Delivery Order / Gate
-  // Pass) with their items, rent invoices with charge lines, payments
-  // (Money Receipt), roles/permissions/users, security audit, per-
-  // document terms, company KYC, the subscription system and the
-  // cloud-sync bookkeeping table. Every later change is an explicit
+  // storage locations, charge heads, quotations with their service
+  // lines, storage records with their goods items, goods releases with
+  // their items, storage bills with charge lines, payments (receipts),
+  // roles/permissions/users, security audit, per-document terms,
+  // company KYC, the subscription system and the cloud-sync
+  // bookkeeping table. Every later change is an explicit
   // step in AppDatabase._onUpgrade, never an edit to an existing
   // CREATE TABLE.
   static const int databaseVersion = 1;
@@ -50,8 +52,11 @@ class DatabaseConstants {
   static const String chargeHeadTable = 'charge_heads';
 
   // ==========================
-  // Storage documents
+  // Documents
   // ==========================
+
+  static const String quotationTable = 'quotations';
+  static const String quotationLineTable = 'quotation_lines';
 
   static const String storageBookingTable = 'storage_bookings';
   static const String bookingItemTable = 'booking_items';

@@ -61,7 +61,15 @@ class CompanyFirestoreSyncService {
   /// cloud mirror didn't happen yet", never as a reason to fail the
   /// whole save operation.
   Future<bool> pushToCloud(CompanyModel company) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    // Reading currentUser itself throws when Firebase never initialized
+    // (a build where firebase_options.dart is still the placeholder, or
+    // a unit test) - a local save must never fail for that reason.
+    final String? uid;
+    try {
+      uid = FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      return false;
+    }
     if (uid == null || uid.isEmpty) return false;
 
     try {
@@ -136,6 +144,7 @@ class CompanyFirestoreSyncService {
       'phonePeNumber': company.phonePeNumber,
       'googlePayNumber': company.googlePayNumber,
       'paytmNumber': company.paytmNumber,
+      'quotationPrefix': company.quotationPrefix,
       'bookingPrefix': company.bookingPrefix,
       'invoicePrefix': company.invoicePrefix,
       'receiptPrefix': company.receiptPrefix,
@@ -193,6 +202,7 @@ class CompanyFirestoreSyncService {
       phonePeNumber: data['phonePeNumber'] as String? ?? '',
       googlePayNumber: data['googlePayNumber'] as String? ?? '',
       paytmNumber: data['paytmNumber'] as String? ?? '',
+      quotationPrefix: data['quotationPrefix'] as String? ?? '',
       bookingPrefix: data['bookingPrefix'] as String? ?? '',
       invoicePrefix: data['invoicePrefix'] as String? ?? '',
       receiptPrefix: data['receiptPrefix'] as String? ?? '',
