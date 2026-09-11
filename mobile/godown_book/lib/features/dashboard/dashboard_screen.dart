@@ -19,10 +19,9 @@ import '../subscription/repositories/subscription_repository.dart';
 import '../subscription/repositories/subscription_settings_repository.dart';
 import 'services/dashboard_stats_service.dart';
 
-/// The primary landing screen after login - every figure here is read
-/// from DashboardStatsService, which itself only reads from the
-/// existing, already-tenant-scoped repositories - no fake numbers, no
-/// second data store.
+/// The home screen: what the operator can do, what happened today, and
+/// what needs attention. Every figure comes from DashboardStatsService,
+/// which only reads the existing, already-company-scoped repositories.
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -31,16 +30,6 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  // The Dashboard's own 4-shade brand palette, now genuinely reading
-  // from the current Material theme's ColorScheme instead of fixed
-  // hex values - which itself follows the company's own selected
-  // DocumentTheme (see AppTheme.light/dark), the same 7-theme setting
-  // that already styles every generated PDF. This is what makes the
-  // in-app UI genuinely match a company's chosen theme, not just
-  // their documents. Mapped to the closest original shade: navy
-  // (darkest, was 0xff0A2540) -> primary, blue (was 0xff0D47A1) ->
-  // primaryContainer, teal-dark (was 0xff0095A8) -> secondary,
-  // teal-light (was 0xff00B5A6) -> tertiary.
   Color get _brandNavy => Theme.of(context).colorScheme.primary;
   Color get _brandBlue => Theme.of(context).colorScheme.primaryContainer;
   Color get _brandTealDark => Theme.of(context).colorScheme.secondary;
@@ -49,22 +38,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   DashboardStats? _stats;
   bool _loading = true;
 
-  // Subscription summary (new addition) - reads the same
-  // SubscriptionAccessService/SubscriptionRepository already used
-  // elsewhere (SubscriptionScreen, the 4 document PDF screens' demo
-  // gates) - no new calculation, no second subscription-status source.
   SubscriptionModel? _subscription;
   bool? _isSubscriptionActive;
   bool _isExpiringSoon = false;
   int? _daysUntilExpiry;
 
-  // Super Admin's own single support contact (WhatsApp/Call) - the
-  // same number for every installed company, not a per-company value.
-  // See SubscriptionSettingsModel's own doc comment: this is genuinely
-  // "where the customer sends their [payment screenshot]" - reused
-  // here for the Dashboard's own Helpline card rather than sourcing
-  // from CompanyModel, which would incorrectly show each company its
-  // own number instead of the app owner's support contact.
+  /// The app owner's own support contact - the same number for every
+  /// installed company, not a per-company value.
   SubscriptionSettingsModel? _supportSettings;
 
   @override
@@ -74,7 +54,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _load() async {
-    await _backfillDrsId();
+    await _backfillAppId();
 
     final stats = await DashboardStatsService.load();
 
@@ -106,36 +86,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     });
   }
 
-  /// A company saved before DRS-ID onboarding existed still carries
-  /// the legacy 'DRS001' placeholder, so the unique-ID line under the
-  /// company name (and the Super Admin's Customer ID) shows nothing
-  /// for them. Mint their real sequential App ID once, best-effort - offline
-  /// simply tries again on the next dashboard load. Saved via the
-  /// repository directly (not CompanyController.saveCompany, whose
-  /// keep-existing-code guard would discard the new value in favour
-  /// of the old 'DRS001').
-  Future<void> _backfillDrsId() async {
+  /// Mints this company's App ID the first time it is online. Offline,
+  /// it simply tries again on the next load.
+  Future<void> _backfillAppId() async {
     try {
       final company = await CompanyController.instance.getCompany();
       if (company == null) return;
 
       final code = company.companyCode.trim();
-
-      final String newCode;
-      if (code.isEmpty || code == 'DRS001') {
-        // Never assigned - mint a fresh sequential App ID.
-        newCode = await DrsIdCounterService.instance.assignNextDrsId();
-      } else if (code.toUpperCase().startsWith('DRS-')) {
-        // Assigned under the old "DRS-4839" format - keep the same
-        // number, just drop the prefix (App IDs are plain numbers
-        // now). No counter interaction, so nothing is re-assigned.
-        newCode = code.substring(4);
-      } else {
-        return;
-      }
+      if (code.isNotEmpty) return;
 
       final updated = company.copyWith(
-        companyCode: newCode,
+        companyCode: await DrsIdCounterService.instance.assignNextDrsId(),
         updatedAt: DateTime.now().toIso8601String(),
       );
 
@@ -144,17 +106,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
       ref.invalidate(currentCompanyProvider);
     } catch (_) {
-      // Offline / counter unreachable - the ID stays unassigned for
-      // now and this retries on the next dashboard load.
+      // Offline or the counter is unreachable - retried next time.
     }
+  }
+
+  String _money(double value) {
+    if (value >= 100000) return '₹${(value / 100000).toStringAsFixed(1)}L';
+    return '₹${value.toStringAsFixed(0)}';
+  }
+
+  static String _qty(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
   }
 
   @override
   Widget build(BuildContext context) {
     final company = ref.watch(currentCompanyProvider).value;
     final needsSetup = company != null && !company.isConfigured;
-    final hasDrsId = (company?.companyCode ?? '').isNotEmpty &&
-        company?.companyCode != 'DRS001';
+    final hasAppId = (company?.companyCode ?? '').isNotEmpty;
     final stats = _stats;
 
     return Scaffold(
@@ -172,10 +147,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         elevation: 2,
         centerTitle: false,
         title: const Text(
-          "Godown Book",
+          'Godown Book',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.folder_open_outlined, color: Colors.white),
+            tooltip: 'Documents',
+            onPressed: () => context.push('/documents'),
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: Colors.white),
             tooltip: 'Settings',
@@ -192,8 +172,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Documents print from Company Settings, so an incomplete
-                // profile silently produces blank letterheads.
                 if (needsSetup)
                   Card(
                     color: const Color(0xffFFF4E5),
@@ -202,17 +180,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       leading: const Icon(Icons.warning_amber_rounded),
                       title: const Text('Company profile incomplete'),
                       subtitle: Text(
-                        'Documents need: '
-                        '${company.missingFields.join(', ')}',
+                        'Your documents need: ${company.missingFields.join(', ')}',
                       ),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => context.push('/company-settings'),
                     ),
                   ),
 
-                // One merged banner: company identity on top, the
-                // subscription-status line as its bottom strip - no
-                // separate second card repeating the same ID/logo.
                 if (company != null)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
@@ -230,148 +204,130 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ),
                           ),
                           child: Row(
-                      children: [
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.15),
-                            shape: BoxShape.circle,
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          padding: const EdgeInsets.all(4),
-                          child: company.logoPath.isNotEmpty
-                              ? Image.file(
-                                  File(company.logoPath),
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.storefront_outlined,
-                                          color: Colors.white, size: 24),
-                                )
-                              : const Icon(Icons.storefront_outlined,
-                                  color: Colors.white, size: 24),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Welcome back',
-                                style: TextStyle(fontSize: 12, color: Colors.white70),
-                              ),
-                              Text(
-                                company.companyName.isEmpty
-                                    ? 'Set up your company'
-                                    : company.companyName,
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                              Container(
+                                width: 46,
+                                height: 46,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                  shape: BoxShape.circle,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                clipBehavior: Clip.antiAlias,
+                                padding: const EdgeInsets.all(4),
+                                child: company.logoPath.isNotEmpty
+                                    ? Image.file(
+                                        File(company.logoPath),
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (context, error, stackTrace) =>
+                                            const Icon(Icons.warehouse_outlined,
+                                                color: Colors.white, size: 24),
+                                      )
+                                    : const Icon(Icons.warehouse_outlined,
+                                        color: Colors.white, size: 24),
                               ),
-                              if (hasDrsId) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  'My AppID: ${company.companyCode}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.white70,
-                                    fontWeight: FontWeight.w600,
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '$_greeting 👋',
+                                      style: const TextStyle(fontSize: 12, color: Colors.white70),
+                                    ),
+                                    Text(
+                                      company.companyName.isEmpty
+                                          ? 'Set up your company'
+                                          : company.companyName,
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    if (hasAppId) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'My App ID: ${company.companyCode}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.white70,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              if (hasAppId &&
+                                  _supportSettings != null &&
+                                  (_supportSettings!.whatsappNumber.isNotEmpty ||
+                                      _supportSettings!.supportPhoneNumber.isNotEmpty))
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(20),
+                                  onTap: () {
+                                    final number = _supportSettings!.whatsappNumber.isNotEmpty
+                                        ? _supportSettings!.whatsappNumber
+                                        : _supportSettings!.supportPhoneNumber;
+
+                                    ContactLauncher.openWhatsAppWithChoice(
+                                      context,
+                                      number,
+                                      message: 'Hello Godown Book,\n\n'
+                                          'I need some help getting started.\n\n'
+                                          'My App ID: ${company.companyCode}',
+                                    );
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.chat_bubble_outline,
+                                            color: Colors.white, size: 16),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Help',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ],
                             ],
                           ),
                         ),
-                        if (hasDrsId &&
-                            _supportSettings != null &&
-                            (_supportSettings!.whatsappNumber.isNotEmpty ||
-                                _supportSettings!.supportPhoneNumber.isNotEmpty))
-                          InkWell(
-                            borderRadius: BorderRadius.circular(20),
-                            onTap: () {
-                              final number =
-                                  _supportSettings!.whatsappNumber.isNotEmpty
-                                      ? _supportSettings!.whatsappNumber
-                                      : _supportSettings!.supportPhoneNumber;
-
-                              ContactLauncher.openWhatsAppWithChoice(
-                                context,
-                                number,
-                                message:
-                                    'Hello Godown Book,\n\n'
-                                    'I am a new user and would like some '
-                                    'assistance getting started. Kindly '
-                                    'connect with me to help with my query.\n\n'
-                                    'My AppID: ${company.companyCode}',
-                              );
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.chat_bubble_outline, color: Colors.white, size: 16),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Contact Us',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                        ),
-                        if (_subscription != null)
-                          _subscriptionStatusStrip(context),
+                        if (_subscription != null) _subscriptionStatusStrip(context),
                       ],
                     ),
                   ),
 
                 const SizedBox(height: 20),
 
+                _sectionTitle('Quick Actions'),
+                _quickActions(context),
+
                 if (_loading)
                   const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 60),
+                    padding: EdgeInsets.symmetric(vertical: 40),
                     child: Center(child: CircularProgressIndicator()),
                   )
                 else if (stats != null) ...[
-                  _sectionTitle('Quick Actions'),
-                  _quickActions(context),
-
-                  _sectionTitle('Today'),
+                  _sectionTitle("Today"),
                   _todaySection(stats),
 
-                  DashboardExpandableSection(
-                    icon: Icons.inventory_2_outlined,
-                    iconColor: _brandNavy,
-                    title: 'Storage',
-                    summary: '${stats.inStorage} customers storing  •  '
-                        '${_qty(stats.unitsInStock)} units',
-                    initiallyExpanded: true,
-                    child: _storageSection(stats, context),
-                  ),
-
-                  DashboardExpandableSection(
-                    icon: Icons.people_outline,
-                    iconColor: _brandTealDark,
-                    title: 'Customers',
-                    summary: '${stats.activeCustomers} active customers',
-                    child: _customerSection(stats, context),
-                  ),
+                  _sectionTitle('Needs Attention'),
+                  _attentionSection(stats, context),
 
                   if (_supportSettings != null) _supportContactRow(_supportSettings!),
                   if (_subscription != null) _subscriptionIconsRow(context),
@@ -400,36 +356,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           const SizedBox(width: 8),
           Text(
             text,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: _brandNavy,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _brandNavy),
           ),
         ],
       ),
     );
   }
 
-  /// The subscription-status line, shown as the bottom strip of the
-  /// merged welcome banner (previously its own separate card that
-  /// repeated the App ID/logo the banner already shows). Same
-  /// status-message logic as before; tapping opens the full
-  /// Subscription screen.
+  /// The subscription line, as the bottom strip of the welcome banner.
   Widget _subscriptionStatusStrip(BuildContext context) {
     final subscription = _subscription;
     if (subscription == null) return const SizedBox.shrink();
 
     final status = subscription.status;
-
     final showExpiryWarning = _isExpiringSoon && _daysUntilExpiry != null;
     final isHealthy = status == SubscriptionStatus.active && !showExpiryWarning;
 
     String statusMessage;
     if (status == SubscriptionStatus.expired) {
-      statusMessage = 'Your subscription is expired, please renew it.';
+      statusMessage = 'Your subscription has expired - please renew it.';
     } else if (status == SubscriptionStatus.limited) {
-      statusMessage = 'Subscribe now to unlock all Premium features.';
+      statusMessage = 'Subscribe to make unlimited documents.';
     } else if (showExpiryWarning) {
       final days = _daysUntilExpiry!;
       statusMessage = days <= 0
@@ -453,10 +400,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               child: Text(
                 statusMessage,
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
+                    color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
               ),
             ),
             const SizedBox(width: 8),
@@ -467,10 +411,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                isHealthy ? 'View Details' : 'Subscription Details',
+                isHealthy ? 'View Details' : 'See Plans',
                 style: TextStyle(
-                  color:
-                      isHealthy ? _brandTealLight : const Color(0xffE53935),
+                  color: isHealthy ? _brandTealLight : const Color(0xffE53935),
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
@@ -479,79 +422,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  /// A small stat tile - the shared building block for every summary
-  /// grid below, sized to fit comfortably on a phone screen (2 per row).
-  Widget _statTile(String label, String value, {Color? color}) {
-    final accent = color ?? _brandTealDark;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: accent.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: 4,
-            margin: const EdgeInsets.symmetric(vertical: 2),
-            decoration: BoxDecoration(
-              color: accent,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: accent,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  label,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statGrid(List<Widget> tiles) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      // Was 1.9 - too tight for a 2-line label like "This FY Revenue
-      // (2026-27)" to fit above the fixed cell height GridView.count
-      // derives from this ratio, causing the reported bottom overflow.
-      // 1.6 gives every tile (this ratio is shared across all 5
-      // dashboard sections using _statGrid, not special-cased to
-      // Financial Summary) genuinely more vertical room for a 2-line
-      // label without needing a scrollable grid or a redesign.
-      childAspectRatio: 1.6,
-      children: tiles,
     );
   }
 
@@ -564,63 +434,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         crossAxisCount: 2,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
-        // Was 2.6 - a touch shorter per button (task's own "reduce
-        // moderately, not tiny" instruction) without shrinking the
-        // touch target below Material's 48dp minimum height.
         childAspectRatio: 3.0,
         children: [
-          _actionButton(
-            context,
-            Icons.request_quote_outlined,
-            'Quotation',
-            '/quotations',
-            color: _brandNavy,
-          ),
-          _actionButton(
-            context,
-            Icons.inventory_2_outlined,
-            'New Storage',
-            '/storage',
-            color: _brandTealDark,
-          ),
-          _actionButton(
-            context,
-            Icons.outbox_outlined,
-            'Release Goods',
-            '/releases',
-            color: _brandNavy,
-          ),
-          _actionButton(
-            context,
-            Icons.receipt_long_outlined,
-            'Storage Bill',
-            '/bills',
-            color: _brandBlue,
-          ),
-          _actionButton(
-            context,
-            Icons.receipt_outlined,
-            'Payment Receipt',
-            '/payments',
-            color: _brandTealLight,
-          ),
-          _actionButton(
-            context,
-            Icons.people_outline,
-            'Customers',
-            '/customers',
-            color: _brandTealDark,
-          ),
-          // Letter Head needs no source record at all - it prints
-          // purely from the Company Profile, so it routes straight to
-          // its own PDF screen with no picker step.
-          _actionButton(
-            context,
-            Icons.article_outlined,
-            'Letter Head',
-            '/letterhead-pdf',
-            color: _brandBlue,
-          ),
+          _actionButton(context, Icons.person_add_alt_1_outlined, 'New Customer',
+              '/customer-create', color: _brandTealDark),
+          _actionButton(context, Icons.request_quote_outlined, 'New Quotation',
+              '/quotation-create', color: _brandNavy),
+          _actionButton(context, Icons.inventory_2_outlined, 'New Storage',
+              '/storage-create', color: _brandBlue),
+          _actionButton(context, Icons.receipt_long_outlined, 'Create Bill',
+              '/bill-create', color: _brandTealLight),
+          _actionButton(context, Icons.payments_outlined, 'Receive Payment',
+              '/payment-create', color: _brandTealDark),
+          _actionButton(context, Icons.outbox_outlined, 'Release Goods',
+              '/release-create', color: _brandNavy),
         ],
       ),
     );
@@ -637,7 +464,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => context.push(route),
+      onTap: () async {
+        await context.push(route);
+        _load();
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
@@ -670,79 +500,190 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  static String _qty(double v) =>
-      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
-
   Widget _todaySection(DashboardStats stats) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: _statGrid([
-        _statTile('New Storage Today', '${stats.receiptsToday}'),
-        _statTile('Rent Due', '${stats.rentDue.length}',
-            color: stats.rentDue.isEmpty ? null : Colors.deepOrange),
-      ]),
-    );
-  }
-
-  Widget _storageSection(DashboardStats stats, BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
+      child: GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.6,
         children: [
-          _statGrid([
-            _statTile('In Storage', '${stats.inStorage}'),
-            _statTile('Units In Stock', _qty(stats.unitsInStock)),
-            _statTile('Partly Released', '${stats.partlyReleased}',
-                color: Colors.deepOrange),
-            _statTile('Released', '${stats.releasedCount}', color: Colors.green),
-          ]),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () => context.push('/storage'),
-              icon: const Icon(Icons.chevron_right),
-              label: const Text('All storage'),
-            ),
+          _statTile('Customers Storing', '${stats.customersStoring}',
+              onTap: () => context.push('/customers')),
+          _statTile('Items In Storage', _qty(stats.itemsInStorage),
+              onTap: () => context.push('/storage')),
+          _statTile(
+            'Bills Due',
+            '${stats.unpaidBills.length}',
+            color: stats.unpaidBills.isEmpty ? null : Colors.red,
+            onTap: () => context.push('/bills'),
+          ),
+          _statTile(
+            'Received Today',
+            _money(stats.collectedToday),
+            color: Colors.green,
+            onTap: () => context.push('/payments'),
           ),
         ],
       ),
     );
   }
 
-  Widget _customerSection(DashboardStats stats, BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        children: [
-          _statGrid([
-            _statTile('Active Customers', '${stats.activeCustomers}'),
-            _statTile('Total Customers', '${stats.customers.length}'),
-          ]),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () => context.push('/customers'),
-              icon: const Icon(Icons.chevron_right),
-              label: const Text('Manage customers'),
+  Widget _statTile(String label, String value, {Color? color, VoidCallback? onTap}) {
+    final accent = color ?? _brandTealDark;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: accent.withValues(alpha: 0.18)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 4,
+              margin: const EdgeInsets.symmetric(vertical: 2),
+              decoration: BoxDecoration(
+                color: accent,
+                borderRadius: BorderRadius.circular(4),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold, color: accent),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  /// Subscription-status icons - a second, icon-style entry point to
-  /// the same existing /subscription and /subscription-history routes
-  /// (also reachable from Settings) - genuinely reuses this screen's
-  /// own already-loaded _subscription data, not a new status source.
+  /// Only what genuinely needs doing - nothing is listed when the desk
+  /// is clear.
+  Widget _attentionSection(DashboardStats stats, BuildContext context) {
+    final rows = <Widget>[];
+
+    if (stats.rentDue.isNotEmpty) {
+      rows.add(_attentionRow(
+        Icons.receipt_long_outlined,
+        Colors.deepOrange,
+        '${stats.rentDue.length} storage bill${stats.rentDue.length == 1 ? '' : 's'} to raise',
+        stats.rentDue.take(3).map((b) => b.customerName).join(', '),
+        () async {
+          await context.push('/bill-create', extra: stats.rentDue.first.id);
+          _load();
+        },
+      ));
+    }
+
+    if (stats.unpaidBills.isNotEmpty) {
+      rows.add(_attentionRow(
+        Icons.currency_rupee,
+        Colors.red,
+        '${_money(stats.totalOutstanding)} outstanding',
+        '${stats.unpaidBills.length} bill${stats.unpaidBills.length == 1 ? '' : 's'} unpaid'
+        '${stats.overdueBills.isEmpty ? '' : ', ${stats.overdueBills.length} overdue'}',
+        () async {
+          await context.push('/bills');
+          _load();
+        },
+      ));
+    }
+
+    if (stats.pastExpectedEnd.isNotEmpty) {
+      rows.add(_attentionRow(
+        Icons.event_busy_outlined,
+        Colors.indigo,
+        '${stats.pastExpectedEnd.length} past the expected end date',
+        stats.pastExpectedEnd.take(3).map((b) => b.customerName).join(', '),
+        () async {
+          await context.push('/storage');
+          _load();
+        },
+      ));
+    }
+
+    if (stats.quotationsAwaitingReply.isNotEmpty) {
+      rows.add(_attentionRow(
+        Icons.mark_email_unread_outlined,
+        _brandBlue,
+        '${stats.quotationsAwaitingReply.length} quotation${stats.quotationsAwaitingReply.length == 1 ? '' : 's'} awaiting reply',
+        stats.quotationsAwaitingReply.take(3).map((q) => q.customerName).join(', '),
+        () async {
+          await context.push('/quotations');
+          _load();
+        },
+      ));
+    }
+
+    if (rows.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: 16),
+        child: Card(
+          child: ListTile(
+            leading: Icon(Icons.check_circle_outline, color: Color(0xff2E7D32)),
+            title: Text('Nothing pending'),
+            subtitle: Text('Bills are raised, payments are in, nothing is overdue.'),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Card(child: Column(children: rows)),
+    );
+  }
+
+  Widget _attentionRow(
+    IconData icon,
+    Color color,
+    String title,
+    String subtitle,
+    VoidCallback onTap,
+  ) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: color.withValues(alpha: 0.12),
+        foregroundColor: color,
+        child: Icon(icon, size: 18),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+      subtitle: subtitle.isEmpty ? null : Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
+    );
+  }
+
   Widget _subscriptionIconsRow(BuildContext context) {
     final isActive = _isSubscriptionActive ?? false;
-
-    final statusIcon = isActive ? Icons.verified : Icons.add_circle_outline;
-    final statusColor = isActive ? const Color(0xff2E7D32) : const Color(0xff1F3864);
-    final statusLabel = isActive ? 'Subscribed' : 'Subscribe Now';
 
     return Padding(
       padding: const EdgeInsets.only(top: 8),
@@ -757,18 +698,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Subscription',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
+              const Text('Subscription',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const Divider(height: 20),
               Row(
                 children: [
                   Expanded(
                     child: _supportOption(
-                      icon: statusIcon,
-                      iconColor: statusColor,
-                      label: statusLabel,
+                      icon: isActive ? Icons.verified : Icons.add_circle_outline,
+                      iconColor:
+                          isActive ? const Color(0xff2E7D32) : const Color(0xff1F3864),
+                      label: isActive ? 'Subscribed' : 'Subscribe Now',
                       onTap: () => context.push('/subscription'),
                     ),
                   ),
@@ -789,10 +729,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  /// One contact row - icon chip, title, the actual number/hint, and a
-  /// chevron. Reads as a tappable action rather than a bare icon, and
-  /// shows the number itself so the user knows who they are calling
-  /// before they tap.
   Widget _contactTile({
     required Widget iconWidget,
     required Color tint,
@@ -826,20 +762,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
-                    ),
+                    Text(title,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    Text(subtitle,
+                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   ],
                 ),
               ),
@@ -851,17 +777,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  /// WhatsApp/Call support row - genuinely sourced from the Super
-  /// Admin's own single support contact (SubscriptionSettingsModel.
-  /// whatsappNumber/supportPhoneNumber, the same number for every
-  /// installed company - see SubscriptionSettingsModel's own doc
-  /// comment), never a hardcoded/invented number and never a
-  /// per-company value. Shown at the bottom of the Dashboard
-  /// (post-login). Prefers whatsappNumber for the WhatsApp button
-  /// specifically, falling back to supportPhoneNumber when no
-  /// dedicated WhatsApp number was configured; "Call Us" always uses
-  /// supportPhoneNumber. Renders nothing (not an empty/broken card)
-  /// when neither is configured.
+  /// The app owner's support contact, from the Super Admin's own
+  /// settings - never a per-company number, never invented.
   Widget _supportContactRow(SubscriptionSettingsModel settings) {
     final whatsappNumber = settings.whatsappNumber.isNotEmpty
         ? settings.whatsappNumber
@@ -894,28 +811,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       color: _brandNavy.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(
-                      Icons.support_agent,
-                      size: 19,
-                      color: _brandNavy,
-                    ),
+                    child: Icon(Icons.support_agent, size: 19, color: _brandNavy),
                   ),
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Need help?',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'Our support team is here for you',
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
+                        Text('Need help?',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                        Text('Our support team is here for you',
+                            style: TextStyle(fontSize: 12, color: Colors.grey)),
                       ],
                     ),
                   ),
@@ -924,11 +830,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               const SizedBox(height: 14),
               if (callNumber.isNotEmpty)
                 _contactTile(
-                  iconWidget: Icon(
-                    Icons.call,
-                    size: 20,
-                    color: _brandBlue,
-                  ),
+                  iconWidget: Icon(Icons.call, size: 20, color: _brandBlue),
                   tint: _brandBlue,
                   title: 'Call Us',
                   subtitle: callNumber,
@@ -959,8 +861,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _supportOption({
-    IconData? icon,
-    Widget? iconWidget,
+    required IconData icon,
     required Color iconColor,
     required String label,
     required VoidCallback onTap,
@@ -979,7 +880,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 color: iconColor.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: iconWidget ?? Icon(icon, color: iconColor, size: 26),
+              child: Icon(icon, color: iconColor, size: 26),
             ),
             const SizedBox(height: 10),
             Text(
@@ -987,121 +888,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A collapsible Dashboard section - icon + heading + optional glance
-/// summary, collapsed by default, expanding to its full content only
-/// when tapped. Keeps the home screen scannable instead of forcing
-/// every section's full detail to always render - purely a display/
-/// interaction wrapper around each section's own already-existing
-/// content widget; no section's own data or calculation logic is
-/// touched by this.
-class DashboardExpandableSection extends StatefulWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-
-  /// A short glance value shown next to the title even while
-  /// collapsed (e.g. "12 Bookings") - null when there's nothing
-  /// meaningful to summarize in one line.
-  final String? summary;
-
-  final Widget child;
-
-  final bool initiallyExpanded;
-
-  const DashboardExpandableSection({
-    super.key,
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    this.summary,
-    required this.child,
-    this.initiallyExpanded = false,
-  });
-
-  @override
-  State<DashboardExpandableSection> createState() =>
-      _DashboardExpandableSectionState();
-}
-
-class _DashboardExpandableSectionState
-    extends State<DashboardExpandableSection> {
-  late bool _expanded = widget.initiallyExpanded;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.grey.shade200),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            InkWell(
-              onTap: () => setState(() => _expanded = !_expanded),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: widget.iconColor.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(widget.icon, color: widget.iconColor, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.title,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (widget.summary != null)
-                            Text(
-                              widget.summary!,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      _expanded ? Icons.expand_less : Icons.expand_more,
-                      color: Colors.grey,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (_expanded)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                child: widget.child,
-              ),
           ],
         ),
       ),

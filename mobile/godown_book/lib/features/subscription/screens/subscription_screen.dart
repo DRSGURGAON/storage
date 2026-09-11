@@ -44,6 +44,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   SubscriptionModel? _subscription;
   List<SubscriptionPlanModel> _plans = [];
   SubscriptionSettingsModel? _settings;
+  /// Kept only to name the company in the WhatsApp message sent with a
+  /// payment screenshot - deliberately never used as a payment source
+  /// (see _buildQrIfNeeded's own note on why).
   CompanyModel? _company;
   bool _loading = true;
   bool _isExpiringSoon = false;
@@ -477,7 +480,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     context,
                     settings!.whatsappNumber,
                     message:
-                        'Hi, I have made a payment for my Godown Book subscription. Sharing the screenshot.',
+                        'Hi, I have made a payment for my Godown Book subscription'
+                        '${(_company?.companyName ?? '').trim().isEmpty ? '' : ' for ${_company!.companyName.trim()}'}'
+                        '. Sharing the screenshot.',
                   ),
                   icon: const Icon(Icons.chat),
                   label: const Text('Send Payment Screenshot on WhatsApp'),

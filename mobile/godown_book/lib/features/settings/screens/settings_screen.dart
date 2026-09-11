@@ -172,6 +172,22 @@ class SettingsScreen extends ConsumerWidget {
 
           const SizedBox(height: 16),
 
+          _SectionHeader('Documents'),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: ListTile(
+              leading: const Icon(Icons.folder_open_outlined),
+              title: const Text('All Documents'),
+              subtitle: const Text(
+                'Quotations, storage receipts, bills, payment receipts, releases',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/documents'),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
           _SectionHeader('Masters'),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),

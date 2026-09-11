@@ -68,6 +68,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     if (result == true) await _load();
   }
 
+  Future<void> _openCustomer(CustomerModel customer) async {
+    await context.push('/customer-detail', extra: customer.id);
+    await _load();
+  }
+
   Future<void> _openEdit(CustomerModel customer) async {
     final result = await context.push('/customer-edit', extra: customer.id);
     if (result == true) await _load();
@@ -141,7 +146,8 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                             final customer = _filtered[index];
                             return _CustomerCard(
                               customer: customer,
-                              onTap: () => _openEdit(customer),
+                              onTap: () => _openCustomer(customer),
+                              onEdit: () => _openEdit(customer),
                               onToggleActive: () => _toggleActive(customer),
                             );
                           },
@@ -157,11 +163,13 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
 class _CustomerCard extends StatelessWidget {
   final CustomerModel customer;
   final VoidCallback onTap;
+  final VoidCallback onEdit;
   final VoidCallback onToggleActive;
 
   const _CustomerCard({
     required this.customer,
     required this.onTap,
+    required this.onEdit,
     required this.onToggleActive,
   });
 
@@ -210,7 +218,7 @@ class _CustomerCard extends StatelessWidget {
                   customer.mobileNumber,
                 );
               case 'edit':
-                onTap();
+                onEdit();
               case 'toggle':
                 onToggleActive();
             }

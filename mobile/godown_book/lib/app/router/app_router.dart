@@ -7,6 +7,9 @@ import '../../core/subscription/super_admin_scope.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/otp_verification_screen.dart';
 
+// Documents
+import '../../features/documents/screens/document_centre_screen.dart';
+
 // Dashboard / Settings
 import '../../features/dashboard/dashboard_screen.dart';
 import '../../features/settings/screens/cloud_backup_screen.dart';
@@ -22,6 +25,7 @@ import '../../features/company/screens/letterhead_pdf_screen.dart';
 import '../../features/kyc/screens/kyc_screen.dart';
 
 // Masters
+import '../../features/customers/screens/customer_detail_screen.dart';
 import '../../features/customers/screens/customer_form_screen.dart';
 import '../../features/customers/screens/customer_list_screen.dart';
 import '../../features/master/screens/charge_head_screen.dart';
@@ -147,6 +151,12 @@ class AppRouter {
       ),
 
       GoRoute(
+        path: '/documents',
+        builder: (context, state) =>
+            DocumentCentreScreen(customerId: state.extra as String?),
+      ),
+
+      GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
       ),
@@ -205,6 +215,12 @@ class AppRouter {
       GoRoute(
         path: '/customer-create',
         builder: (context, state) => const CustomerFormScreen(),
+      ),
+
+      GoRoute(
+        path: '/customer-detail',
+        builder: (context, state) =>
+            CustomerDetailScreen(customerId: state.extra as String),
       ),
 
       GoRoute(
