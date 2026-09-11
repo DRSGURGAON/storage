@@ -68,6 +68,25 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
     Future.microtask(_load);
   }
 
+  /// A screen that switches between documents - the bilty pack prints
+  /// three from one record - is a new document each time, so the gate
+  /// starts again and the copy is counted against the right type
+  /// instead of riding on the one the screen opened with.
+  @override
+  void didUpdateWidget(covariant DocumentPdfView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.documentType == widget.documentType) return;
+
+    setState(() {
+      _loading = true;
+      _confirmed = false;
+      _counted = false;
+      _showingSample = false;
+      _buildError = null;
+    });
+    Future.microtask(_load);
+  }
+
   Future<void> _load() async {
     final service = SubscriptionAccessService.instance;
     final active = await service.isSubscriptionActive();
