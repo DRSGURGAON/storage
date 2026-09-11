@@ -145,7 +145,7 @@ class StorageBookingRepository {
     final company = await CompanyController.instance.getCompany();
     final prefix = (company?.bookingPrefix.isNotEmpty ?? false)
         ? company!.bookingPrefix
-        : 'WR';
+        : 'SR';
 
     var idToUse = booking.id.isEmpty ? IdGenerator.generateId() : booking.id;
 

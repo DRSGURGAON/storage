@@ -57,8 +57,8 @@ void main() {
     final a = await repo.save(draft(items: [item('Wheat', 100)]));
     final b = await repo.save(draft(name: 'Gupta Agro', phone: '9000000001'));
 
-    expect(a.bookingNo, 'WR/$fy/0001');
-    expect(b.bookingNo, 'WR/$fy/0002');
+    expect(a.bookingNo, 'SR/$fy/0001');
+    expect(b.bookingNo, 'SR/$fy/0002');
     expect(a.status, StorageStatus.inStorage);
     expect(a.items.single.bookingId, a.id);
     expect(a.items.single.id, isNotEmpty);
@@ -159,7 +159,7 @@ void main() {
     expect(await repo.getAll(), isEmpty);
     final fy = FinancialYear.startYear(DateTime.now());
     final other = await repo.save(draft(name: 'Other'));
-    expect(other.bookingNo, 'WR/$fy/0001');
+    expect(other.bookingNo, 'SR/$fy/0001');
   });
 
   test('all three papers render as PDFs', () async {
