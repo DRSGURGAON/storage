@@ -63,12 +63,9 @@ class _SuperAdminCompanyDetailScreenState
 
   Map<String, int> _documentUsage = {};
 
-  static const _trackedDocumentTypes = [
-    DocumentType.quotation,
-    DocumentType.storageReceipt,
-    DocumentType.bill,
-    DocumentType.moneyReceipt,
-  ];
+  /// Every document the app counts free copies of - a partial list here
+  /// would hide exactly the usage a Super Admin is looking for.
+  static const _trackedDocumentTypes = DocumentType.all;
 
   @override
   void initState() {
@@ -89,10 +86,13 @@ class _SuperAdminCompanyDetailScreenState
       return;
     }
 
+    // Only the documents this company has actually generated are worth
+    // a row; the rest would be a page of zeroes.
     final usage = <String, int>{};
     for (final type in _trackedDocumentTypes) {
-      usage[type] = await SubscriptionRepository.instance
+      final used = await SubscriptionRepository.instance
           .getDemoGenerationsUsed(_subscription.companyId, type);
+      if (used > 0) usage[type] = used;
     }
 
     if (!mounted) return;
@@ -304,17 +304,21 @@ class _SuperAdminCompanyDetailScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (_documentUsage.isEmpty)
+                          const Text('Nothing generated yet.',
+                              style: TextStyle(color: Colors.grey)),
                         for (final type in _trackedDocumentTypes)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(_documentTypeLabel(type)),
-                                Text('${_documentUsage[type] ?? 0} generated'),
-                              ],
+                          if ((_documentUsage[type] ?? 0) > 0)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(_documentTypeLabel(type)),
+                                  Text('${_documentUsage[type]} generated'),
+                                ],
+                              ),
                             ),
-                          ),
                       ],
                     ),
                   ),
