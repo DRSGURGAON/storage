@@ -171,7 +171,7 @@ class ChargeHeadScreen extends ConsumerWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () =>
-              context.canPop() ? context.pop() : context.go('/masters'),
+              context.canPop() ? context.pop() : context.go('/settings'),
         ),
         title: const Text('Charge Heads'),
         centerTitle: true,

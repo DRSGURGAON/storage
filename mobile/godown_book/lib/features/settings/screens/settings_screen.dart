@@ -137,6 +137,17 @@ class SettingsScreen extends ConsumerWidget {
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: ListTile(
+              leading: const Icon(Icons.description_outlined),
+              title: const Text('Letter Head'),
+              subtitle: const Text('Blank letterhead to write a letter on'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/letterhead-pdf'),
+            ),
+          ),
+
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: ListTile(
               leading: const Icon(Icons.admin_panel_settings_outlined),
               title: const Text('Users & Roles'),
               subtitle: const Text(
