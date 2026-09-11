@@ -43,7 +43,13 @@ class SubscriptionAccessService {
       TenantScope.companyId,
     );
 
-    return subscription.status.grantsFullAccess;
+    // The stored status alone is not enough: nothing flips ACTIVE to
+    // EXPIRED on its own (a Super Admin would have to do it by hand on
+    // every lapsed company), so a subscription whose last day has
+    // passed must be treated as lapsed here - otherwise one payment
+    // would buy unlimited documents forever.
+    if (!subscription.status.grantsFullAccess) return false;
+    return !subscription.hasLapsed;
   }
 
   /// Days remaining until the current company's subscription expires -

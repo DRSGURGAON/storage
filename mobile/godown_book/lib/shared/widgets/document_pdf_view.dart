@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:printing/printing.dart';
 
 import '../../core/constants/feature_flags.dart';
+import '../../core/subscription/sample_documents.dart';
 import '../../core/subscription/subscription_access_service.dart';
+import '../../features/company/controllers/company_controller.dart';
 import '../../features/subscription/widgets/demo_generation_gate.dart';
 
 /// The body every PDF screen shares: the free-copy gate, the preview,
@@ -49,6 +51,11 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
   bool? _isActive;
   int? _remaining;
   bool _confirmed = false;
+
+  /// True while showing the made-up sample rather than the real
+  /// document - never counted, never saved.
+  bool _showingSample = false;
+
   Object? _buildError;
 
   /// Set once a copy has been counted for this screen, so a re-render
@@ -102,9 +109,17 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
       );
     }
 
-    if (FeatureFlags.demoGenerationLimitEnforced && _isActive == false && !_confirmed) {
+    if (FeatureFlags.demoGenerationLimitEnforced &&
+        _isActive == false &&
+        !_confirmed &&
+        !_showingSample) {
       if ((_remaining ?? 0) <= 0) {
-        return DemoLimitReached(onViewSubscription: () => context.push('/subscription'));
+        return DemoLimitReached(
+          onViewSubscription: () => context.push('/subscription'),
+          onTrySample: SampleDocuments.has(widget.documentType)
+              ? () => setState(() => _showingSample = true)
+              : null,
+        );
       }
       return DemoGenerationGate(
         remaining: _remaining!,
@@ -114,6 +129,8 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
 
     final isFreeCopy = _isActive == false;
     final showWatermark = FeatureFlags.watermarkEnabled && isFreeCopy;
+
+    if (_showingSample) return _samplePreview();
 
     return PdfPreview(
       key: widget.rebuildKey == null ? null : ValueKey(widget.rebuildKey),
@@ -151,6 +168,48 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
               filename: widget.fileName,
             );
           },
+        ),
+      ],
+    );
+  }
+
+  /// The sample: built from made-up data on the company's own
+  /// letterhead, marked SAMPLE, and never counted against the free
+  /// copies. Sharing it is allowed - it says SAMPLE across the page.
+  Widget _samplePreview() {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          color: Theme.of(context).colorScheme.tertiaryContainer,
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'This is a sample with made-up details. Your own records '
+                  'are not touched.',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+              TextButton(
+                onPressed: () => setState(() => _showingSample = false),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: PdfPreview(
+            build: (_) async {
+              final company = await CompanyController.instance.getCompany();
+              return SampleDocuments.build(widget.documentType, company);
+            },
+            pdfFileName: 'Sample-${widget.fileName}',
+            canDebug: false,
+            allowPrinting: true,
+            allowSharing: true,
+          ),
         ),
       ],
     );

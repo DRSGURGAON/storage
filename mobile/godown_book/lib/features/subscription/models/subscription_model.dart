@@ -98,6 +98,24 @@ class SubscriptionModel {
     required this.updatedAt,
   });
 
+  /// The last day the subscription covers, or null when it has no
+  /// expiry recorded.
+  DateTime? get expiresOn {
+    final parsed = expiryDate == null ? null : DateTime.tryParse(expiryDate!);
+    return parsed == null
+        ? null
+        : DateTime(parsed.year, parsed.month, parsed.day);
+  }
+
+  /// True once the expiry day has passed. The expiry date is the LAST
+  /// day of the period (see SubscriptionRepository.activate), so access
+  /// runs through the whole of that day.
+  bool get hasLapsed {
+    final last = expiresOn;
+    if (last == null) return false;
+    return DateTime.now().isAfter(last.add(const Duration(days: 1)));
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

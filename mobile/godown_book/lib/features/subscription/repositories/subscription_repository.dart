@@ -44,10 +44,33 @@ class SubscriptionRepository {
   final SubscriptionDao _dao = SubscriptionDao.instance;
   final SubscriptionHistoryDao _historyDao = SubscriptionHistoryDao.instance;
 
+  /// Test seam: lets a test run this repository against an in-memory
+  /// Firestore. Production code never sets it, so every real call goes
+  /// to FirebaseFirestore.instance exactly as before.
+  static FirebaseFirestore? firestoreOverride;
+
+  /// Test seam for the signed-in user, for the same reason.
+  static String? currentUidOverride;
+
+  FirebaseFirestore get _firestore =>
+      firestoreOverride ?? FirebaseFirestore.instance;
+
+  String get _currentUid {
+    final override = currentUidOverride;
+    if (override != null) return override;
+    try {
+      return FirebaseAuth.instance.currentUser?.uid ?? '';
+    } catch (_) {
+      // Firebase not initialised - the caller only needs a best-effort
+      // owner id, never a hard failure.
+      return '';
+    }
+  }
+
   /// One document per company, at subscriptions/{companyId} - matches
   /// SubscriptionModel.toFirestore()'s own doc comment.
   CollectionReference<Map<String, dynamic>> get _subscriptionsCollection =>
-      FirebaseFirestore.instance.collection('subscriptions');
+      _firestore.collection('subscriptions');
 
   /// Fetches the company's subscription from Firestore (creating a
   /// LIMITED one on first access if none exists yet - Section 4:
@@ -69,7 +92,7 @@ class SubscriptionRepository {
   static const Duration _firestoreTimeout = Duration(seconds: 8);
 
   Future<SubscriptionModel> getOrCreateForCompany(String companyId) async {
-    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final currentUid = _currentUid;
 
     try {
       final docRef = _subscriptionsCollection.doc(companyId);
@@ -158,7 +181,7 @@ class SubscriptionRepository {
         }
 
         await _syncFromFirestore(subscription);
-        return subscription;
+        return await _expireIfLapsed(subscription);
       }
 
       // Genuinely first-ever access for this company - create the
@@ -535,6 +558,34 @@ class SubscriptionRepository {
   /// How many demo generations have already been used for
   /// [documentType] - read-only counterpart to recordDemoGeneration(),
   /// for SubscriptionAccessService.getRemainingDemoGenerations().
+  /// Moves a subscription whose last day has passed to EXPIRED, so
+  /// every screen and the Super Admin's own list agree with what the
+  /// access check already enforces. Best effort: offline, the status
+  /// stays as it was and the access check still refuses, so nobody
+  /// gains access from a failed write.
+  Future<SubscriptionModel> _expireIfLapsed(SubscriptionModel subscription) async {
+    if (!subscription.status.grantsFullAccess || !subscription.hasLapsed) {
+      return subscription;
+    }
+
+    final expired = subscription.copyWith(
+      status: SubscriptionStatus.expired,
+      updatedAt: DateTime.now().toIso8601String(),
+    );
+
+    try {
+      await _subscriptionsCollection
+          .doc(subscription.companyId)
+          .set(expired.toFirestore())
+          .timeout(_firestoreTimeout);
+    } catch (_) {
+      // Offline - the local cache below still records it.
+    }
+
+    await _syncFromFirestore(expired);
+    return expired;
+  }
+
   Future<int> getDemoGenerationsUsed(
     String companyId,
     String documentType,

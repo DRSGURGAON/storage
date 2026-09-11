@@ -36,7 +36,22 @@ class SuperAdminScope {
   /// login/logout (same trigger points as
   /// PermissionService.invalidateCache) and once at startup.
   static Future<void> refresh() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (_testOverride != null) {
+      _isSuperAdmin = _testOverride!;
+      return;
+    }
+
+    final String? uid;
+    try {
+      uid = FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      // Firebase not initialised (a build still on the placeholder
+      // options, or a unit test). Nobody is a Super Admin then, which
+      // is the safe answer - never a crash.
+      _isSuperAdmin = false;
+      _loadedForUid = null;
+      return;
+    }
 
     if (uid == null || uid.isEmpty) {
       _isSuperAdmin = false;
@@ -54,6 +69,18 @@ class SuperAdminScope {
   /// Used on sign-out and in tests.
   static void clear() {
     _isSuperAdmin = false;
+    _loadedForUid = null;
+  }
+
+  /// Test seam: forces the answer without Firebase, so a test can
+  /// exercise the Super Admin paths (authorising a payment, activating
+  /// a subscription). Production code never sets it; pass null to go
+  /// back to the real check.
+  static bool? _testOverride;
+
+  static void overrideForTesting(bool? isSuperAdmin) {
+    _testOverride = isSuperAdmin;
+    _isSuperAdmin = isSuperAdmin ?? false;
     _loadedForUid = null;
   }
 }

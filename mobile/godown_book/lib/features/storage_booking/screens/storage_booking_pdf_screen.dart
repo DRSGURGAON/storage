@@ -2,16 +2,13 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:printing/printing.dart';
 
-import '../../../core/constants/feature_flags.dart';
 import '../../../core/subscription/document_type.dart';
-import '../../../core/subscription/subscription_access_service.dart';
 import '../../../shared/widgets/company_not_configured.dart';
+import '../../../shared/widgets/document_pdf_view.dart';
 import '../../../shared/widgets/pdf_document_actions.dart';
 import '../../company/controllers/company_controller.dart';
 import '../../company/models/company_model.dart';
-import '../../subscription/widgets/demo_generation_gate.dart';
 import '../models/storage_booking_model.dart';
 import '../repositories/storage_booking_repository.dart';
 import '../services/goods_list_pdf_service.dart';
@@ -72,11 +69,6 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
   StorageBookingModel? _booking;
   CompanyModel? _company;
   bool _loading = true;
-  Object? _buildError;
-
-  bool? _isActive;
-  int? _remainingDemos;
-  bool _demoConfirmed = false;
 
   final Set<String> _selectedCopies = {...StorageReceiptPdfService.copyLabels};
 
@@ -90,19 +82,11 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
     final booking = await StorageBookingRepository.instance.getById(widget.bookingId);
     final company = await CompanyController.instance.getCompany();
 
-    final service = SubscriptionAccessService.instance;
-    final active = await service.isSubscriptionActive();
-    final remaining = active
-        ? 0
-        : await service.getRemainingDemoGenerations(widget.kind.documentType);
-
     if (!mounted) return;
 
     setState(() {
       _booking = booking;
       _company = company;
-      _isActive = active;
-      _remainingDemos = remaining;
       _loading = false;
     });
   }
@@ -150,79 +134,16 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
       );
     }
 
-    if (_buildError != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 48),
-              const SizedBox(height: 12),
-              Text('The PDF could not be generated.\n$_buildError', textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () => setState(() => _buildError = null),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (FeatureFlags.demoGenerationLimitEnforced && _isActive == false && !_demoConfirmed) {
-      if ((_remainingDemos ?? 0) <= 0) {
-        return DemoLimitReached(onViewSubscription: () => context.push('/subscription'));
-      }
-      return DemoGenerationGate(
-        remaining: _remainingDemos!,
-        onGenerate: () => setState(() => _demoConfirmed = true),
-      );
-    }
-
-    final isDemoCopy = _isActive == false;
-    final showWatermark = FeatureFlags.watermarkEnabled && isDemoCopy;
-
     return Column(
       children: [
         if (widget.kind == BookingDocumentKind.receipt) _copySelector(),
         Expanded(
-          child: PdfPreview(
-            key: ValueKey(_selectedCopies.join('|')),
-            build: (_) async {
-              try {
-                final bytes = await _buildBytes(booking, showWatermark);
-                _menuPdfBytes = bytes;
-
-                if (FeatureFlags.demoGenerationLimitEnforced && isDemoCopy) {
-                  await SubscriptionAccessService.instance
-                      .recordDemoGeneration(widget.kind.documentType);
-                }
-                return bytes;
-              } catch (error, stackTrace) {
-                debugPrint('${widget.kind.title} PDF build failed: $error\n$stackTrace');
-                if (mounted) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) setState(() => _buildError = error);
-                  });
-                }
-                rethrow;
-              }
-            },
-            pdfFileName: _fileName,
-            canDebug: false,
-            allowPrinting: true,
-            allowSharing: true,
-            actions: [
-              PdfPreviewAction(
-                icon: const Icon(Icons.share),
-                onPressed: (context, build, format) async {
-                  await Printing.sharePdf(bytes: await build(format), filename: _fileName);
-                },
-              ),
-            ],
+          child: DocumentPdfView(
+            documentType: widget.kind.documentType,
+            fileName: _fileName,
+            rebuildKey: _selectedCopies.join('|'),
+            onBytes: (bytes) => _menuPdfBytes = bytes,
+            build: ({required showWatermark}) => _buildBytes(booking, showWatermark),
           ),
         ),
       ],
