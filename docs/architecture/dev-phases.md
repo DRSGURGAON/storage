@@ -1685,6 +1685,74 @@ and both pages fitting a 390px phone.
 
 Full suite: 43 suites, 342 tests.
 
+## Phase 26 — a second product: household goods storage
+
+The first twenty-five phases built contract warehousing. This one starts a
+second product on the same engine, for a customer the first one does not
+fit: the operator who stores a *family's* belongings — an almirah, a
+fridge, forty cartons — for a monthly rent, and gives it all back when
+they ask.
+
+**Why new tables rather than a mode on the old ones.** The two businesses
+disagree about what a thing in the godown is. Contract warehousing counts
+fungible SKUs in batches: 200 bags of RICE-25 are interchangeable, and the
+customer wants a *quantity* back. Household storage holds one specific
+almirah with a scratch on its left door, and the customer wants *that*
+almirah back, with the scratch written down beforehand so it is not blamed
+on the godown. A products/batches model cannot say that, and bending it to
+would corrupt the model the 3PL side depends on.
+
+Six tables (`schema/100_household_storage.sql`): storage units, bookings,
+the item-wise inventory list, one-time charges, and the movements in and
+out with their lines. Each carries its own RLS policy, because
+`90_row_level_security.sql` discovers tables from `information_schema` and
+has already run — a migration runs once.
+
+**What is deliberately not rebuilt:** tenants and row-level security,
+users and roles, the numbering engine, the document engine, attachments,
+invoices with GST, payments, and the audit trail. This phase adds only
+what the 3PL side cannot express.
+
+**The four refusals are the product.** Anybody can make the happy path
+work; what decides whether an operator trusts the software is what it
+stops them doing.
+
+- An **intake with no inventory list** is rejected outright. Nobody can
+  reconstruct six months later what was in the tempo.
+- **Handing back more than is in storage** is rejected per item, under a
+  `for update` row lock — two people releasing the same booking at once
+  would otherwise both find room, and the goods only exist once.
+- **Closing a booking** while anything is still on the floor is rejected.
+- **Changing the rent** under a booking whose goods are already inside is
+  rejected: that is a new agreement, not a correction.
+
+Field staff book and receive; only a manager hands goods out or closes a
+booking, because that is the one action no software can undo.
+
+**KYC stores an ID type and its last four digits, never the number.** The
+operator needs to prove they checked an ID, not to hold a copy of an
+Aadhaar number; the scan is an attachment like any other.
+
+**A second front door, not a section.** `apps/storage-web` is its own app
+on the same API — four screens, phone-first, no component library. Every
+control is a plain element: nothing tappable under 48px, no input under
+16px (below that iOS zooms the page on focus), and native pickers, which
+on a phone beat any JavaScript equivalent. The 3PL app has eleven menu
+groups because contract warehousing has eleven; burying this customer's
+four screens inside them is how a product becomes "too much software".
+
+Verified by driving the real UI in a browser at 390px: a unit added, a
+customer created, a booking with three items, the intake, a partial
+release of four cartons out of twelve, and "Close booking" correctly
+absent while the rest was still inside. Four screens, no horizontal
+overflow, no console errors.
+
+Still to build: rent invoicing, the document set (inventory list, storage
+receipt, release note), photo capture against an item, and the customer's
+own view.
+
+Full suite: 44 suites, 350 tests.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not
