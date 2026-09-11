@@ -423,6 +423,10 @@ class Migrations {
     company_id TEXT NOT NULL DEFAULT '',
     booking_id TEXT NOT NULL,
 
+    /* Empty for a photo of the goods themselves; set when the photo
+       belongs to a damage / loss report. */
+    incident_id TEXT NOT NULL DEFAULT '',
+
     file_path TEXT NOT NULL,
     caption TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,
@@ -888,6 +892,85 @@ class Migrations {
     row_hash TEXT NOT NULL,
 
     PRIMARY KEY(table_name, row_id)
+  );
+  ''';
+  // ==========================
+  // Notices and incidents
+  // ==========================
+
+  /// A letter sent to a customer about money owed - the reminder, the
+  /// final notice, and the notice given before goods are disposed of.
+  /// The row is the operator's proof that the letter went out and when,
+  /// which is what every later remedy rests on.
+  static const String createNoticeTable = '''
+  CREATE TABLE IF NOT EXISTS notices(
+    id TEXT PRIMARY KEY,
+
+    company_id TEXT NOT NULL DEFAULT '',
+
+    notice_no TEXT,
+    notice_date TEXT NOT NULL,
+
+    /* REMINDER | FINAL | DISPOSAL - see NoticeKind. */
+    notice_kind TEXT NOT NULL DEFAULT 'REMINDER',
+
+    customer_id TEXT,
+    booking_id TEXT,
+
+    /* Snapshotted so the letter reprints exactly as it was sent, even
+       if the customer record is edited afterwards. */
+    customer_name TEXT NOT NULL DEFAULT '',
+    customer_phone TEXT,
+    customer_address TEXT,
+    booking_no TEXT,
+
+    amount_due REAL NOT NULL DEFAULT 0,
+    due_as_on TEXT,
+    pay_by_date TEXT,
+
+    body_note TEXT,
+    sent_via TEXT,
+
+    created_at TEXT NOT NULL
+  );
+  ''';
+
+  /// Goods damaged, lost, stolen or spoiled while in the godown - the
+  /// same-day record with photographs that an insurer asks for, and
+  /// that answers a customer's claim months later.
+  static const String createIncidentTable = '''
+  CREATE TABLE IF NOT EXISTS incidents(
+    id TEXT PRIMARY KEY,
+
+    company_id TEXT NOT NULL DEFAULT '',
+
+    report_no TEXT,
+    report_date TEXT NOT NULL,
+
+    /* DAMAGE | LOSS | THEFT | FIRE | WATER | PEST | OTHER. */
+    incident_kind TEXT NOT NULL DEFAULT 'DAMAGE',
+
+    booking_id TEXT,
+    booking_no TEXT,
+    customer_id TEXT,
+    customer_name TEXT NOT NULL DEFAULT '',
+    customer_phone TEXT,
+
+    happened_on TEXT,
+    place TEXT,
+
+    goods_affected TEXT,
+    what_happened TEXT,
+    action_taken TEXT,
+
+    estimated_loss REAL NOT NULL DEFAULT 0,
+    police_reference TEXT,
+    insurer_informed INTEGER NOT NULL DEFAULT 0,
+    customer_informed INTEGER NOT NULL DEFAULT 0,
+
+    reported_by TEXT,
+
+    created_at TEXT NOT NULL
   );
   ''';
 }

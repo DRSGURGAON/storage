@@ -35,6 +35,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
   int _photoCount = 0;
   int _releaseCount = 0;
   double _outstanding = 0;
+  DepositSummary _deposit = const DepositSummary();
   List<SignatureRequestModel> _signatures = const [];
   bool _loading = true;
 
@@ -50,6 +51,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
     var photos = 0;
     var releases = 0;
     var outstanding = 0.0;
+    var deposit = const DepositSummary();
     var signatures = const <SignatureRequestModel>[];
     if (booking != null) {
       signatures = await SignatureRepository.instance
@@ -57,6 +59,8 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
       photos = await StoragePhotoRepository.instance.countForBooking(booking.id);
       releases =
           (await GoodsReleaseRepository.instance.getForBooking(booking.id)).length;
+      deposit = await BillingRepository.instance
+          .depositForBooking(booking.id, agreed: booking.securityDeposit);
       if (booking.customerId.isNotEmpty) {
         final balance =
             await BillingRepository.instance.balanceForCustomer(booking.customerId);
@@ -70,6 +74,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
       _photoCount = photos;
       _releaseCount = releases;
       _outstanding = outstanding;
+      _deposit = deposit;
       _signatures = signatures;
       _loading = false;
     });
@@ -217,6 +222,19 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
               _load();
             },
           ),
+          if (!_deposit.isEmpty) ...[
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.savings_outlined),
+              title: const Text('Security Deposit'),
+              subtitle: Text(_depositSubtitle),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                await context.push('/deposit', extra: b.id);
+                _load();
+              },
+            ),
+          ],
           const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.outbox_outlined),
@@ -275,6 +293,14 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
         ],
       ),
     );
+  }
+
+  String get _depositSubtitle {
+    if (_deposit.received <= 0.004) {
+      return '₹${_deposit.agreed.toStringAsFixed(0)} agreed - no receipt yet';
+    }
+    if (_deposit.held <= 0.004) return 'Settled in full';
+    return '₹${_deposit.held.toStringAsFixed(0)} held with you';
   }
 
   bool get _signatureSigned => _signatures.any((s) => s.isSigned);

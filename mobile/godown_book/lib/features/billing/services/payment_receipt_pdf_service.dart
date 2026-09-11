@@ -50,9 +50,9 @@ class PaymentReceiptPdfService {
           watermarkOpacity: watermarkOpacity,
         ),
         footer: (context) =>
-            PdfPageKit.footer(context, company, leftLabel: 'Payment Receipt'),
+            PdfPageKit.footer(context, company, leftLabel: _footerLabel(payment)),
         build: (context) => [
-          ...PdfPageKit.top(company, logo, _style, 'PAYMENT RECEIPT'),
+          ...PdfPageKit.top(company, logo, _style, _heading(payment)),
           _infoRow(payment, bill),
           pw.SizedBox(height: 8),
           _amountBand(payment),
@@ -75,6 +75,22 @@ class PaymentReceiptPdfService {
 
     return document.save();
   }
+
+  /// A deposit is not a payment and money going back is not a receipt -
+  /// the paper has to say which one it is.
+  String _heading(PaymentModel payment) => switch (payment.paymentType) {
+        PaymentType.securityDeposit => 'SECURITY DEPOSIT RECEIPT',
+        PaymentType.depositRefund => 'DEPOSIT REFUND VOUCHER',
+        PaymentType.depositAdjusted => 'DEPOSIT ADJUSTMENT NOTE',
+        _ => 'PAYMENT RECEIPT',
+      };
+
+  String _footerLabel(PaymentModel payment) => switch (payment.paymentType) {
+        PaymentType.securityDeposit => 'Security Deposit Receipt',
+        PaymentType.depositRefund => 'Deposit Refund Voucher',
+        PaymentType.depositAdjusted => 'Deposit Adjustment Note',
+        _ => 'Payment Receipt',
+      };
 
   pw.Widget _infoRow(PaymentModel payment, BillModel? bill) {
     return PdfBoxRow.equal(gap: 4, [

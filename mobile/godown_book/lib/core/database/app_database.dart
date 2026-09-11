@@ -75,6 +75,8 @@ class AppDatabase {
     await db.execute(Migrations.createSignatureRequestTable);
     await db.execute(Migrations.createGoodsReleaseTable);
     await db.execute(Migrations.createReleaseItemTable);
+    await db.execute(Migrations.createNoticeTable);
+    await db.execute(Migrations.createIncidentTable);
 
     // ==========================
     // Billing
@@ -112,9 +114,15 @@ class AppDatabase {
   }
 
   Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // No upgrades yet - v1 is the first released schema. Each future
-    // version adds an `if (oldVersion < N) { ... }` block here, in
-    // order, and bumps DatabaseConstants.databaseVersion.
+    // Each version adds its own block here, in order, and bumps
+    // DatabaseConstants.databaseVersion. Never edit a CREATE TABLE.
+    if (oldVersion < 2) {
+      await db.execute(Migrations.createNoticeTable);
+      await db.execute(Migrations.createIncidentTable);
+      await db.execute(
+        "ALTER TABLE storage_photos ADD COLUMN incident_id TEXT NOT NULL DEFAULT ''",
+      );
+    }
   }
 
   /// The charge heads a godown bills for. Storage Rent is the system

@@ -23,11 +23,18 @@ class CustomerBalance {
   final double billed;
   final double received;
 
+  /// The customer's own money the godown is still holding - deposit
+  /// taken, less whatever has been returned or applied to the dues. It
+  /// is deliberately not part of [received]: a deposit is held, not
+  /// earned, and must never make a customer look paid up.
+  final double depositHeld;
+
   const CustomerBalance({
     required this.customerId,
     required this.customerName,
     required this.billed,
     required this.received,
+    this.depositHeld = 0,
   });
 
   double get outstanding {
@@ -41,6 +48,37 @@ class CustomerBalance {
     final extra = received - billed;
     return extra < 0 ? 0 : extra;
   }
+}
+
+
+/// The deposit on one storage record: what was agreed, what actually
+/// came in, and what is still lying with the godown.
+class DepositSummary {
+  final double agreed;
+  final double received;
+  final double returned;
+  final double adjusted;
+
+  const DepositSummary({
+    this.agreed = 0,
+    this.received = 0,
+    this.returned = 0,
+    this.adjusted = 0,
+  });
+
+  /// Still held for the customer, and owed back to them at the end.
+  double get held {
+    final balance = received - returned - adjusted;
+    return balance < 0 ? 0 : balance;
+  }
+
+  /// Agreed on the storage record but never actually receipted.
+  double get notYetTaken {
+    final gap = agreed - received;
+    return gap < 0 ? 0 : gap;
+  }
+
+  bool get isEmpty => agreed <= 0.004 && received <= 0.004;
 }
 
 /// One line of a customer statement, oldest first.
@@ -103,6 +141,49 @@ class BillingRepository {
   Future<List<PaymentModel>> getPaymentsForCustomer(String customerId) async {
     final all = await _dao.getAllPayments();
     return all.where((p) => p.customerId == customerId).toList();
+  }
+
+  /// Every deposit entry recorded against one storage record.
+  Future<List<PaymentModel>> getDepositEntriesForBooking(String bookingId) async {
+    final all = await _dao.getAllPayments();
+    return all
+        .where((p) =>
+            p.bookingId == bookingId &&
+            (p.paymentType.isDepositIn || p.paymentType.lowersDeposit))
+        .toList();
+  }
+
+  /// The deposit position of one storage record. [agreed] comes from
+  /// the storage record; everything else from the receipts actually
+  /// issued, so the two can be compared.
+  Future<DepositSummary> depositForBooking(
+    String bookingId, {
+    double agreed = 0,
+  }) async {
+    final entries = await getDepositEntriesForBooking(bookingId);
+
+    var received = 0.0;
+    var returned = 0.0;
+    var adjusted = 0.0;
+    for (final entry in entries) {
+      switch (entry.paymentType) {
+        case PaymentType.securityDeposit:
+          received += entry.amount;
+        case PaymentType.depositRefund:
+          returned += entry.amount;
+        case PaymentType.depositAdjusted:
+          adjusted += entry.amount;
+        default:
+          break;
+      }
+    }
+
+    return DepositSummary(
+      agreed: agreed,
+      received: received,
+      returned: returned,
+      adjusted: adjusted,
+    );
   }
 
   Future<List<CustomerSuggestion>> _suggestions() async {
@@ -460,7 +541,9 @@ class BillingRepository {
     if (bill == null) return;
 
     final payments = await _dao.getPaymentsForBill(billId);
-    final paid = payments.fold(0.0, (sum, p) => sum + p.amount);
+    final paid = payments
+        .where((p) => p.paymentType.settlesDues)
+        .fold(0.0, (sum, p) => sum + p.amount);
 
     final withPaid = bill.copyWith(amountPaid: paid);
     await _dao.updateBillRow(withPaid.copyWith(status: withPaid.derivedStatus));
@@ -474,13 +557,22 @@ class BillingRepository {
     final bills = await getBillsForCustomer(customerId);
     final payments = await getPaymentsForCustomer(customerId);
 
+    var received = 0.0;
+    var deposit = 0.0;
+    for (final payment in payments) {
+      if (payment.paymentType.settlesDues) received += payment.amount;
+      if (payment.paymentType.isDepositIn) deposit += payment.amount;
+      if (payment.paymentType.lowersDeposit) deposit -= payment.amount;
+    }
+
     return CustomerBalance(
       customerId: customerId,
       customerName: bills.isNotEmpty
           ? bills.first.customerName
           : (payments.isNotEmpty ? payments.first.payerName : ''),
       billed: bills.fold(0.0, (sum, b) => sum + b.grandTotal),
-      received: payments.fold(0.0, (sum, p) => sum + p.amount),
+      received: received,
+      depositHeld: deposit < 0 ? 0 : deposit,
     );
   }
 
@@ -511,16 +603,23 @@ class BillingRepository {
     }
 
     for (final payment in payments) {
+      // Deposit taken and deposit returned are the customer's own money
+      // moving in and out; they belong on the deposit line, not in the
+      // running balance of what is owed.
+      if (!payment.paymentType.settlesDues) continue;
+
       rows.add((
         date: payment.paymentDate,
         entry: StatementEntry(
           date: payment.paymentDate,
           reference: payment.receiptNo,
-          particulars: payment.billId.isEmpty
-              ? (payment.against.trim().isEmpty
-                  ? 'Payment received (${payment.mode.label})'
-                  : payment.against.trim())
-              : 'Payment received (${payment.mode.label})',
+          particulars: payment.paymentType == PaymentType.depositAdjusted
+              ? 'Security deposit adjusted'
+              : payment.billId.isEmpty
+                  ? (payment.against.trim().isEmpty
+                      ? 'Payment received (${payment.mode.label})'
+                      : payment.against.trim())
+                  : 'Payment received (${payment.mode.label})',
           credit: payment.amount,
         ),
       ));
@@ -564,6 +663,7 @@ class BillingRepository {
       if (date != null && date.isBefore(from)) balance += bill.grandTotal;
     }
     for (final payment in payments) {
+      if (!payment.paymentType.settlesDues) continue;
       final date = DateTime.tryParse(payment.paymentDate);
       if (date != null && date.isBefore(from)) balance -= payment.amount;
     }

@@ -40,13 +40,27 @@ enum PaymentType {
   fullPayment,
   partPayment,
   advance,
-  securityDeposit;
+
+  /// Deposit taken when the goods came in. It is the customer's money
+  /// held by the godown, not income, so it never reduces what the
+  /// customer owes - see [isDepositIn].
+  securityDeposit,
+
+  /// Deposit handed back to the customer.
+  depositRefund,
+
+  /// Deposit kept and applied against the customer's dues. This one
+  /// settles bills like any other payment, and reduces the deposit
+  /// still held.
+  depositAdjusted;
 
   String get code => switch (this) {
         PaymentType.fullPayment => 'FULL_PAYMENT',
         PaymentType.partPayment => 'PART_PAYMENT',
         PaymentType.advance => 'ADVANCE',
         PaymentType.securityDeposit => 'SECURITY_DEPOSIT',
+        PaymentType.depositRefund => 'DEPOSIT_REFUND',
+        PaymentType.depositAdjusted => 'DEPOSIT_ADJUSTED',
       };
 
   String get label => switch (this) {
@@ -54,12 +68,31 @@ enum PaymentType {
         PaymentType.partPayment => 'Part Payment',
         PaymentType.advance => 'Advance',
         PaymentType.securityDeposit => 'Security Deposit',
+        PaymentType.depositRefund => 'Deposit Returned',
+        PaymentType.depositAdjusted => 'Deposit Adjusted',
       };
+
+  /// Deposit money coming in - held for the customer, never income.
+  bool get isDepositIn => this == PaymentType.securityDeposit;
+
+  /// Deposit money going back out.
+  bool get isDepositOut => this == PaymentType.depositRefund;
+
+  /// Whether this entry settles what the customer owes. Deposit taken
+  /// and deposit returned do not; everything else, including a deposit
+  /// applied to the dues, does.
+  bool get settlesDues => !isDepositIn && !isDepositOut;
+
+  /// Whether this entry lowers the deposit the godown is holding.
+  bool get lowersDeposit =>
+      this == PaymentType.depositRefund || this == PaymentType.depositAdjusted;
 
   static PaymentType fromCode(String? code) => switch (code) {
         'PART_PAYMENT' => PaymentType.partPayment,
         'ADVANCE' => PaymentType.advance,
         'SECURITY_DEPOSIT' => PaymentType.securityDeposit,
+        'DEPOSIT_REFUND' => PaymentType.depositRefund,
+        'DEPOSIT_ADJUSTED' => PaymentType.depositAdjusted,
         _ => PaymentType.fullPayment,
       };
 }

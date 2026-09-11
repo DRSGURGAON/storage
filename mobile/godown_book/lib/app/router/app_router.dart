@@ -36,6 +36,7 @@ import '../../features/billing/screens/bill_form_screen.dart';
 import '../../features/billing/screens/bill_list_screen.dart';
 import '../../features/billing/screens/bill_pdf_screen.dart';
 import '../../features/billing/screens/payment_form_screen.dart';
+import '../../features/billing/screens/deposit_screen.dart';
 import '../../features/billing/screens/payment_list_screen.dart';
 import '../../features/billing/screens/payment_receipt_pdf_screen.dart';
 import '../../features/billing/screens/statement_screen.dart';
@@ -378,6 +379,12 @@ class AppRouter {
             customerId: args?['customerId'] as String?,
           );
         },
+      ),
+
+      GoRoute(
+        path: '/deposit',
+        builder: (context, state) =>
+            DepositScreen(bookingId: state.extra as String),
       ),
 
       GoRoute(
