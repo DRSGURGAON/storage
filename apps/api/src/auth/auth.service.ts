@@ -58,8 +58,15 @@ export class AuthService {
     const [ownerRole] = await this.sql<{ id: string }[]>`
       select id from roles where code = 'owner' and tenant_id is null
     `;
+    // The free plan of the product being signed up for. Two products, two
+    // ladders (schema/101_storage_subscription.sql): contract warehousing
+    // is priced per godown, household storage per customer in storage, and
+    // landing a storage operator on the warehouse ladder would show them a
+    // price list about buildings they will never buy.
+    const product = dto.product ?? 'warehouse';
+    const freePlanCode = product === 'storage' ? 'STORAGE_FREE' : 'FREE';
     const [freePlan] = await this.sql<{ id: string }[]>`
-      select id from plans where code = 'FREE'
+      select id from plans where code = ${freePlanCode}
     `;
     if (!ownerRole || !freePlan) {
       // Only reachable if `npm run seed` was never run against this database.
@@ -78,8 +85,8 @@ export class AuthService {
     try {
       created = await this.sql.begin(async (tx) => {
         const [tenant] = await tx<{ id: string }[]>`
-          insert into tenants (id, slug, legal_name)
-          values (gen_random_uuid(), ${dto.tenantSlug}, ${dto.companyLegalName})
+          insert into tenants (id, slug, legal_name, product)
+          values (gen_random_uuid(), ${dto.tenantSlug}, ${dto.companyLegalName}, ${product})
           returning id
         `;
         const [user] = await tx<{ id: string }[]>`

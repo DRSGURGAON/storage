@@ -137,10 +137,11 @@ export class AuthController {
           tenant_slug: string;
           legal_name: string;
           is_demo: boolean;
+          product: string;
         }[]
       >`
         select u.email, u.full_name, r.code as role_code, r.name as role_name,
-               t.slug as tenant_slug, t.legal_name, t.is_demo
+               t.slug as tenant_slug, t.legal_name, t.is_demo, t.product
         from tenant_users tu
         join users u on u.id = tu.user_id
         join roles r on r.id = tu.role_id
@@ -169,7 +170,14 @@ export class AuthController {
       // -- `POST /attachments` with `ownerType=company` takes it as the
       // owner id. It is the caller's own tenant and no secret: every row
       // they can already read is scoped to it.
-      tenant: { id: user.tenantId, slug: row.tenant_slug, legalName: row.legal_name, isDemo: row.is_demo },
+      tenant: {
+        id: user.tenantId,
+        slug: row.tenant_slug,
+        legalName: row.legal_name,
+        isDemo: row.is_demo,
+        // Which product's price list and plan ladder this workspace is on.
+        product: row.product,
+      },
       // The caller's live grants, so a client can draw the right screen --
       // hide an action the role cannot take, rather than offering it and
       // collecting a 403. This is presentation only: `PermissionsGuard`

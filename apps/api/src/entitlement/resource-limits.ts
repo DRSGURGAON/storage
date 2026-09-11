@@ -53,6 +53,23 @@ export const RESOURCE_LIMITS: Record<string, ResourceLimitDefinition> = {
       return row?.n ?? 0;
     },
   },
+
+  /**
+   * Household storage's priced dimension: how many customers' goods are in
+   * the godown right now. `in_storage` only -- an enquiry costs nothing to
+   * hold, and a closed booking gives its slot straight back, which is the
+   * promise that makes this pricing safe to accept.
+   */
+  STORAGE_ACTIVE_BOOKING: {
+    featureCode: 'STORAGE_ACTIVE_BOOKING',
+    async count(tx, tenantId) {
+      const [row] = await tx<{ n: number }[]>`
+        select count(*)::int as n from storage_bookings
+        where tenant_id = ${tenantId} and status = 'in_storage'
+      `;
+      return row?.n ?? 0;
+    },
+  },
 };
 
 export function resourceLimitFor(featureCode: string): ResourceLimitDefinition | undefined {

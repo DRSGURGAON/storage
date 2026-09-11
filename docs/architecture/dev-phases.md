@@ -1753,6 +1753,59 @@ own view.
 
 Full suite: 44 suites, 350 tests.
 
+## Phase 27 — two products, two price lists, and an app you can install
+
+Household storage now has a subscription of its own, and the app can be
+installed on a phone.
+
+**Priced per customer in storage, not per godown.** The opposite dimension
+to contract warehousing, for the opposite reason: a household storage
+operator runs *one* godown for years, and what grows is how many families'
+goods are inside it. Per-godown pricing would mean their bill never moved
+however well the business did, and the entry price would be set by a
+number that means nothing to them. So `plans.product` splits the ladder
+and `tenants.product` says which one a workspace is on
+(`schema/101_storage_subscription.sql`), chosen by the app somebody signs
+up from rather than asked on a screen.
+
+Free 3 customers · Solo ₹799 (25) · Godown ₹2,499 (100) · Network ₹6,999
+(no limit), annual at ten months for twelve. Seed data, as before — one
+array, a re-seed, and the pricing page, the plan screen and the upgrade
+prompt all move together.
+
+**The count falls again, and that is the whole promise.**
+`STORAGE_ACTIVE_BOOKING` counts bookings that are `in_storage`, live, so a
+family taking their things home frees the slot the same day. A price that
+only ever ratcheted up would make an operator hesitate before taking a
+booking — the exact opposite of what the software is for. It is a resource
+limit in the Phase 25 sense, so it reuses that engine whole: counted in
+the caller's transaction, behind a lock on the tenant row, refused with
+the same 402.
+
+**Charged at the intake, not at the booking.** An enquiry that never
+arrives should never have cost anybody a slot, and the intake is the
+moment the goods become the operator's responsibility.
+
+**Installable.** `apps/storage-web` ships a manifest, four drawn icons and
+a service worker with two strategies: the app shell is cache-first, so it
+opens on a dead connection; the API is network-first with a cached
+fallback **for reads only**. Writes are never cached or replayed —
+quietly re-sending "hand back 4 cartons" when the signal returns is
+exactly the mistake nobody could undo.
+
+Found by running it: the paywall said *"25 customer in storages"*. The
+pluraliser appended an `s` to the whole phrase instead of its head noun,
+on both sides of the wire, in the one sentence whose job is to ask
+somebody for money. Both now pluralise the head — and the test asserts the
+sentence, not just that one exists.
+
+Verified end to end in a browser at 390px: signed up from the app onto the
+storage plan, three families in, the fourth refused with the upgrade
+prompt, a plan requested, and the workspace still on Free afterwards
+because nobody has paid.
+
+Full suite: 45 suites, 356 tests.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

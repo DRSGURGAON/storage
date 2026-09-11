@@ -206,6 +206,12 @@ export const Icon = {
       <path d="M7 16.5h10M7 18.3h10" />
     </svg>
   ),
+  plan: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
+      <path d="M3.5 10h17M7.5 14.5h4" />
+    </svg>
+  ),
   plus: (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
       <path d="M12 5v14M5 12h14" />

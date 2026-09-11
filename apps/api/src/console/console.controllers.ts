@@ -139,7 +139,7 @@ export class PricingController {
   constructor(private readonly plans: PlanService) {}
 
   @Get()
-  pricing() {
-    return this.plans.publicPricing();
+  pricing(@Query('product') product?: string) {
+    return this.plans.publicPricing(product === 'storage' ? 'storage' : 'warehouse');
   }
 }

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { api, ApiError } from '../lib/api';
 import { useSession } from '../lib/session';
 import { Card, Field } from '../components/ui';
@@ -73,6 +74,9 @@ export function Login() {
           </form>
         </Card>
 
+        <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
+          New here? <Link to="/signup">Start free</Link> — three customers in storage, no card.
+        </p>
         <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
           Forgot your password? Ask the owner of your workspace to set a new one.
         </p>

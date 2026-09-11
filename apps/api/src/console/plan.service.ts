@@ -116,13 +116,17 @@ export class PlanService {
     if (!feature) throw new NotFoundException('No such feature');
 
     const current = await withTenant(this.sql, actor.tenantId, async (tx) => {
-      const [row] = await tx<{ plan_id: string; plan_code: string; plan_name: string; sort_order: number }[]>`
-        select p.id as plan_id, p.code as plan_code, p.name as plan_name, p.sort_order
+      const [row] = await tx<{ plan_id: string; plan_code: string; plan_name: string; sort_order: number; product: string }[]>`
+        select p.id as plan_id, p.code as plan_code, p.name as plan_name, p.sort_order, p.product
         from tenant_subscriptions ts join plans p on p.id = ts.plan_id
         where ts.tenant_id = ${actor.tenantId}
       `;
       return row ?? null;
     });
+    // Only this workspace's own ladder is an upgrade. The other product's
+    // plans are cheaper or dearer for reasons that do not apply here, and
+    // offering one would sell somebody a plan that cannot serve them.
+    const product = current?.product ?? 'warehouse';
 
     const check = await this.entitlements.checkEntitlement(actor.tenantId, featureCode);
     const currentLimit = current
@@ -139,7 +143,7 @@ export class PlanService {
              p.sort_order, pfl.limit_type, pfl.limit_value
       from plans p left join plan_feature_limits pfl
         on pfl.plan_id = p.id and pfl.feature_code = ${featureCode}
-      where p.is_public and p.is_active
+      where p.is_public and p.is_active and p.product = ${product}
         and (${current?.sort_order ?? null}::int is null or p.sort_order > ${current?.sort_order ?? null}::int)
       order by p.sort_order, p.price_monthly nulls first
     `;
@@ -177,10 +181,15 @@ export class PlanService {
    * changing a limit changes this page with no code edit -- §14's "final
    * price points are configured data, not hard-coded in the page".
    */
-  async publicPricing() {
+  async publicPricing(product = 'warehouse') {
+    // Two products, two ladders. Showing a household storage operator the
+    // per-godown prices -- or a 3PL the per-customer ones -- is not a
+    // cosmetic mistake: it prices them on a number their business does not
+    // grow by, and the page is the first thing either of them reads.
     const plans = await this.sql<Record<string, any>[]>`
       select id, code, name, description, trial_days, price_monthly, price_yearly, currency, sort_order
-      from plans where is_public and is_active order by sort_order, price_monthly nulls first
+      from plans where is_public and is_active and product = ${product}
+      order by sort_order, price_monthly nulls first
     `;
     const limits = await this.sql<{ plan_id: string; feature_code: string; limit_type: string; limit_value: number | null; name: string; module: string }[]>`
       select pfl.plan_id, pfl.feature_code, pfl.limit_type, pfl.limit_value, fk.name, fk.module

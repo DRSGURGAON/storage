@@ -17,6 +17,20 @@ export function setToken(token: string | null) {
   }
 }
 
+export interface PaywallBody {
+  paywall: true;
+  message: string;
+  featureCode: string;
+  featureName: string;
+  limitKind: 'resource' | 'consumable';
+  planCode: string | null;
+  planName: string | null;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  upgradeRequired: boolean;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -27,9 +41,10 @@ export class ApiError extends Error {
     this.name = 'ApiError';
   }
 
-  /** 402: the plan does not stretch this far. */
-  get isPaywall(): boolean {
-    return this.status === 402;
+  /** 402: the plan does not stretch this far, and the body says how far it does. */
+  get paywall(): PaywallBody | null {
+    const body = this.body as PaywallBody | null;
+    return this.status === 402 && body?.paywall === true ? body : null;
   }
 }
 

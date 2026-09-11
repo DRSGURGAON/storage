@@ -4,8 +4,11 @@ import {
   FEATURE_KEYS,
   FREE_PLAN,
   FREE_PLAN_DOCUMENT_LIMIT,
+  FREE_PLAN_STORAGE_BOOKINGS,
   FREE_PLAN_WAREHOUSES,
   PAID_PLANS,
+  STORAGE_FREE_PLAN,
+  STORAGE_PLANS,
   METERED_FEATURE_KEYS,
   PERMISSIONS,
   ROLE_PERMISSIONS,
@@ -125,6 +128,16 @@ async function main() {
       on conflict (plan_id, feature_code)
       do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
     `;
+    // The warehouse ladder is not sold on storage bookings, but the row
+    // still has to exist: an absent one resolves to `disabled`, and a 3PL
+    // workspace that also stores a family's goods would be refused with no
+    // way to buy its way out.
+    await sql`
+      insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value, period)
+      values (gen_random_uuid(), ${freePlan.id}, 'STORAGE_ACTIVE_BOOKING', 'counted', ${FREE_PLAN_STORAGE_BOOKINGS}, 'lifetime')
+      on conflict (plan_id, feature_code)
+      do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
+    `;
     console.log(
       `seeded FREE plan with ${METERED_FEATURE_KEYS.length} metered + ${UNMETERED_FEATURE_KEYS.length} unlimited feature limits`,
     );
@@ -167,9 +180,89 @@ async function main() {
           do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
         `;
       }
+      await sql`
+        insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value, period)
+        values (gen_random_uuid(), ${row.id}, 'STORAGE_ACTIVE_BOOKING', 'unlimited', null, 'lifetime')
+        on conflict (plan_id, feature_code)
+        do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
+      `;
     }
     console.log(
       `seeded ${PAID_PLANS.length} paid plans (${PAID_PLANS.map((p) => `${p.code} ${p.warehouses}x`).join(', ')})`,
+    );
+
+    // ---- The household storage ladder -------------------------------------
+    // Same tables, a different product (schema/101_storage_subscription.sql):
+    // priced per *customer in storage* rather than per godown, because that
+    // is the number that grows for an operator who runs one godown for
+    // years.
+    const storagePlans: { code: string; id: string }[] = [];
+    const [storageFree] = await sql<{ id: string }[]>`
+      insert into plans (id, code, name, description, is_public, is_active, trial_days,
+                         price_monthly, price_yearly, currency, sort_order, product)
+      values (gen_random_uuid(), ${STORAGE_FREE_PLAN.code}, ${STORAGE_FREE_PLAN.name},
+              ${STORAGE_FREE_PLAN.description}, true, true, ${STORAGE_FREE_PLAN.trialDays},
+              ${STORAGE_FREE_PLAN.priceMonthly}, ${STORAGE_FREE_PLAN.priceYearly}, 'INR', 0, 'storage')
+      on conflict (code) do update set
+        name = excluded.name, description = excluded.description, product = excluded.product,
+        price_monthly = excluded.price_monthly, price_yearly = excluded.price_yearly
+      returning id
+    `;
+    storagePlans.push({ code: STORAGE_FREE_PLAN.code, id: storageFree.id });
+
+    for (const plan of STORAGE_PLANS) {
+      const [row] = await sql<{ id: string }[]>`
+        insert into plans (id, code, name, description, is_public, is_active, trial_days,
+                           price_monthly, price_yearly, currency, sort_order, product)
+        values (gen_random_uuid(), ${plan.code}, ${plan.name}, ${plan.description}, true, true,
+                ${plan.trialDays}, ${plan.priceMonthly}, ${plan.priceYearly}, 'INR',
+                ${plan.sortOrder}, 'storage')
+        on conflict (code) do update set
+          name = excluded.name, description = excluded.description,
+          trial_days = excluded.trial_days, price_monthly = excluded.price_monthly,
+          price_yearly = excluded.price_yearly, currency = excluded.currency,
+          sort_order = excluded.sort_order, is_public = excluded.is_public,
+          is_active = excluded.is_active, product = excluded.product
+        returning id
+      `;
+      storagePlans.push({ code: plan.code, id: row.id });
+    }
+
+    for (const plan of storagePlans) {
+      const spec = STORAGE_PLANS.find((p) => p.code === plan.code);
+      const bookings = spec ? spec.bookings : FREE_PLAN_STORAGE_BOOKINGS;
+      const warehouses = spec ? spec.warehouses : 1;
+      const paid = Boolean(spec);
+
+      await sql`
+        insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value, period)
+        values (gen_random_uuid(), ${plan.id}, 'STORAGE_ACTIVE_BOOKING',
+                ${bookings === null ? 'unlimited' : 'counted'}, ${bookings}, 'lifetime')
+        on conflict (plan_id, feature_code)
+        do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
+      `;
+      await sql`
+        insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value, period)
+        values (gen_random_uuid(), ${plan.id}, 'WAREHOUSE', 'counted', ${warehouses}, 'lifetime')
+        on conflict (plan_id, feature_code)
+        do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
+      `;
+      // Documents: two free copies on Free, unlimited once paying -- the
+      // same shape as the warehouse ladder, for the same reason.
+      for (const feature of [...METERED_FEATURE_KEYS, ...UNMETERED_FEATURE_KEYS]) {
+        const unmetered = UNMETERED_FEATURE_KEYS.some((f) => f.code === feature.code);
+        const limitType = paid || unmetered ? 'unlimited' : 'counted';
+        await sql`
+          insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value, period)
+          values (gen_random_uuid(), ${plan.id}, ${feature.code}, ${limitType},
+                  ${limitType === 'counted' ? FREE_PLAN_DOCUMENT_LIMIT : null}, 'lifetime')
+          on conflict (plan_id, feature_code)
+          do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
+        `;
+      }
+    }
+    console.log(
+      `seeded ${storagePlans.length} storage plans (${STORAGE_PLANS.map((p) => `${p.code} ${p.bookings ?? '∞'}`).join(', ')})`,
     );
 
     for (const chargeType of SYSTEM_CHARGE_TYPES) {

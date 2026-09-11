@@ -309,6 +309,10 @@ export const STORAGE_FEATURE_KEYS = [
 
 export const RESOURCE_FEATURE_KEYS = [
   { code: 'WAREHOUSE', module: 'masters', name: 'Godown' },
+  // Household storage's own priced dimension. Held, not spent: a booking
+  // that closes gives its slot straight back, which is exactly what the
+  // resource-limit half of the entitlement engine is for.
+  { code: 'STORAGE_ACTIVE_BOOKING', module: 'storage', name: 'Customer in storage' },
 ] as const;
 
 export const UNMETERED_FEATURE_KEYS = [
@@ -405,6 +409,81 @@ export const PAID_PLANS = [
 
 /** How many godowns the Free plan allows. One: enough to run a real warehouse and see whether this works. */
 export const FREE_PLAN_WAREHOUSES = 1;
+
+/**
+ * Three families' goods, free forever. Enough to run the whole cycle for
+ * real -- book, receive, hand back, close -- before anybody is asked to
+ * pay, and few enough that an operator with a going business will pass it
+ * in the first month.
+ */
+export const FREE_PLAN_STORAGE_BOOKINGS = 3;
+
+export const STORAGE_FREE_PLAN = {
+  code: 'STORAGE_FREE',
+  name: 'Free',
+  description: 'Three customers in storage, free forever. No card required.',
+  isPublic: true,
+  trialDays: 0,
+  priceMonthly: 0,
+  priceYearly: 0,
+};
+
+/**
+ * ============================================================================
+ * THE HOUSEHOLD STORAGE PRICE LIST. The other file to edit.
+ * ============================================================================
+ *
+ * Priced per **customer in storage**, not per godown -- the opposite
+ * dimension to contract warehousing, for the opposite reason. A household
+ * storage operator runs one godown for years; what grows is how many
+ * families' goods are inside it. Charging them per godown would mean their
+ * bill never moves however well the business does, and the entry price
+ * would be set by a number that means nothing to them.
+ *
+ * "In storage" is counted live, so it falls when a family takes their
+ * things back. A month with fewer customers is a cheaper month, which is
+ * the promise that makes this pricing safe to accept: nobody is billed for
+ * goods they no longer hold.
+ *
+ * Prices are a starting point, not a decision -- edit here, re-run
+ * `npm run seed`, and the pricing page, the plan table and the upgrade
+ * prompt all move together.
+ */
+export const STORAGE_PLANS = [
+  {
+    code: 'STORAGE_SOLO',
+    name: 'Solo',
+    description: 'Up to 25 customers in storage. For one godown, run by the owner.',
+    bookings: 25,
+    warehouses: 1,
+    priceMonthly: 799,
+    priceYearly: 7990,
+    trialDays: 14,
+    sortOrder: 10,
+  },
+  {
+    code: 'STORAGE_GODOWN',
+    name: 'Godown',
+    description: 'Up to 100 customers, across two godowns, with staff logins.',
+    bookings: 100,
+    warehouses: 2,
+    priceMonthly: 2499,
+    priceYearly: 24990,
+    trialDays: 14,
+    sortOrder: 20,
+  },
+  {
+    code: 'STORAGE_NETWORK',
+    name: 'Network',
+    description: 'No limit on customers, up to five godowns.',
+    bookings: null,
+    warehouses: 5,
+    priceMonthly: 6999,
+    priceYearly: 69990,
+    trialDays: 14,
+    sortOrder: 30,
+  },
+] as const;
 
 /**
  * Transcribed from schema/10_masters.sql's own comment on `uoms.code`.

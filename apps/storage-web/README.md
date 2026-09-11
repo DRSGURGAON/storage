@@ -36,7 +36,7 @@ Every control here is a plain element styled by `src/app.css`.
   pulls the other way, and the bundle it costs is paid by somebody on a
   godown's patchy signal.
 
-## The four screens
+## The screens
 
 | Screen | What it is for |
 | --- | --- |
@@ -44,6 +44,7 @@ Every control here is a plain element styled by `src/app.css`.
 | **Bookings** | Search by name, phone or number — how a caller identifies themselves |
 | **New booking** | One form, top to bottom: who, where, how much, and what |
 | **Booking** | The record, and the three actions: goods arrived, hand goods back, close |
+| **Plan** | What is in storage against what the plan allows, and how to ask for a bigger one |
 
 ## What the screens refuse to do
 
@@ -56,6 +57,42 @@ only exists on the server is invisible until somebody hits it:
 - **Close booking** does not appear while anything is still inside.
 - **Hand goods back** and **Close** do not appear at all for field staff —
   `confirm_storage_intake` they have; `release_storage_goods` they do not.
+
+## The subscription
+
+Priced per **customer in storage**, not per godown — the opposite
+dimension to the 3PL product, because a household storage operator runs
+one godown for years and grows by holding more families' goods in it.
+
+| Plan | Customers in storage | Price |
+| --- | --- | --- |
+| Free | 3 | ₹0, forever, no card |
+| Solo | 25 | ₹799 / month |
+| Godown | 100 | ₹2,499 / month |
+| Network | no limit | ₹6,999 / month |
+
+Two things make this safe for a customer to accept. The count is **live**
+— a family taking their things home frees the slot the same day, so a
+quieter month is a cheaper month — and it is charged at the **intake**,
+not at the booking, so an enquiry that never arrives never cost anybody a
+slot.
+
+Nothing is charged from inside the app. The Plan screen sends a request
+and a human arranges payment (`DECISIONS.md` §13 — no gateway is wired
+yet).
+
+## Installing it on a phone
+
+The app ships a manifest, icons and a service worker, so over HTTPS Chrome
+offers **Install app** and it opens full-screen with its own icon. The
+service worker uses two strategies: the shell is cache-first, so the app
+opens on a dead connection; the API is network-first with a cached
+fallback **for reads only**. Writes are never cached or replayed —
+re-sending "hand back 4 cartons" when the signal returns is the one
+mistake nobody could undo.
+
+See `ops/twa/README.md` for the HTTPS address, and the path to a Play
+Store listing.
 
 ## Not built yet
 

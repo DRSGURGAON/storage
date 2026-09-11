@@ -10,6 +10,8 @@ import { BookingDetail } from './screens/BookingDetail';
 import { Home } from './screens/Home';
 import { Login } from './screens/Login';
 import { NewBooking } from './screens/NewBooking';
+import { Plan } from './screens/Plan';
+import { Signup } from './screens/Signup';
 import { Units } from './screens/Units';
 
 const queryClient = new QueryClient({
@@ -58,6 +60,10 @@ function Shell() {
           {Icon.godown}
           Godown
         </NavLink>
+        <NavLink to="/plan">
+          {Icon.plan}
+          Plan
+        </NavLink>
       </nav>
     </div>
   );
@@ -83,6 +89,13 @@ function LoginRoute() {
   return <Login />;
 }
 
+function SignupRoute() {
+  const { session, loading } = useSession();
+  if (loading) return null;
+  if (session) return <Navigate to="/" replace />;
+  return <Signup />;
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
@@ -91,12 +104,14 @@ createRoot(document.getElementById('root')!).render(
           <ToastProvider>
             <Routes>
               <Route path="/login" element={<LoginRoute />} />
+              <Route path="/signup" element={<SignupRoute />} />
               <Route element={<Gate />}>
                 <Route index element={<Home />} />
                 <Route path="bookings" element={<Bookings />} />
                 <Route path="bookings/new" element={<NewBooking />} />
                 <Route path="bookings/:id" element={<BookingDetail />} />
                 <Route path="units" element={<Units />} />
+                <Route path="plan" element={<Plan />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
@@ -106,3 +121,20 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+/*
+ * Registered after load rather than during it: the service worker is for
+ * the *second* visit, and fetching it while the first one is still
+ * painting takes bandwidth from the screen somebody is waiting on.
+ *
+ * Dev builds are skipped -- a cached shell in front of Vite's HMR means
+ * edits that appear not to apply.
+ */
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => {
+      // An install that fails is not an error worth showing anybody: the
+      // app works, it just will not open offline.
+    });
+  });
+}

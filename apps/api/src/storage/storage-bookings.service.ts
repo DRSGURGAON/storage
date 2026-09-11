@@ -6,6 +6,9 @@ import { AuthenticatedUser } from '../auth/jwt-payload';
 import { assertWarehouseInScope, loadWarehouseScope } from '../auth/warehouse-scope';
 import { PG_CONNECTION } from '../db/db.module';
 import { withTenant } from '../db/tenant-context';
+import { EntitlementService } from '../entitlement/entitlement.service';
+import { loadPaywallContext } from '../entitlement/paywall';
+import { PaywallException } from '../entitlement/paywall.exception';
 import { NumberingService } from '../numbering/numbering.service';
 import {
   CancelStorageBookingDto,
@@ -255,6 +258,7 @@ export class StorageBookingsService {
   constructor(
     @Inject(PG_CONNECTION) private readonly sql: postgres.Sql,
     private readonly numbering: NumberingService,
+    private readonly entitlement: EntitlementService,
     private readonly audit: AuditService,
   ) {}
 
@@ -725,6 +729,23 @@ export class StorageBookingsService {
       if (Number(count) === 0) {
         throw new BadRequestException(
           'Add the inventory list before taking the goods in -- an intake with no items cannot be reconstructed later',
+        );
+      }
+
+      // The subscription is counted here rather than at booking, because
+      // this is the moment the goods become the operator's responsibility --
+      // and because an enquiry that never arrives should never have cost
+      // anybody a slot. Inside the transaction and behind a lock on the
+      // tenant row, so two intakes at once cannot both find the last place.
+      const room = await this.entitlement.assertResourceAvailable(
+        tx,
+        actor.tenantId,
+        'STORAGE_ACTIVE_BOOKING',
+      );
+      if (!room.allowed) {
+        throw new PaywallException(
+          await loadPaywallContext(tx, actor.tenantId, 'STORAGE_ACTIVE_BOOKING'),
+          room,
         );
       }
 

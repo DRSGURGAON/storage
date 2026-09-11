@@ -122,3 +122,45 @@ export const ID_PROOF_TYPES = [
   { value: 'passport', label: 'Passport' },
   { value: 'other', label: 'Other' },
 ];
+
+export interface PlanFeature {
+  featureCode: string;
+  name: string;
+  module: string;
+  limitType: string;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  allowed: boolean;
+}
+
+export interface PlanUsage {
+  plan: { code: string; name: string; description: string | null; priceMonthly: number | null; currency: string };
+  subscription: { status: string; currentPeriodEnd: string | null };
+  features: PlanFeature[];
+}
+
+export interface UpgradeOption {
+  code: string;
+  name: string;
+  description: string | null;
+  trialDays: number;
+  priceMonthly: number | null;
+  priceYearly: number | null;
+  currency: string;
+  limitType: string;
+  limit: number | null;
+}
+
+export interface UpgradeOptions {
+  feature: { code: string; name: string; module: string; limitKind: 'resource' | 'consumable' };
+  current: {
+    planCode: string | null;
+    planName: string | null;
+    limitType: string;
+    limit: number | null;
+    used: number;
+    remaining: number | null;
+  };
+  options: UpgradeOption[];
+}

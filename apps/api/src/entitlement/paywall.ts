@@ -85,8 +85,15 @@ export function paywallMessage(ctx: PaywallContext, result: CheckEntitlementResu
 /**
  * Enough pluralisation for a feature name, which is a short noun phrase
  * chosen by us and stored in `feature_keys.name` -- not arbitrary text.
+ *
+ * The head noun is what takes the plural, not the last word: "customer in
+ * storage" has to become "customers in storage", and the first version of
+ * this said "customer in storages" in the one sentence whose job is to ask
+ * somebody for money.
  */
 function plural(noun: string): string {
+  const head = noun.match(/^(.*?)(\s+(?:in|on|of|per|for|with)\s+.*)$/i);
+  if (head) return `${plural(head[1])}${head[2]}`;
   if (/(s|x|z|ch|sh)$/i.test(noun)) return `${noun}es`;
   if (/[^aeiou]y$/i.test(noun)) return `${noun.slice(0, -1)}ies`;
   return `${noun}s`;

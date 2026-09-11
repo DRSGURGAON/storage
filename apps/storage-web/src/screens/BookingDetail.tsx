@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { api, ApiError } from '../lib/api';
+import { api, ApiError, type PaywallBody } from '../lib/api';
 import { useSession } from '../lib/session';
 import { Card, Field, Icon, KV, Sheet, StatusPill, useToast } from '../components/ui';
+import { Paywall } from '../components/Paywall';
 import { categoryLabel, formatDate, idProofLabel } from '../lib/format';
 import type { Booking, BookingItem } from '../lib/types';
 
@@ -215,6 +216,7 @@ function useAction(bookingId: string, onClose: () => void, successText: string) 
   const queryClient = useQueryClient();
   const { say } = useToast();
   const [error, setError] = useState<string | null>(null);
+  const [paywall, setPaywall] = useState<PaywallBody | null>(null);
 
   const run = useMutation({
     mutationFn: (payload: { path: string; body: unknown }) =>
@@ -223,22 +225,47 @@ function useAction(bookingId: string, onClose: () => void, successText: string) 
       void queryClient.invalidateQueries({ queryKey: ['booking', bookingId] });
       void queryClient.invalidateQueries({ queryKey: ['bookings'] });
       void queryClient.invalidateQueries({ queryKey: ['units'] });
+      void queryClient.invalidateQueries({ queryKey: ['plan-usage'] });
       say(successText);
       onClose();
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'That did not work'),
+    onError: (err) => {
+      // A 402 is not a failed save -- it is a plan that does not stretch
+      // this far, and it gets the upgrade prompt rather than a red line at
+      // the bottom of a sheet nobody scrolls to.
+      const body = err instanceof ApiError ? err.paywall : null;
+      if (body) {
+        setPaywall(body);
+        return;
+      }
+      setError(err instanceof ApiError ? err.message : 'That did not work');
+    },
   });
 
-  return { run, error, setError };
+  const paywallSheet = paywall ? (
+    <Paywall
+      body={paywall}
+      onClose={() => {
+        setPaywall(null);
+        onClose();
+      }}
+    />
+  ) : null;
+
+  return { run, error, setError, paywallSheet };
 }
 
 function IntakeSheet({ booking, onClose }: { booking: Booking; onClose: () => void }) {
-  const { run, error } = useAction(booking.id, onClose, 'Goods recorded as received');
+  const { run, error, paywallSheet } = useAction(booking.id, onClose, 'Goods recorded as received');
   const [vehicleNumber, setVehicle] = useState('');
   const [driverName, setDriver] = useState('');
   const [counterpartyName, setHandedBy] = useState(booking.customerName ?? '');
   const [remarks, setRemarks] = useState('');
   const noItems = (booking.items ?? []).length === 0;
+
+  // The upgrade prompt replaces this sheet rather than stacking on top of
+  // it: two sheets deep on a phone is a screen nobody can get out of.
+  if (paywallSheet) return paywallSheet;
 
   return (
     <Sheet

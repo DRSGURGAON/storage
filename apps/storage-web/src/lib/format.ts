@@ -35,3 +35,20 @@ export function categoryLabel(category: string | null): string {
   if (!category) return 'Item';
   return CATEGORY_LABELS[category] ?? category;
 }
+
+/**
+ * Pluralises the *head* of a noun phrase, not its last word: "customer in
+ * storage" becomes "customers in storage", not "customer in storages".
+ *
+ * The server does the same thing for the 402's own sentence. This copy
+ * exists because the upgrade list builds its own phrases ("25 customers in
+ * storage"), and the first version of it read like a machine wrote it --
+ * on the one screen whose job is to ask somebody for money.
+ */
+export function pluralNoun(noun: string): string {
+  const head = noun.match(/^(.*?)(\s+(?:in|on|of|per|for|with)\s+.*)$/i);
+  if (head) return `${pluralNoun(head[1])}${head[2]}`;
+  if (/(s|x|z|ch|sh)$/i.test(noun)) return `${noun}es`;
+  if (/[^aeiou]y$/i.test(noun)) return `${noun.slice(0, -1)}ies`;
+  return `${noun}s`;
+}

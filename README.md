@@ -8,7 +8,7 @@ automatically, update stock automatically, bill from actual operations.**
 This repository holds the **product blueprint, the engineering
 architecture, and the built product**.
 
-Twenty-five phases in (`docs/architecture/dev-phases.md`), that is: a
+Twenty-seven phases in (`docs/architecture/dev-phases.md`), that is: a
 NestJS + PostgreSQL API with row-level-secured multi-tenancy, the whole
 inbound chain (gate entry → inward → GRN → put-away → warehouse receipt),
 the stock engine, the whole outbound chain (release order → pick →
@@ -17,7 +17,7 @@ runs through to invoices, payments and customer statements, twenty-four
 PDF document templates rendered by a real browser, a reports library, a
 customer portal, and the subscription/entitlement engine that meters it and
 prices it per godown —
-**43 test suites, 342 tests**, every one against a live database rather
+**45 test suites, 356 tests**, every one against a live database rather
 than a mock. On top of it, `apps/web`: every screen in the scope
 document's screen map, checked in a real browser at desktop and phone
 width.
@@ -27,7 +27,17 @@ cp .env.example .env       # set POSTGRES_PASSWORD and JWT_SECRET
 docker compose up --build  # http://localhost:8080
 ```
 
-It is sold per godown per month — Free (1 godown, 2 copies of each
+There are two products on this engine now. **Contract warehousing**
+(`apps/web`) is the eleven-module 3PL system, sold per godown per month.
+**Storage Book** (`apps/storage-web`) is a four-screen, phone-first app
+for household goods storage — a family's almirah and forty cartons, held
+for a monthly rent — sold per *customer in storage*, because that is the
+number that grows for an operator who runs one godown for years: Free 3,
+Solo ₹799 (25), Godown ₹2,499 (100), Network ₹6,999 (no limit). Both
+share the same API, tenants, security, numbering, documents and audit
+trail; only the screens and the price list differ.
+
+The 3PL product is sold per godown per month — Free (1 godown, 2 copies of each
 document), Starter ₹2,999, Growth ₹7,999 (3), Scale ₹19,999 (10), with
 every document, user and customer login unlimited on a paid plan. The
 prices are seed data, not code: see `apps/api/src/db/seed-data.ts`, the
