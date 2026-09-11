@@ -35,6 +35,11 @@ class StorageReceiptPdfService {
     bool showWatermark = false,
     String watermarkText = '',
     double watermarkOpacity = 0.05,
+
+    /// The customer's own signature, when they have signed from a
+    /// link, and the note that prints under it.
+    Uint8List? customerSignature,
+    String customerSignatureNote = '',
     List<String>? copies,
   }) async {
     _style = DocumentThemeStyle.of(company?.documentTheme ?? DocumentTheme.classic);
@@ -80,6 +85,8 @@ class StorageReceiptPdfService {
               signature,
               _style,
               otherParties: const ['Customer Signature', 'Received By'],
+              partySignature: customerSignature,
+              partyNote: customerSignatureNote,
             ),
           ],
         ),

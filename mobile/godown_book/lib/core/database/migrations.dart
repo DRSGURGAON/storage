@@ -432,6 +432,50 @@ class Migrations {
   ''';
 
   // ==========================
+  // Customer signature requests
+  // ==========================
+
+  /// A request for a customer's signature on a document, sent to them
+  /// as a link. The cloud copy (Firestore, keyed by the same token)
+  /// carries what the customer is asked to sign; this row is the
+  /// operator's own record of it, so the app shows the state offline
+  /// and keeps the signature after the cloud copy is deleted.
+  static const String createSignatureRequestTable = '''
+  CREATE TABLE IF NOT EXISTS signature_requests(
+    /* The token in the link - long and random, so a link cannot be
+       guessed from another one. */
+    id TEXT PRIMARY KEY,
+
+    company_id TEXT NOT NULL DEFAULT '',
+
+    /* Which document is being signed - a DocumentType code and the
+       row it belongs to. */
+    document_type TEXT NOT NULL,
+    document_id TEXT NOT NULL,
+    document_no TEXT NOT NULL DEFAULT '',
+
+    customer_name TEXT NOT NULL DEFAULT '',
+    customer_phone TEXT NOT NULL DEFAULT '',
+
+    /* 'PENDING' | 'SIGNED' | 'CANCELLED' | 'EXPIRED' */
+    status TEXT NOT NULL DEFAULT 'PENDING',
+
+    link TEXT NOT NULL DEFAULT '',
+
+    created_at TEXT NOT NULL,
+    expires_at TEXT,
+
+    signed_at TEXT,
+    signer_name TEXT,
+
+    /* Where the signature image was saved on this device. */
+    signature_path TEXT,
+
+    UNIQUE(company_id, id)
+  );
+  ''';
+
+  // ==========================
   // Rent invoice / bill
   // ==========================
 

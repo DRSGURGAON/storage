@@ -1,0 +1,21 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "hosting": {
+    "public": "signing_web",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+          { "key": "Referrer-Policy", "value": "no-referrer" }
+        ]
+      }
+    ],
+    "rewrites": [
+      { "source": "/sign/**", "destination": "/index.html" }
+    ]
+  }
+}

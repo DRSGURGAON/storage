@@ -103,6 +103,46 @@ service cloud.firestore {
     }
 
     // ==========================
+    // Customer signature requests
+    // ==========================
+    //
+    // The customer opens the link WITHOUT signing in, so this one
+    // collection is readable by anyone who holds the token - which is
+    // 32 random characters, generated on the device, never listed and
+    // never guessable from another one. Listing the collection is
+    // closed, so a token cannot be discovered by browsing.
+    //
+    // The only thing an unauthenticated visitor may write is their own
+    // signature, once, on a request that is still pending and has not
+    // expired. Nothing else on the document can be changed, and the
+    // company that created it can always delete it - which the app does
+    // as soon as it has brought the signature back.
+    match /signatureRequests/{token} {
+      allow get: if true;
+      allow list: if isSuperAdmin();
+
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status == 'PENDING';
+
+      allow update: if
+        // The company that owns it may change it as it likes.
+        (signedIn() && resource.data.ownerUid == request.auth.uid)
+        // Or the customer signs it, once.
+        || (resource.data.status == 'PENDING'
+            && request.resource.data.status == 'SIGNED'
+            && resource.data.expiresAt > request.time
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'signature', 'signerName', 'signedAt'])
+            && request.resource.data.signature is string
+            && request.resource.data.signature.size() < 400000
+            && request.resource.data.signerName is string
+            && request.resource.data.signerName.size() < 120);
+
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // ==========================
     // Super Admins
     // ==========================
     //

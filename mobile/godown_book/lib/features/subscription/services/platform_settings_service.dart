@@ -34,6 +34,11 @@ class PlatformSettings {
   final String qrLabel1;
   final String qrLabel2;
 
+  /// Where the customer signing page is hosted, e.g.
+  /// https://godown-book.web.app/sign. One address for the whole app -
+  /// it is the app owner's own hosting, not a per-company value.
+  final String signBaseUrl;
+
   const PlatformSettings({
     this.upiId = '',
     this.merchantName = '',
@@ -41,6 +46,7 @@ class PlatformSettings {
     this.qr2,
     this.qrLabel1 = '',
     this.qrLabel2 = '',
+    this.signBaseUrl = '',
   });
 
   bool get hasAnyQr => qr1 != null || qr2 != null;
@@ -83,6 +89,7 @@ class PlatformSettingsService {
         qr2: _decode(data['qrBase64_2'] as String?),
         qrLabel1: data['qrLabel1'] as String? ?? '',
         qrLabel2: data['qrLabel2'] as String? ?? '',
+        signBaseUrl: data['signBaseUrl'] as String? ?? '',
       );
     } catch (_) {
       // Offline, permission denied, or no document yet - all mean the
@@ -105,6 +112,7 @@ class PlatformSettingsService {
     Uint8List? qr2,
     required String qrLabel1,
     required String qrLabel2,
+    String signBaseUrl = '',
   }) async {
     if (qr1 != null && qr1.length > maxQrBytes) {
       throw ArgumentError(
@@ -126,6 +134,7 @@ class PlatformSettingsService {
       if (qr2 != null) 'qrBase64_2': base64Encode(qr2),
       'qrLabel1': qrLabel1,
       'qrLabel2': qrLabel2,
+      'signBaseUrl': signBaseUrl,
       'updatedAt': DateTime.now().toIso8601String(),
     }, SetOptions(merge: true)).timeout(_timeout);
   }

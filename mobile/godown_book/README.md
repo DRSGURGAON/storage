@@ -17,6 +17,7 @@ which a Super Admin activates once payment is received.
 | Prices a job | Quotation |
 | Puts the terms in writing | Household Goods Storage Agreement |
 | Records goods coming in | Storage Receipt, Goods List |
+| Sends a signature link | The customer signs on their own phone, and it prints on the document |
 | Charges for a period | Storage Bill |
 | Takes money | Payment Receipt, and the balance updates |
 | Is asked "what do I owe?" | Customer Statement |
@@ -61,6 +62,41 @@ firebase deploy --only firestore:rules
 
 Until this is done the app opens on its "Could not connect" screen,
 deliberately.
+
+### The customer signing page
+
+The operator can ask a customer to sign a document from their own phone:
+the app sends a link, the customer opens it, reads the details and the
+terms, signs with a finger and submits. The signature then prints on the
+Storage Receipt and the Storage Agreement, with the date it was signed.
+
+It is an electronic acknowledgement, not a certificate-based digital
+signature. The documents say exactly that.
+
+To turn it on:
+
+1. Put your own Firebase web configuration into
+   `signing_web/firebase-config.js` (those values are public, not
+   secrets - Firebase Console, Project settings, Your apps, Web app).
+2. Deploy the page and the rules:
+
+   ```bash
+   firebase deploy --only hosting,firestore:rules
+   ```
+
+3. Open the app as a Super Admin, go to Settings, Super Admin Dashboard,
+   Settings, and put the hosting address (e.g.
+   `https://your-project.web.app`) into **Signing page web address**.
+
+Until that address is set, the signature buttons say the page is not set
+up rather than sending a link that opens on nothing.
+
+How the privacy works: each link carries a 32-character random token,
+readable only by someone holding it, never listed. The link expires
+after 14 days, and the moment the app has brought the signature back it
+deletes the cloud copy - so a link stops showing a customer's details as
+soon as it has done its job. The signature image itself lives on the
+operator's own device.
 
 ### The first Super Admin
 
@@ -133,6 +169,7 @@ lib/
     quotation/    quotations
     storage_booking/  storage records, goods, photos, three papers
     release/      goods going back out
+    signature/    signature links, and what came back
     billing/      bills, payments, statements
     documents/    the document centre
     dashboard/    home
@@ -144,6 +181,9 @@ a `company_id` and every read and write goes through helpers that filter
 on it, so one company's records can never surface in another's. The
 cloud holds the company profile, a document backup, the subscription and
 the platform settings - nothing else.
+
+`signing_web/` is the customer-facing signing page - plain HTML and the
+Firebase web SDK, so it opens fast on a cheap phone.
 
 Documents are built with the `pdf` package through one shared page kit,
 so the letterhead, watermark, tables, terms, bank block and signature
@@ -160,4 +200,5 @@ They run against real SQLite (`sqflite_common_ffi`) and an in-memory
 Firestore (`fake_cloud_firestore`), and cover the schema, company
 scoping, numbering, the four storage-charge models, bills and payments
 keeping balances in step, releases moving stock, the free-copy
-allowance, subscription dates, and every PDF rendering real bytes.
+allowance, subscription dates, signature links from request to signed
+image, and every PDF rendering real bytes.

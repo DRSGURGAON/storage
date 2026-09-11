@@ -9,6 +9,7 @@ import '../models/subscription_plan_model.dart';
 import '../models/subscription_settings_model.dart';
 import '../repositories/subscription_plan_repository.dart';
 import '../repositories/subscription_settings_repository.dart';
+import '../../signature/repositories/signature_repository.dart';
 import '../services/platform_settings_service.dart';
 import '../utils/payment_screenshot_picker.dart';
 
@@ -44,6 +45,7 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
   String? _qrImagePath2;
   final _qrLabel1Controller = TextEditingController();
   final _qrLabel2Controller = TextEditingController();
+  final _signBaseUrlController = TextEditingController();
 
   @override
   void initState() {
@@ -61,6 +63,7 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
     _expiryWarningDaysController.dispose();
     _qrLabel1Controller.dispose();
     _qrLabel2Controller.dispose();
+    _signBaseUrlController.dispose();
     super.dispose();
   }
 
@@ -78,6 +81,9 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
 
     final plans = await SubscriptionPlanRepository.instance.getAllPlans();
     final settings = await SubscriptionSettingsRepository.instance.get();
+    // The signing address lives in the published platform settings,
+    // not the local row - it is the same for every company.
+    final platform = await PlatformSettingsService.instance.fetch();
 
     if (!mounted) return;
 
@@ -94,6 +100,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
       _demoLimitController.text = '${settings.demoGenerationLimit}';
       _watermarkTextController.text = settings.watermarkText;
       _expiryWarningDaysController.text = settings.expiryWarningDaysCsv;
+      _signBaseUrlController.text =
+          platform?.signBaseUrl ?? SignatureRepository.signBaseUrl;
       _isSuperAdmin = true;
       _loading = false;
     });
@@ -170,7 +178,9 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
           qr2: await _readBytes(_qrImagePath2),
           qrLabel1: _qrLabel1Controller.text.trim(),
           qrLabel2: _qrLabel2Controller.text.trim(),
+          signBaseUrl: _signBaseUrlController.text.trim(),
         );
+        SignatureRepository.signBaseUrl = _signBaseUrlController.text.trim();
       } catch (error) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -430,6 +440,25 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                       maxLines: 3,
                       decoration: const InputDecoration(
                         labelText: 'Payment Instructions',
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    Text('Customer Signing',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _signBaseUrlController,
+                      keyboardType: TextInputType.url,
+                      decoration: const InputDecoration(
+                        labelText: 'Signing page web address',
+                        hintText: 'https://your-project.web.app/sign',
+                        helperText: 'Where the signature link opens. Deploy '
+                            'signing_web to Firebase Hosting and put its '
+                            'address here. Blank means signature links are '
+                            'switched off.',
+                        helperMaxLines: 3,
                       ),
                     ),
 

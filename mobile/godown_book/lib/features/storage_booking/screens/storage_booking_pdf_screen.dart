@@ -9,6 +9,7 @@ import '../../../shared/widgets/document_pdf_view.dart';
 import '../../../shared/widgets/pdf_document_actions.dart';
 import '../../company/controllers/company_controller.dart';
 import '../../company/models/company_model.dart';
+import '../../signature/repositories/signature_repository.dart';
 import '../models/storage_booking_model.dart';
 import '../repositories/storage_booking_repository.dart';
 import '../services/goods_list_pdf_service.dart';
@@ -68,6 +69,7 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
 
   StorageBookingModel? _booking;
   CompanyModel? _company;
+  SignedSignature? _customerSignature;
   bool _loading = true;
 
   final Set<String> _selectedCopies = {...StorageReceiptPdfService.copyLabels};
@@ -82,11 +84,18 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
     final booking = await StorageBookingRepository.instance.getById(widget.bookingId);
     final company = await CompanyController.instance.getCompany();
 
+    // The customer's own signature, when they have signed from a link.
+    final signature = booking == null
+        ? null
+        : await SignatureRepository.instance
+            .signedFor(DocumentType.storageReceipt, booking.id);
+
     if (!mounted) return;
 
     setState(() {
       _booking = booking;
       _company = company;
+      _customerSignature = signature;
       _loading = false;
     });
   }
@@ -150,6 +159,22 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
     );
   }
 
+  /// What prints under a signature that came from a link - plainly
+  /// what it is, with the date, and nothing more claimed for it.
+  String get _signatureNote {
+    final signature = _customerSignature;
+    if (signature == null) return '';
+
+    final signedAt = DateTime.tryParse(signature.signedAt);
+    final when = signedAt == null
+        ? ''
+        : ' on ${signedAt.day.toString().padLeft(2, '0')}-'
+            '${signedAt.month.toString().padLeft(2, '0')}-${signedAt.year}';
+    final who = signature.signerName.trim();
+
+    return 'Signed electronically$when${who.isEmpty ? '' : ' by $who'}';
+  }
+
   Future<Uint8List> _buildBytes(StorageBookingModel booking, bool showWatermark) {
     switch (widget.kind) {
       case BookingDocumentKind.receipt:
@@ -158,6 +183,8 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
           _company,
           showWatermark: showWatermark,
           copies: _selectedCopies.toList(),
+          customerSignature: _customerSignature?.image,
+          customerSignatureNote: _signatureNote,
         );
       case BookingDocumentKind.inventory:
         return GoodsListPdfService.instance.build(
@@ -170,6 +197,8 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
           booking,
           _company,
           showWatermark: showWatermark,
+          customerSignature: _customerSignature?.image,
+          customerSignatureNote: _signatureNote,
         );
     }
   }

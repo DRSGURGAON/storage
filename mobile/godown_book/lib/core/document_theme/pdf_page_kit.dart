@@ -388,23 +388,43 @@ class PdfPageKit {
     );
   }
 
-  /// Signature band: any number of plain lines on the left, the
-  /// company's authorized signatory (with the saved signature image)
-  /// on the right.
+  /// Signature band: the other parties on the left, the company's own
+  /// authorized signatory on the right.
+  ///
+  /// When the customer has signed from a link, pass their signature as
+  /// [partySignature] with the note to print under it - the first
+  /// party's line then shows the signature image instead of empty
+  /// space, and says plainly that it was signed electronically.
   static pw.Widget signatures(
     CompanyModel? company,
     Uint8List? signature,
     DocumentThemeStyle style, {
     required List<String> otherParties,
+    Uint8List? partySignature,
+    String partyNote = '',
   }) {
-    pw.Widget line(String label) => pw.Expanded(
+    pw.Widget line(String label, {Uint8List? image, String note = ''}) =>
+        pw.Expanded(
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.SizedBox(height: 40),
+              if (image != null)
+                pw.Container(
+                  height: 40,
+                  alignment: pw.Alignment.centerLeft,
+                  child: pw.Image(pw.MemoryImage(image), fit: pw.BoxFit.contain),
+                )
+              else
+                pw.SizedBox(height: 40),
               pw.Container(width: double.infinity, height: 0.6, color: black),
               pw.SizedBox(height: 3),
-              pw.Text(label, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+              pw.Text(label,
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+              if (note.isNotEmpty)
+                pw.Text(
+                  note,
+                  style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey700),
+                ),
             ],
           ),
         );
@@ -412,8 +432,12 @@ class PdfPageKit {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.end,
       children: [
-        for (final party in otherParties) ...[
-          line(party),
+        for (var i = 0; i < otherParties.length; i++) ...[
+          line(
+            otherParties[i],
+            image: i == 0 ? partySignature : null,
+            note: i == 0 ? partyNote : '',
+          ),
           pw.SizedBox(width: 14),
         ],
         pw.Expanded(
@@ -422,7 +446,8 @@ class PdfPageKit {
             children: [
               pw.Text(
                 'For ${(company?.companyName ?? '').toUpperCase()}',
-                style: pw.TextStyle(fontSize: 8, color: style.primary, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(
+                    fontSize: 8, color: style.primary, fontWeight: pw.FontWeight.bold),
               ),
               pw.SizedBox(height: 2),
               if (signature != null)
@@ -439,7 +464,8 @@ class PdfPageKit {
                 (company?.authorizedSignatoryName ?? '').trim().isEmpty
                     ? 'Authorized Signatory'
                     : '${company!.authorizedSignatoryName.trim()}  (Authorized Signatory)',
-                style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: style.primary),
+                style: pw.TextStyle(
+                    fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: style.primary),
               ),
             ],
           ),

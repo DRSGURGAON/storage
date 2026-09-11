@@ -45,6 +45,9 @@ import '../../features/quotation/screens/quotation_form_screen.dart';
 import '../../features/quotation/screens/quotation_list_screen.dart';
 import '../../features/quotation/screens/quotation_pdf_screen.dart';
 
+// Customer signature
+import '../../features/signature/screens/signature_request_screen.dart';
+
 // Release
 import '../../features/release/screens/release_form_screen.dart';
 import '../../features/release/screens/release_list_screen.dart';
@@ -305,6 +308,15 @@ class AppRouter {
             kind: BookingDocumentKind.fromName(args['kind'] as String?),
           );
         },
+      ),
+
+      // ==========================
+      // Customer signature
+      // ==========================
+      GoRoute(
+        path: '/signature',
+        builder: (context, state) =>
+            SignatureRequestScreen(args: state.extra as SignatureRequestArgs),
       ),
 
       // ==========================

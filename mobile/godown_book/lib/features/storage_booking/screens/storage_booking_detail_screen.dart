@@ -2,7 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/constants/default_terms.dart';
+import '../../../core/document_terms/document_terms_repository.dart';
+import '../../../core/subscription/document_type.dart';
 import '../../billing/repositories/billing_repository.dart';
+import '../../company/controllers/company_controller.dart';
+import '../../signature/models/signature_request_model.dart';
+import '../../signature/repositories/signature_repository.dart';
+import '../../signature/screens/signature_request_screen.dart';
 import '../../release/repositories/goods_release_repository.dart';
 import '../models/storage_booking_model.dart';
 import '../repositories/storage_booking_repository.dart';
@@ -28,6 +35,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
   int _photoCount = 0;
   int _releaseCount = 0;
   double _outstanding = 0;
+  List<SignatureRequestModel> _signatures = const [];
   bool _loading = true;
 
   @override
@@ -42,7 +50,10 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
     var photos = 0;
     var releases = 0;
     var outstanding = 0.0;
+    var signatures = const <SignatureRequestModel>[];
     if (booking != null) {
+      signatures = await SignatureRepository.instance
+          .getForDocument(DocumentType.storageReceipt, booking.id);
       photos = await StoragePhotoRepository.instance.countForBooking(booking.id);
       releases =
           (await GoodsReleaseRepository.instance.getForBooking(booking.id)).length;
@@ -59,6 +70,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
       _photoCount = photos;
       _releaseCount = releases;
       _outstanding = outstanding;
+      _signatures = signatures;
       _loading = false;
     });
   }
@@ -225,6 +237,17 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
           ),
           const Divider(height: 1),
           ListTile(
+            leading: Icon(
+              _signatureSigned ? Icons.verified_outlined : Icons.draw_outlined,
+              color: _signatureSigned ? Colors.green.shade700 : null,
+            ),
+            title: const Text('Customer Signature'),
+            subtitle: Text(_signatureSubtitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _openSignature(b),
+          ),
+          const Divider(height: 1),
+          ListTile(
             leading: const Icon(Icons.photo_camera_outlined),
             title: const Text('Photos'),
             subtitle: Text(_photoCount == 0
@@ -252,6 +275,73 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
         ],
       ),
     );
+  }
+
+  bool get _signatureSigned => _signatures.any((s) => s.isSigned);
+
+  String get _signatureSubtitle {
+    final signed = _signatures.where((s) => s.isSigned);
+    if (signed.isNotEmpty) {
+      return 'Signed on ${_date(signed.first.signedAt)}';
+    }
+    final pending =
+        _signatures.where((s) => s.status == SignatureStatus.pending && !s.hasExpired);
+    if (pending.isNotEmpty) return 'Link sent - waiting for the customer';
+    return 'Send a link and take it on their phone';
+  }
+
+  /// Opens the signature screen with what the customer will be shown:
+  /// the storage details and the terms that are on their receipt.
+  Future<void> _openSignature(StorageBookingModel b) async {
+    final company = await CompanyController.instance.getCompany();
+    final custom = await DocumentTermsRepository.instance
+        .getTerms(DocumentTermsType.storageReceipt);
+
+    final terms = b.terms.trim().isNotEmpty
+        ? b.terms.trim()
+        : custom.isNotEmpty
+            ? custom
+            : (company?.defaultTerms.trim().isNotEmpty ?? false)
+                ? company!.defaultTerms.trim()
+                : DefaultStorageTerms.terms.join('\n');
+
+    if (!mounted) return;
+
+    await context.push(
+      '/signature',
+      extra: SignatureRequestArgs(
+        documentType: DocumentType.storageReceipt,
+        documentId: b.id,
+        documentNo: b.bookingNo,
+        customerName: b.customerName,
+        customerPhone: b.customerPhone,
+        title: 'Storage Receipt',
+        details: [
+          SignatureDetail('Receipt No.', b.bookingNo),
+          SignatureDetail('Date', _date(b.bookingDate)),
+          SignatureDetail('Goods', b.items.isEmpty
+              ? (b.goodsDescription.isEmpty ? '-' : b.goodsDescription)
+              : b.items
+                  .map((i) => '${i.itemName} - ${_qty(i.quantity)} ${i.unit}')
+                  .join(', ')),
+          SignatureDetail('Total packages',
+              b.totalPackages > 0 ? '${b.totalPackages}' : _qty(b.totalQuantity)),
+          SignatureDetail('Stored at', b.locationName.isEmpty ? '-' : b.locationName),
+          SignatureDetail('Storage from', _date(b.storageStartDate)),
+          SignatureDetail(
+            'Storage charge',
+            b.rentRate > 0
+                ? '₹${_qty(b.rentRate)} ${b.rentUnitLabel.isEmpty ? b.rentBasis.rateHint : b.rentUnitLabel}'
+                : 'As agreed',
+          ),
+          if (b.securityDeposit > 0)
+            SignatureDetail('Security deposit', '₹${_qty(b.securityDeposit)}'),
+        ],
+        terms: terms,
+      ),
+    );
+
+    _load();
   }
 
   Widget _papersCard(StorageBookingModel b) {

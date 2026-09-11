@@ -21,6 +21,8 @@ import 'core/tenant/tenant_scope.dart';
 import 'features/company/controllers/company_controller.dart';
 import 'features/company/providers/company_provider.dart';
 import 'features/company/services/company_firestore_sync_service.dart';
+import 'features/signature/repositories/signature_repository.dart';
+import 'features/subscription/services/platform_settings_service.dart';
 import 'features/company/models/company_model.dart';
 import 'firebase_options.dart';
 
@@ -70,6 +72,13 @@ Future<void> main() async {
   // _load). So it warms in the background while the app is already
   // usable.
   unawaited(SuperAdminScope.refresh());
+
+  // Where signature links point. Published once by the Super Admin and
+  // the same for every company, so it is fetched in the background and
+  // cached - offline, the last known address is used, and when nothing
+  // is known the signature buttons say so rather than sending a link
+  // that opens on nothing.
+  unawaited(_loadSigningAddress());
 
   // Periodic document cloud backup - one pass shortly after launch,
   // then every few minutes while the app is open. Entirely
@@ -133,6 +142,27 @@ class _FirebaseInitErrorApp extends StatelessWidget {
     );
   }
 }
+
+Future<void> _loadSigningAddress() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString(_signBaseUrlKey);
+    if (cached != null && cached.isNotEmpty) {
+      SignatureRepository.signBaseUrl = cached;
+    }
+
+    final platform = await PlatformSettingsService.instance.fetch();
+    final published = platform?.signBaseUrl.trim() ?? '';
+    if (published.isNotEmpty) {
+      SignatureRepository.signBaseUrl = published;
+      await prefs.setString(_signBaseUrlKey, published);
+    }
+  } catch (error) {
+    debugPrint('Signing address not loaded at startup: $error');
+  }
+}
+
+const String _signBaseUrlKey = 'signature_base_url';
 
 /// Reconciles the locally-persisted "signed in" flag (AuthScope/
 /// AuthSessionNotifier's own SharedPreferences cache) against

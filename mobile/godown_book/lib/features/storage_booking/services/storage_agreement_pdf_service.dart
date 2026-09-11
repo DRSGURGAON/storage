@@ -29,6 +29,11 @@ class StorageAgreementPdfService {
     bool showWatermark = false,
     String watermarkText = '',
     double watermarkOpacity = 0.05,
+
+    /// The customer's own signature, when they have signed from a
+    /// link, and the note that prints under it.
+    Uint8List? customerSignature,
+    String customerSignatureNote = '',
   }) async {
     _style = DocumentThemeStyle.of(company?.documentTheme ?? DocumentTheme.classic);
     _customTerms = await DocumentTermsRepository.instance
@@ -62,6 +67,8 @@ class StorageAgreementPdfService {
             signature,
             _style,
             otherParties: const ['Customer (Second Party)', 'Witness'],
+            partySignature: customerSignature,
+            partyNote: customerSignatureNote,
           ),
         ],
       ),
