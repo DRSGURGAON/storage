@@ -1,4 +1,4 @@
-# DRS ERP / Bill N Bilty - ProGuard/R8 rules for the release build.
+# Godown Book - ProGuard/R8 rules for the release build.
 #
 # WHY THESE SPECIFIC RULES: Firebase's Android SDKs (Auth, Firestore)
 # and the Flutter engine's own embedding layer both use reflection and

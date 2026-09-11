@@ -1,0 +1,121 @@
+rules_version = '2';
+
+// Godown Book - Cloud Firestore security rules.
+//
+// What lives in the cloud: each company's own profile and document
+// backup under companies/{uid}, its subscription, the platform's
+// payment settings the Super Admin publishes, the App ID counter, and
+// KYC submissions. Everything operational is on the device in SQLite;
+// these rules protect only what genuinely leaves it.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // A Super Admin is anyone with a document under superAdmins keyed
+    // by their own uid. Nobody can write that collection from the app -
+    // the first one is created by hand in the Firebase Console.
+    function isSuperAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/superAdmins/$(request.auth.uid));
+    }
+
+    // ==========================
+    // Company profile and its document backup
+    // ==========================
+    //
+    // Keyed by the owner's own uid, so a company's data can only ever
+    // be read or written by the account that owns it. A Super Admin can
+    // read (to support a customer) but never write.
+    match /companies/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isSuperAdmin());
+      allow write: if signedIn() && request.auth.uid == uid;
+
+      match /{collection}/{document=**} {
+        allow read: if signedIn() && (request.auth.uid == uid || isSuperAdmin());
+        allow write: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // ==========================
+    // Subscriptions
+    // ==========================
+    //
+    // A company may create its own subscription record, but only in the
+    // LIMITED state and only owned by itself - so nobody can grant
+    // themselves access by writing ACTIVE directly. Afterwards a company
+    // may update only its own usage counters and the denormalised copy
+    // of its own profile; status, plan and dates are the Super Admin's
+    // alone.
+    match /subscriptions/{companyId} {
+      allow read: if isSuperAdmin()
+        || (signedIn() && resource.data.ownerUid == request.auth.uid);
+
+      allow create: if isSuperAdmin()
+        || (signedIn()
+            && request.resource.data.ownerUid == request.auth.uid
+            && request.resource.data.status == 'LIMITED');
+
+      allow update: if isSuperAdmin()
+        || (signedIn()
+            && resource.data.ownerUid == request.auth.uid
+            && request.resource.data.ownerUid == resource.data.ownerUid
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.planId == resource.data.planId
+            && request.resource.data.startDate == resource.data.startDate
+            && request.resource.data.expiryDate == resource.data.expiryDate);
+
+      allow delete: if isSuperAdmin();
+    }
+
+    // ==========================
+    // Platform settings (the payment QR the Super Admin publishes)
+    // ==========================
+    match /platformSettings/{document} {
+      allow read: if signedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    // ==========================
+    // App ID counter
+    // ==========================
+    //
+    // Incremented in a transaction when a company is first set up. Any
+    // signed-in user may do that; nobody may delete it.
+    match /counters/{counter} {
+      allow read, create, update: if signedIn();
+      allow delete: if false;
+    }
+
+    // ==========================
+    // KYC submissions
+    // ==========================
+    match /kycSubmissions/{companyId} {
+      allow read: if isSuperAdmin()
+        || (signedIn() && resource.data.ownerUid == request.auth.uid);
+      allow create, update: if isSuperAdmin()
+        || (signedIn() && request.resource.data.ownerUid == request.auth.uid);
+      allow delete: if isSuperAdmin();
+    }
+
+    // ==========================
+    // Super Admins
+    // ==========================
+    //
+    // Readable so the app can tell whether the signed-in user is one;
+    // never writable from the app.
+    match /superAdmins/{uid} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // Anything not named above is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
