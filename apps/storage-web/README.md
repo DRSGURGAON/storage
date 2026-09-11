@@ -43,7 +43,7 @@ Every control here is a plain element styled by `src/app.css`.
 | **Today** | How much is in the godown, what is coming, what space is free |
 | **Bookings** | Search by name, phone or number — how a caller identifies themselves |
 | **New booking** | One form, top to bottom: who, where, how much, and what |
-| **Booking** | The record, and the three actions: goods arrived, hand goods back, close |
+| **Booking** | The record, the three actions (goods arrived, hand goods back, close), the rent, and the papers |
 | **Plan** | What is in storage against what the plan allows, and how to ask for a bigger one |
 
 ## What the screens refuse to do
@@ -57,6 +57,27 @@ only exists on the server is invisible until somebody hits it:
 - **Close booking** does not appear while anything is still inside.
 - **Hand goods back** and **Close** do not appear at all for field staff —
   `confirm_storage_intake` they have; `release_storage_goods` they do not.
+- A **paper is greyed out until the event it describes has happened**, and
+  the line under it says what is missing: the storage receipt needs an
+  intake, the release note needs something to have gone back.
+- **Bill rent** does not appear before the goods arrive, because rent runs
+  from the day they do.
+
+## The papers and the rent
+
+Three PDFs print from a booking — the inventory list the customer signs,
+the storage receipt they keep, and a release note per trip — on the same
+letterhead, numbering and verify-QR as every other document in the system.
+They open through a short-lived signed link, because a new tab carries no
+`Authorization` header.
+
+**Bill rent** shows the bill before it exists: the period, the number of
+days, the rent, any one-time charges waiting to ride along, and the total
+before GST. A part month is charged by the day (11 days of a 30-day month
+is 11/30 of the rent), a full month is the rent, and the same month cannot
+be billed twice — the next bill starts the day after the last one ended,
+with no dates to remember. What comes out is an ordinary tax invoice, on
+the customer's statement, payable like any other.
 
 ## The subscription
 
@@ -96,7 +117,6 @@ Store listing.
 
 ## Not built yet
 
-Rent invoicing, the PDF document set (inventory list, storage receipt,
-release note), photo capture on items, and the customer's own view. The
-API for the first two is the next slice; the engine for both already
-exists on the 3PL side.
+Payment collection from inside the app (no gateway is wired — `DECISIONS.md`
+§13), photo capture on items at intake, and the customer's own view of
+what the godown is holding for them.

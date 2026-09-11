@@ -52,32 +52,58 @@ export class PdfRendererService implements OnModuleDestroy {
   constructor(private readonly config: ConfigService) {}
 
   private async getBrowser(): Promise<Browser> {
-    if (!this.browserPromise) {
-      const executablePath = this.config.get<string>('PUPPETEER_CHROMIUM_EXECUTABLE');
-      if (!executablePath) {
-        // `puppeteer-core` never looks for a browser on its own -- that is
-        // the whole difference between it and `puppeteer`, which bundles a
-        // download. Left to itself it raises "An `executablePath` or
-        // `channel` must be specified for `puppeteer-core`", which reaches
-        // an operator as a 500 on the first Generate click and names
-        // nothing they can set. So it is said here instead, with the
-        // variable in it.
-        throw new Error(
-          'PUPPETEER_CHROMIUM_EXECUTABLE is not set, so no browser can be launched to render PDFs. ' +
-            'Point it at a Chrome or Chromium binary (the container image sets it to /usr/bin/chromium).',
-        );
-      }
-      this.browserPromise = loadPuppeteerCore().then(({ default: puppeteer }) =>
-        puppeteer.launch({
-          executablePath,
-          args: ['--no-sandbox'],
-        }),
+    if (this.browserPromise) {
+      // A browser that died -- OOM-killed, crashed, or reaped by the
+      // container -- leaves a resolved promise holding a corpse, and every
+      // later render fails with "Connection closed" until someone restarts
+      // the API. So the cached one is used only while it is still
+      // connected, and otherwise thrown away and relaunched.
+      const existing = await this.browserPromise.catch(() => null);
+      if (existing?.connected) return existing;
+      this.browserPromise = null;
+    }
+
+    const executablePath = this.config.get<string>('PUPPETEER_CHROMIUM_EXECUTABLE');
+    if (!executablePath) {
+      // `puppeteer-core` never looks for a browser on its own -- that is
+      // the whole difference between it and `puppeteer`, which bundles a
+      // download. Left to itself it raises "An `executablePath` or
+      // `channel` must be specified for `puppeteer-core`", which reaches
+      // an operator as a 500 on the first Generate click and names
+      // nothing they can set. So it is said here instead, with the
+      // variable in it.
+      throw new Error(
+        'PUPPETEER_CHROMIUM_EXECUTABLE is not set, so no browser can be launched to render PDFs. ' +
+          'Point it at a Chrome or Chromium binary (the container image sets it to /usr/bin/chromium).',
       );
     }
-    return this.browserPromise;
+
+    // A failed launch is not cached either: a machine that was briefly out
+    // of memory would otherwise never render a document again.
+    const launching = loadPuppeteerCore().then(({ default: puppeteer }) =>
+      puppeteer.launch({ executablePath, args: ['--no-sandbox'] }),
+    );
+    this.browserPromise = launching;
+    launching.catch(() => {
+      if (this.browserPromise === launching) this.browserPromise = null;
+    });
+    return launching;
   }
 
   async renderPdf(html: string): Promise<Buffer> {
+    try {
+      return await this.renderOnce(html);
+    } catch (error) {
+      // The browser can die *between* the connected check and the render.
+      // One retry on a fresh browser turns a document an operator is
+      // waiting for into a document they get.
+      if (!isDisconnected(error)) throw error;
+      this.browserPromise = null;
+      return this.renderOnce(html);
+    }
+  }
+
+  private async renderOnce(html: string): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
     try {
@@ -95,8 +121,23 @@ export class PdfRendererService implements OnModuleDestroy {
 
   async onModuleDestroy() {
     if (this.browserPromise) {
-      const browser = await this.browserPromise;
-      await browser.close();
+      const browser = await this.browserPromise.catch(() => null);
+      await browser?.close();
     }
   }
+}
+
+/**
+ * Puppeteer signals a dead browser by message rather than by type -- there
+ * is no exported error class to catch.
+ */
+function isDisconnected(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('Connection closed') ||
+    message.includes('Target closed') ||
+    message.includes('Session closed') ||
+    message.includes('Protocol error') ||
+    message.includes('browser has disconnected')
+  );
 }

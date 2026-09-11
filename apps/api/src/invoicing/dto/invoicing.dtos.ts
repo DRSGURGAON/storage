@@ -1,4 +1,5 @@
 import { Type } from 'class-transformer';
+import { RATE_BASES } from '../../billing/dto/create-rate-card-line.dto';
 import { ArrayMinSize, IsArray, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, Min, ValidateNested } from 'class-validator';
 
 class PagedQuery {
@@ -15,6 +16,13 @@ export class ManualChargeLineDto {
   @IsNumber({ maxDecimalPlaces: 4 }) @Min(0) rate!: number;
   @IsOptional() @IsUUID() taxRateId?: string;
   @IsOptional() @IsString() sacCode?: string;
+  /**
+   * Overrides the charge type's default basis on this line only. A
+   * household storage rent is a lumpsum for the month; printing the
+   * Storage charge type's `unit_day` next to it on the customer's invoice
+   * would be wrong in the one place a customer reads closely.
+   */
+  @IsOptional() @IsIn(RATE_BASES) basis?: (typeof RATE_BASES)[number];
 }
 
 export class CreateBillingRunDto {

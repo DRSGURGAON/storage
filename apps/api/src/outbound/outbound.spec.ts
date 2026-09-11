@@ -249,7 +249,10 @@ describe('Outbound: packing, dispatch, loading, gate pass, POD', () => {
       expect(committed.body).toMatchObject({ documentType: type, versionNo: 1 });
       expect((await api().get(`/verify/${committed.body.qrToken}`).expect(200)).body.result).toBe('valid');
     }
-  });
+    // Four documents rendered through headless Chromium make this the
+    // slowest test in the suite: the default 5s limit fails it under load
+    // rather than because anything is wrong.
+  }, 60_000);
 
   it('posts at dispatch confirmation when the tenant says so, still exactly once, and rolls partial dispatches up', async () => {
     await api().put('/company/settings/workflow.outward_posting_point').set(auth(owner)).send({ value: 'dispatch' }).expect(200);

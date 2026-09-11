@@ -49,6 +49,7 @@ interface BookingRow {
   cancel_reason: string | null;
   closed_at: Date | null;
   notes: string | null;
+  rent_billed_upto: string | null;
   created_at: Date;
   updated_at: Date;
   customer_name?: string;
@@ -106,7 +107,7 @@ const BOOKING_COLUMNS = [
   'billable_quantity', 'monthly_rent', 'security_deposit', 'minimum_months', 'notice_days',
   'billing_day', 'customer_snapshot', 'pickup_address', 'delivery_address', 'id_proof_type',
   'id_proof_last4', 'status', 'cancelled_at', 'cancel_reason', 'closed_at', 'notes',
-  'created_at', 'updated_at',
+  'rent_billed_upto', 'created_at', 'updated_at',
 ] as const;
 
 const SELECT = BOOKING_COLUMNS.join(', ');
@@ -216,6 +217,7 @@ function toApi(
     cancelReason: row.cancel_reason,
     closedAt: row.closed_at,
     notes: row.notes,
+    rentBilledUpto: row.rent_billed_upto,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(extras
@@ -705,6 +707,36 @@ export class StorageBookingsService {
       await tx`delete from storage_booking_charges where id = ${chargeId} and tenant_id = ${actor.tenantId}`;
     });
     return this.get(actor, id);
+  }
+
+  /**
+   * The handover a release note prints. Named explicitly when the operator
+   * is reprinting an older trip; otherwise the most recent one out, which
+   * is what somebody standing at the counter means.
+   */
+  async movementForReleaseNote(
+    actor: AuthenticatedUser,
+    bookingId: string,
+    movementId?: string,
+  ): Promise<string> {
+    return withTenant(this.sql, actor.tenantId, async (tx) => {
+      await this.loadBooking(tx, actor, bookingId);
+      const [row] = movementId
+        ? await tx<{ id: string }[]>`
+            select id from storage_movements
+            where id = ${movementId} and booking_id = ${bookingId} and tenant_id = ${actor.tenantId}
+              and direction = 'out' and status = 'completed'
+          `
+        : await tx<{ id: string }[]>`
+            select id from storage_movements
+            where booking_id = ${bookingId} and tenant_id = ${actor.tenantId}
+              and direction = 'out' and status = 'completed'
+            order by movement_date desc, created_at desc
+            limit 1
+          `;
+      if (!row) throw new NotFoundException('Nothing has been handed back on this booking yet');
+      return row.id;
+    });
   }
 
   // ------------------------------------------------------------ movements

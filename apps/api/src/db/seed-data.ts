@@ -323,6 +323,19 @@ export const UNMETERED_FEATURE_KEYS = [
   { code: 'CUSTOMER_STATEMENT', module: 'billing', name: 'Customer account statement' },
 ] as const;
 
+/**
+ * Every document-generation feature, both products'. The free-copies rule
+ * and every plan's `unlimited` row are seeded from *this*, not from
+ * METERED_FEATURE_KEYS alone -- the storage papers were added to the
+ * catalogue but not to any plan, and an absent `plan_feature_limits` row
+ * resolves to `disabled`, fail-closed. The first inventory list anybody
+ * tried to print came back 402 with no plan to upgrade to.
+ */
+export const ALL_METERED_DOCUMENT_FEATURES = [
+  ...METERED_FEATURE_KEYS,
+  ...STORAGE_FEATURE_KEYS,
+];
+
 export const FEATURE_KEYS = [
   ...METERED_FEATURE_KEYS.map((f) => ({ ...f, isMeterable: true })),
   // Household storage's own documents, metered on the same two-free-copies

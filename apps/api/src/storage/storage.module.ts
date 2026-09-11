@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
+import { DocumentsModule } from '../documents/documents.module';
 import { EntitlementModule } from '../entitlement/entitlement.module';
+import { InvoicingModule } from '../invoicing/invoicing.module';
 import { NumberingModule } from '../numbering/numbering.module';
+import { StorageBillingService } from './storage-billing.service';
 import { StorageBookingsService } from './storage-bookings.service';
 import { StorageBookingsController, StorageUnitsController } from './storage.controllers';
 import { StorageUnitsService } from './storage-units.service';
@@ -14,9 +17,9 @@ import { StorageUnitsService } from './storage-units.service';
  * an item-wise inventory list with a condition note against each line.
  */
 @Module({
-  imports: [AuditModule, NumberingModule, EntitlementModule],
+  imports: [AuditModule, NumberingModule, EntitlementModule, DocumentsModule, InvoicingModule],
   controllers: [StorageUnitsController, StorageBookingsController],
-  providers: [StorageUnitsService, StorageBookingsService],
+  providers: [StorageUnitsService, StorageBookingsService, StorageBillingService],
   exports: [StorageBookingsService],
 })
 export class StorageModule {}

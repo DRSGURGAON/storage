@@ -66,11 +66,35 @@ export interface Booking {
   status: string;
   cancelReason: string | null;
   notes: string | null;
+  rentBilledUpto: string | null;
   items?: BookingItem[];
   charges?: BookingCharge[];
   movements?: BookingMovement[];
   declaredValueTotal?: number;
   oneTimeChargesTotal?: number;
+}
+
+export interface RentInvoice {
+  invoiceId: string;
+  number: string;
+  invoiceDate: string;
+  grandTotal: number;
+  amountPaid: number;
+  outstanding: number;
+  status: string;
+  periodStart: string;
+  periodEnd: string;
+  rentAmount: number;
+}
+
+export interface RentPreview {
+  periodStart: string;
+  periodEnd: string;
+  days: number;
+  rentAmount: number;
+  charges: { id: string; description: string; amount: number }[];
+  subtotal: number;
+  description: string;
 }
 
 export interface StorageUnit {

@@ -1806,6 +1806,85 @@ because nobody has paid.
 
 Full suite: 45 suites, 356 tests.
 
+## Phase 28 — the papers, and the rent bill
+
+The three papers a household storage operator hands over, and the monthly
+bill that is the whole commercial point of the business.
+
+**Three documents, one loader.** Inventory list, storage receipt and
+release note share `loadBooking()` in
+`apps/api/src/documents/templates/storage-document.templates.ts` and
+differ only in what they assert has happened: a receipt cannot be printed
+before an intake, a release note before a release. The list prints from
+the booking as soon as there are items, because the customer signs it
+before anything moves.
+
+**The release note is keyed to the movement, not the booking.** A family
+collecting in three trips gets three notes with three numbers (`SM/...`),
+not one document reissued as v2 and v3 — `documents` is unique on
+`(tenant_id, document_type, source_id, version_no)`, so the source has to
+be the trip.
+
+**Rent is charged by the day for a part month, and by the month for a
+month.** 20 June to 30 June on ₹3,000 is 11/30 of the rent, ₹1,100 — not
+a rounded-up month and not a 1/30 day rate applied to a 31-day month.
+`rentFor()` in `storage-billing.service.ts` uses the days of the month the
+period *starts* in.
+
+**The same month cannot be billed twice**, and nobody is asked to
+remember: `storage_bookings.rent_billed_upto` is the watermark, the next
+period starts the day after it, and an overlap is refused with a message
+that says how far the booking is billed. One-time charges (pickup,
+packing) ride on the first invoice raised after they are entered and are
+then marked `invoiced_at`, so a pickup fee cannot appear on every invoice
+for the rest of the year.
+
+**It reuses the invoicing engine rather than growing a second one.** The
+rent goes through a billing run as a manual line — `billing-engine.md`'s
+run derives charges from stock movements, and a household booking has no
+stock rows at all — and comes out as an ordinary tax invoice: same
+numbering series, same CGST/SGST split decided from the two state codes,
+same PDF, same payments, same customer statement. `storage_booking_invoices`
+(`schema/102_storage_rent_billing.sql`) is the only new table, and it only
+records which period an invoice covered.
+
+**A household bill is issued when it is raised.** The 3PL chain is
+draft → pending\_approval → approved → issued because one person drafts
+and another approves. In a one-person godown the person tapping the button
+is the person handing the bill over, and an unissued invoice is on no
+statement and can take no payment — a dead end. So `raise()` walks the
+invoice through the same three audited transitions whenever the actor
+holds `approve_invoice`. A billing executive, who does not, still leaves a
+draft for the accountant: that rule is not weakened, only skipped for the
+people it was never about.
+
+**A manual line may override its charge type's basis.** The rent is a
+lumpsum for the period, and printing the Storage charge type's `unit_day`
+next to it was wrong in the one place a customer reads closely
+(`ManualChargeLineDto.basis`).
+
+Found by running it, twice in one sitting:
+
+- Tapping **Bill rent** a second time re-proposed July, already billed.
+  Two causes, both real: the next period was starting *on* the watermark
+  instead of the day after it, and React Query was answering from a cached
+  preview. The sheet now opens on August at full rent, from a preview that
+  is never served from cache.
+- The PDF renderer kept one Chromium for the life of the process and never
+  noticed when it died — every document after a crash failed with
+  "Connection closed" until someone restarted the API. It now checks the
+  browser is still connected, relaunches when it is not, retries a render
+  once, and does not cache a failed launch. The test kills the browser on
+  purpose and asks for another PDF; it fails against the old renderer.
+
+Verified end to end in a browser at 390px: a booking taken in 47 days ago,
+billed to the end of that month (6 days, ₹870.97), the invoice opened as a
+real GST PDF with HSN 996729, CGST and SGST, a round-off line and a verify
+QR, the bill on the customer statement as a debit, and the second bill
+proposing the next month instead of refusing the last one.
+
+Full suite: 48 suites, 365 tests.
+
 ## Cross-cutting, not a phase
 
 - **Audit logging** (`audit_logs`) is wired in starting Phase 1, not

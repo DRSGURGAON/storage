@@ -12,6 +12,9 @@ import { InvoicesService } from './invoices.service';
   imports: [AuditModule, NumberingModule, DocumentsModule, BillingModule],
   controllers: [BillingRunsController, InvoicesController],
   providers: [BillingRunsService, InvoicesService],
-  exports: [InvoicesService],
+  // BillingRunsService is exported for the household-storage rent
+  // invoice, which composes a run of manual lines rather than deriving one
+  // from stock movements a household booking does not have.
+  exports: [InvoicesService, BillingRunsService],
 })
 export class InvoicingModule {}

@@ -562,7 +562,7 @@ export class BillingRunsService {
     const amount = round2(m.quantity * m.rate);
     calc.manual.push({ chargeTypeCode: chargeType.code, description: m.description, quantity: m.quantity, rate: m.rate, amount });
     return {
-      chargeTypeId: chargeType.id, chargeTypeCode: chargeType.code, description: m.description, basis: chargeType.default_basis, quantity: m.quantity,
+      chargeTypeId: chargeType.id, chargeTypeCode: chargeType.code, description: m.description, basis: m.basis ?? chargeType.default_basis, quantity: m.quantity,
       days: null, rate: m.rate, minimumCharge: null, amount, sourceType: 'manual', sourceId: null,
       taxRateId: await this.taxRateFor(tx, tenantId, m.taxRateId ?? null), sacCode: m.sacCode ?? chargeType.sac_code,
     };

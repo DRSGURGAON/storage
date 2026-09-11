@@ -28,6 +28,11 @@ import { ReleaseOrderDocumentTemplate } from './templates/release-order-document
 import { StockStatementDocumentTemplate } from './templates/stock-statement-document.template';
 import { StockVerificationDocumentTemplate } from './templates/stock-verification-document.template';
 import { WarehouseReceiptDocumentTemplate } from './templates/warehouse-receipt-document.template';
+import {
+  StorageInventoryListTemplate,
+  StorageReceiptTemplate,
+  StorageReleaseNoteTemplate,
+} from './templates/storage-document.templates';
 
 /**
  * document-engine.md §2: "Adding a new document type later means adding
@@ -64,6 +69,9 @@ export class DocumentTemplateRegistry {
     debitNoteTemplate: DebitNoteDocumentTemplate,
     paymentReceiptTemplate: PaymentReceiptDocumentTemplate,
     customerStatementTemplate: CustomerStatementDocumentTemplate,
+    storageInventoryListTemplate: StorageInventoryListTemplate,
+    storageReceiptTemplate: StorageReceiptTemplate,
+    storageReleaseNoteTemplate: StorageReleaseNoteTemplate,
   ) {
     this.templates.set(quotationTemplate.documentType, quotationTemplate);
     this.templates.set(agreementTemplate.documentType, agreementTemplate);
@@ -89,6 +97,12 @@ export class DocumentTemplateRegistry {
     this.templates.set(debitNoteTemplate.documentType, debitNoteTemplate);
     this.templates.set(paymentReceiptTemplate.documentType, paymentReceiptTemplate);
     this.templates.set(customerStatementTemplate.documentType, customerStatementTemplate);
+    // Household storage's three papers -- the inventory list a claim is
+    // settled against, the receipt the customer keeps, and the note the
+    // goods leave on.
+    this.templates.set(storageInventoryListTemplate.documentType, storageInventoryListTemplate);
+    this.templates.set(storageReceiptTemplate.documentType, storageReceiptTemplate);
+    this.templates.set(storageReleaseNoteTemplate.documentType, storageReleaseNoteTemplate);
   }
 
   get(documentType: string): DocumentTemplate {

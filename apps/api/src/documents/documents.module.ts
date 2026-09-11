@@ -37,6 +37,11 @@ import { ReleaseOrderDocumentTemplate } from './templates/release-order-document
 import { StockStatementDocumentTemplate } from './templates/stock-statement-document.template';
 import { StockVerificationDocumentTemplate } from './templates/stock-verification-document.template';
 import { WarehouseReceiptDocumentTemplate } from './templates/warehouse-receipt-document.template';
+import {
+  StorageInventoryListTemplate,
+  StorageReceiptTemplate,
+  StorageReleaseNoteTemplate,
+} from './templates/storage-document.templates';
 import { VerifyController, VerifyService } from './verify.controller';
 
 @Module({
@@ -45,6 +50,9 @@ import { VerifyController, VerifyService } from './verify.controller';
   providers: [
     DocumentEngineService,
     DocumentTemplateRegistry,
+    StorageInventoryListTemplate,
+    StorageReceiptTemplate,
+    StorageReleaseNoteTemplate,
     DocumentRelationsService,
     DownloadLinkService,
     PdfRendererService,

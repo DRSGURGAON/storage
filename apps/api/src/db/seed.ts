@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { createDbConnection } from './client';
 import {
   FEATURE_KEYS,
+  ALL_METERED_DOCUMENT_FEATURES,
   FREE_PLAN,
   FREE_PLAN_DOCUMENT_LIMIT,
   FREE_PLAN_STORAGE_BOOKINGS,
@@ -100,7 +101,7 @@ async function main() {
 
     // The 2-free-copies rule (entitlement-engine.md §6): seed data, not a
     // constant in application code.
-    for (const feature of METERED_FEATURE_KEYS) {
+    for (const feature of ALL_METERED_DOCUMENT_FEATURES) {
       await sql`
         insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value, period)
         values (gen_random_uuid(), ${freePlan.id}, ${feature.code}, 'counted', ${FREE_PLAN_DOCUMENT_LIMIT}, 'lifetime')
@@ -139,7 +140,7 @@ async function main() {
       do update set limit_type = excluded.limit_type, limit_value = excluded.limit_value, period = excluded.period
     `;
     console.log(
-      `seeded FREE plan with ${METERED_FEATURE_KEYS.length} metered + ${UNMETERED_FEATURE_KEYS.length} unlimited feature limits`,
+      `seeded FREE plan with ${ALL_METERED_DOCUMENT_FEATURES.length} metered + ${UNMETERED_FEATURE_KEYS.length} unlimited feature limits`,
     );
 
     // The paid plans. Everything is unlimited on them except the godown
@@ -172,7 +173,7 @@ async function main() {
       // (entitlement-engine.md §3, fail-closed), so "unlimited" has to be
       // written down -- a paid plan that simply omitted these would refuse
       // to generate anything at all.
-      for (const feature of [...METERED_FEATURE_KEYS, ...UNMETERED_FEATURE_KEYS]) {
+      for (const feature of [...ALL_METERED_DOCUMENT_FEATURES, ...UNMETERED_FEATURE_KEYS]) {
         await sql`
           insert into plan_feature_limits (id, plan_id, feature_code, limit_type, limit_value, period)
           values (gen_random_uuid(), ${row.id}, ${feature.code}, 'unlimited', null, 'lifetime')
@@ -249,7 +250,7 @@ async function main() {
       `;
       // Documents: two free copies on Free, unlimited once paying -- the
       // same shape as the warehouse ladder, for the same reason.
-      for (const feature of [...METERED_FEATURE_KEYS, ...UNMETERED_FEATURE_KEYS]) {
+      for (const feature of [...ALL_METERED_DOCUMENT_FEATURES, ...UNMETERED_FEATURE_KEYS]) {
         const unmetered = UNMETERED_FEATURE_KEYS.some((f) => f.code === feature.code);
         const limitType = paid || unmetered ? 'unlimited' : 'counted';
         await sql`

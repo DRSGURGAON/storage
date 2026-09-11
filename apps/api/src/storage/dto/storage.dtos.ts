@@ -216,6 +216,26 @@ export class CloseStorageBookingDto {
   @IsOptional() @IsString() @MaxLength(500) notes?: string;
 }
 
+export class GenerateStoragePaperDto {
+  @IsOptional() @IsBoolean() regenerate?: boolean;
+  /**
+   * Which handover the release note is about. Left out, it is the most
+   * recent one -- which is what somebody printing a note at the counter
+   * means, and the only case where guessing is safe.
+   */
+  @IsOptional() @IsUUID() movementId?: string;
+}
+
+export class RaiseRentInvoiceDto {
+  /** Defaults to the day after the last invoice, or the day the goods arrived. */
+  @IsOptional() @IsDateString() periodStart?: string;
+  /** Defaults to today, or the day the booking closed. */
+  @IsOptional() @IsDateString() periodEnd?: string;
+  @IsOptional() @IsDateString() invoiceDate?: string;
+  /** Unbilled one-time charges ride along unless this says otherwise. */
+  @IsOptional() @IsBoolean() includeCharges?: boolean;
+}
+
 export class CancelStorageBookingDto {
   @IsString() @MaxLength(300) reason!: string;
 }

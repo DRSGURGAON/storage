@@ -4,6 +4,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, type PaywallBody } from '../lib/api';
 import { useSession } from '../lib/session';
 import { Card, Field, Icon, KV, Sheet, StatusPill, useToast } from '../components/ui';
+import { Papers } from '../components/Papers';
+import { Rent } from '../components/Rent';
 import { Paywall } from '../components/Paywall';
 import { categoryLabel, formatDate, idProofLabel } from '../lib/format';
 import type { Booking, BookingItem } from '../lib/types';
@@ -124,6 +126,10 @@ export function BookingDetail() {
           </div>
         ) : null}
       </Card>
+
+      <Rent booking={booking} />
+
+      <Papers booking={booking} />
 
       {(booking.movements ?? []).length > 0 ? (
         <Card>

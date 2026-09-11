@@ -11,6 +11,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AuthenticatedUser } from '../auth/jwt-payload';
@@ -23,14 +24,18 @@ import {
   CloseStorageBookingDto,
   CreateStorageBookingDto,
   CreateStorageUnitDto,
+  GenerateStoragePaperDto,
   ListStorageBookingsQuery,
   ListStorageUnitsQuery,
+  RaiseRentInvoiceDto,
   StorageIntakeDto,
   StorageItemDto,
   StorageReleaseDto,
   UpdateStorageBookingDto,
   UpdateStorageUnitDto,
 } from './dto/storage.dtos';
+import { DocumentEngineService } from '../documents/documents.service';
+import { StorageBillingService } from './storage-billing.service';
 import { StorageBookingsService } from './storage-bookings.service';
 import { StorageUnitsService } from './storage-units.service';
 
@@ -66,7 +71,11 @@ export class StorageUnitsController {
 @Controller('storage/bookings')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class StorageBookingsController {
-  constructor(private readonly bookings: StorageBookingsService) {}
+  constructor(
+    private readonly bookings: StorageBookingsService,
+    private readonly billing: StorageBillingService,
+    private readonly documentEngine: DocumentEngineService,
+  ) {}
 
   @Get()
   @RequirePermission('view_storage_booking')
@@ -187,6 +196,61 @@ export class StorageBookingsController {
     return this.bookings.close(u, id, dto, ip);
   }
 
+  /**
+   * The three papers, by the name an operator uses rather than the
+   * document type in the table. A URL a person might type is worth being
+   * readable; the mapping is one object and cannot drift, because an
+   * unknown name is refused here rather than reaching the registry as a
+   * 404 about a "document type" nobody asked for.
+   */
+  @Post(':id/documents/:paper')
+  @RequirePermission('view_storage_booking')
+  async generateDocument(
+    @CurrentUser() u: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('paper') paper: string,
+    @Body() dto: GenerateStoragePaperDto,
+    @Ip() ip: string,
+  ) {
+    const type = paperType(paper);
+    // A release note is about one trip out, so its source record is the
+    // movement -- three collections make three notes, not three versions
+    // of one. The other two describe the booking as a whole.
+    const sourceId =
+      type === 'storage_release_note'
+        ? await this.bookings.movementForReleaseNote(u, id, dto.movementId)
+        : id;
+    return this.documentEngine.commitDocument(u, type, sourceId, { regenerate: dto.regenerate }, ip);
+  }
+
+  /** What the next rent invoice would say, without raising one. */
+  @Post(':id/invoice/preview')
+  @RequirePermission('create_invoice')
+  previewInvoice(
+    @CurrentUser() u: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RaiseRentInvoiceDto,
+  ) {
+    return this.billing.preview(u, id, dto);
+  }
+
+  @Post(':id/invoice')
+  @RequirePermission('create_invoice')
+  raiseInvoice(
+    @CurrentUser() u: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RaiseRentInvoiceDto,
+    @Ip() ip: string,
+  ) {
+    return this.billing.raise(u, id, dto, ip);
+  }
+
+  @Get(':id/invoices')
+  @RequirePermission('view_storage_booking')
+  invoices(@CurrentUser() u: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.billing.listForBooking(u, id);
+  }
+
   @Post(':id/cancel')
   @RequirePermission('edit_storage_booking')
   cancel(
@@ -197,4 +261,20 @@ export class StorageBookingsController {
   ) {
     return this.bookings.cancel(u, id, dto, ip);
   }
+}
+
+const PAPERS: Record<string, string> = {
+  'inventory-list': 'storage_inventory_list',
+  receipt: 'storage_receipt',
+  'release-note': 'storage_release_note',
+};
+
+function paperType(paper: string): string {
+  const type = PAPERS[paper];
+  if (!type) {
+    throw new BadRequestException(
+      `Unknown document "${paper}" -- expected one of: ${Object.keys(PAPERS).join(', ')}`,
+    );
+  }
+  return type;
 }
