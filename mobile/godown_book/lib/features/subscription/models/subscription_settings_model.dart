@@ -77,7 +77,7 @@ class SubscriptionSettingsModel {
     this.whatsappNumber = '',
     this.supportPhoneNumber = '',
     this.paymentInstructions = '',
-    this.demoGenerationLimit = 3,
+    this.demoGenerationLimit = 2,
     this.watermarkText = 'DEMO - UNLICENSED COPY',
     // Trial-period default (Phase: pre-launch) - genuinely 5%
     // opacity, lowered from 15% per explicit instruction: "bilkul
@@ -130,7 +130,7 @@ class SubscriptionSettingsModel {
       whatsappNumber: map['whatsapp_number'] as String? ?? '',
       supportPhoneNumber: map['support_phone_number'] as String? ?? '',
       paymentInstructions: map['payment_instructions'] as String? ?? '',
-      demoGenerationLimit: map['demo_generation_limit'] as int? ?? 3,
+      demoGenerationLimit: map['demo_generation_limit'] as int? ?? 2,
       watermarkText:
           map['watermark_text'] as String? ?? 'DEMO - UNLICENSED COPY',
       watermarkOpacity:

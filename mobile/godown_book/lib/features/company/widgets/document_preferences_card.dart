@@ -45,7 +45,7 @@ class DocumentPreferencesCard extends StatelessWidget {
             TextField(
               controller: bookingPrefixController,
               decoration: const InputDecoration(
-                labelText: "Warehouse Receipt Prefix",
+                labelText: "Storage Receipt Prefix",
                 hintText: "DRS/QT",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.request_quote),
@@ -57,7 +57,7 @@ class DocumentPreferencesCard extends StatelessWidget {
             TextField(
               controller: invoicePrefixController,
               decoration: const InputDecoration(
-                labelText: "Rent Bill Prefix",
+                labelText: "Storage Bill Prefix",
                 hintText: "DRS/INV",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.receipt_long),
@@ -81,7 +81,7 @@ class DocumentPreferencesCard extends StatelessWidget {
             TextField(
               controller: releasePrefixController,
               decoration: const InputDecoration(
-                labelText: "Delivery Order Prefix",
+                labelText: "Release Record Prefix",
                 hintText: "DRS/LR",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.local_shipping),

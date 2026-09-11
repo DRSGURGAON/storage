@@ -104,7 +104,7 @@ void main() {
     );
 
     final settings = await db.query('subscription_settings');
-    expect(settings.single['demo_generation_limit'], 3);
+    expect(settings.single['demo_generation_limit'], 2);
     expect(settings.single['watermark_text'], 'DEMO - UNLICENSED COPY');
   });
 

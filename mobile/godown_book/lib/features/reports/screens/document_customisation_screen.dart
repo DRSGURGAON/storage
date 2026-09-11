@@ -28,11 +28,12 @@ class _DocumentCustomisationScreenState
     extends State<DocumentCustomisationScreen> {
   // (docType code, screen label) - one editor per PDF document type.
   static const _docTypes = <(String, String)>[
-    (DocumentTermsType.warehouseReceipt, 'Warehouse Receipt'),
+    (DocumentTermsType.quotation, 'Quotation'),
     (DocumentTermsType.storageAgreement, 'Storage Agreement'),
-    (DocumentTermsType.deliveryOrder, 'Delivery Order / Gate Pass'),
-    (DocumentTermsType.bill, 'Rent Bill'),
-    (DocumentTermsType.moneyReceipt, 'Money Receipt'),
+    (DocumentTermsType.storageReceipt, 'Storage Receipt'),
+    (DocumentTermsType.bill, 'Storage Bill'),
+    (DocumentTermsType.moneyReceipt, 'Payment Receipt'),
+    (DocumentTermsType.releaseRecord, 'Release Record'),
   ];
 
   /// The working point list per document type - what the numbered
@@ -82,7 +83,7 @@ class _DocumentCustomisationScreenState
         // as the PDF services themselves.
         var effective = custom.isNotEmpty ? custom : companyDefault;
         if (effective.isEmpty &&
-            (code == DocumentTermsType.warehouseReceipt ||
+            (code == DocumentTermsType.storageReceipt ||
                 code == DocumentTermsType.storageAgreement)) {
           effective = DefaultStorageTerms.terms.join('\n');
         }

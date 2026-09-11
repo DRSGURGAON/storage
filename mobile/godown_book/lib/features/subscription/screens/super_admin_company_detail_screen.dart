@@ -64,8 +64,8 @@ class _SuperAdminCompanyDetailScreenState
   Map<String, int> _documentUsage = {};
 
   static const _trackedDocumentTypes = [
-    DocumentType.warehouseReceipt,
-    DocumentType.deliveryOrder,
+    DocumentType.quotation,
+    DocumentType.storageReceipt,
     DocumentType.bill,
     DocumentType.moneyReceipt,
   ];

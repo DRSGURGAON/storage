@@ -27,6 +27,12 @@ import '../../features/customers/screens/customer_list_screen.dart';
 import '../../features/master/screens/charge_head_screen.dart';
 import '../../features/master/screens/storage_location_screen.dart';
 
+// Storage bookings (Warehouse Receipt)
+import '../../features/storage_booking/screens/storage_booking_detail_screen.dart';
+import '../../features/storage_booking/screens/storage_booking_form_screen.dart';
+import '../../features/storage_booking/screens/storage_booking_list_screen.dart';
+import '../../features/storage_booking/screens/storage_booking_pdf_screen.dart';
+
 // Users & Roles
 import '../../features/users/screens/users_roles_screen.dart';
 
@@ -195,6 +201,42 @@ class AppRouter {
       GoRoute(
         path: '/storage-locations',
         builder: (context, state) => const StorageLocationScreen(),
+      ),
+
+      // ==========================
+      // Storage bookings (Warehouse Receipt)
+      // ==========================
+      GoRoute(
+        path: '/storage',
+        builder: (context, state) => const StorageBookingListScreen(),
+      ),
+
+      GoRoute(
+        path: '/storage-create',
+        builder: (context, state) => const StorageBookingFormScreen(),
+      ),
+
+      GoRoute(
+        path: '/storage-edit',
+        builder: (context, state) =>
+            StorageBookingFormScreen(editBookingId: state.extra as String),
+      ),
+
+      GoRoute(
+        path: '/storage-detail',
+        builder: (context, state) =>
+            StorageBookingDetailScreen(bookingId: state.extra as String),
+      ),
+
+      GoRoute(
+        path: '/storage-pdf',
+        builder: (context, state) {
+          final args = state.extra as Map<String, dynamic>;
+          return StorageBookingPdfScreen(
+            bookingId: args['id'] as String,
+            kind: BookingDocumentKind.fromName(args['kind'] as String?),
+          );
+        },
       ),
 
       // ==========================

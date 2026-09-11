@@ -191,7 +191,7 @@ class SettingsScreen extends ConsumerWidget {
               leading: const Icon(Icons.price_change_outlined),
               title: const Text('Charge Heads'),
               subtitle: const Text(
-                'Storage rent, loading, handling and other bill lines',
+                'Storage, loading, handling and other bill lines',
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/charge-heads'),

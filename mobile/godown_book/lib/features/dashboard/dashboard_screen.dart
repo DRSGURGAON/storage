@@ -352,9 +352,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   _sectionTitle('Quick Actions'),
                   _quickActions(context),
 
+                  _sectionTitle('Today'),
+                  _todaySection(stats),
+
+                  DashboardExpandableSection(
+                    icon: Icons.inventory_2_outlined,
+                    iconColor: _brandNavy,
+                    title: 'Storage',
+                    summary: '${stats.inStorage} customers storing  •  '
+                        '${_qty(stats.unitsInStock)} units',
+                    initiallyExpanded: true,
+                    child: _storageSection(stats, context),
+                  ),
+
                   DashboardExpandableSection(
                     icon: Icons.people_outline,
-                    iconColor: _brandNavy,
+                    iconColor: _brandTealDark,
                     title: 'Customers',
                     summary: '${stats.activeCustomers} active customers',
                     child: _customerSection(stats, context),
@@ -559,28 +572,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           _actionButton(
             context,
             Icons.inventory_2_outlined,
-            'Warehouse Receipt',
-            '/bookings',
+            'New Storage',
+            '/storage',
             color: _brandTealDark,
           ),
           _actionButton(
             context,
             Icons.outbox_outlined,
-            'Delivery Order',
+            'Release Goods',
             '/releases',
             color: _brandNavy,
           ),
           _actionButton(
             context,
             Icons.receipt_long_outlined,
-            'Rent Bill',
+            'Storage Bill',
             '/invoices',
             color: _brandBlue,
           ),
           _actionButton(
             context,
             Icons.receipt_outlined,
-            'Money Receipt',
+            'Payment Receipt',
             '/money-receipts',
             color: _brandTealLight,
           ),
@@ -646,6 +659,46 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  static String _qty(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
+  Widget _todaySection(DashboardStats stats) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: _statGrid([
+        _statTile('New Storage Today', '${stats.receiptsToday}'),
+        _statTile('Rent Due', '${stats.rentDue.length}',
+            color: stats.rentDue.isEmpty ? null : Colors.deepOrange),
+      ]),
+    );
+  }
+
+  Widget _storageSection(DashboardStats stats, BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        children: [
+          _statGrid([
+            _statTile('In Storage', '${stats.inStorage}'),
+            _statTile('Units In Stock', _qty(stats.unitsInStock)),
+            _statTile('Partly Released', '${stats.partlyReleased}',
+                color: Colors.deepOrange),
+            _statTile('Released', '${stats.releasedCount}', color: Colors.green),
+          ]),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => context.push('/storage'),
+              icon: const Icon(Icons.chevron_right),
+              label: const Text('All storage'),
+            ),
+          ),
+        ],
       ),
     );
   }

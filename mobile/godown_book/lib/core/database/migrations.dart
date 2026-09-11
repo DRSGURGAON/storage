@@ -696,7 +696,7 @@ class Migrations {
 
     payment_instructions TEXT,
 
-    demo_generation_limit INTEGER NOT NULL DEFAULT 3,
+    demo_generation_limit INTEGER NOT NULL DEFAULT 2,
 
     watermark_text TEXT NOT NULL DEFAULT 'DEMO - UNLICENSED COPY',
     watermark_opacity REAL NOT NULL DEFAULT 0.05,

@@ -11,12 +11,13 @@ class FeatureFlags {
   // PRODUCTION CONFIGURATION - free-trial business model.
   //
   //   - demoGenerationLimitEnforced = true  -> free allowance enforced
-  //     (SubscriptionSettingsModel.demoGenerationLimit, seeded at 3
-  //     per document type)
+  //     (SubscriptionSettingsModel.demoGenerationLimit, seeded at 2
+  //     per document type, and editable by the Super Admin - the
+  //     number lives there and nowhere else, never in a screen)
   //   - watermarkEnabled = true             -> those free copies are
   //     watermarked demo copies
   //
-  // Net effect: an unsubscribed company gets 3 WATERMARKED documents
+  // Net effect: an unsubscribed company gets 2 WATERMARKED documents
   // per document type, then DemoLimitReached prompts them to
   // subscribe. Subscribed companies (status ACTIVE/EXPIRING_SOON) get
   // unlimited, clean documents.
@@ -47,7 +48,7 @@ class FeatureFlags {
   ///
   /// NOTE ON THE FREE-DEMO ALLOWANCE: this flag is independent of the
   /// demo-generation *limit* (SubscriptionSettingsModel
-  /// .demoGenerationLimit, seeded at 1 per document type). That limit
+  /// .demoGenerationLimit, seeded at 2 per document type). That limit
   /// stays fully active - each document type still gets 1 free
   /// generation before a subscription is required, and
   /// SubscriptionAccessService still tracks and enforces it. Only the
@@ -55,7 +56,7 @@ class FeatureFlags {
   static const bool watermarkEnabled = true;
 
   /// Master switch for the free-document allowance
-  /// (SubscriptionSettingsModel.demoGenerationLimit, seeded at 1 per
+  /// (SubscriptionSettingsModel.demoGenerationLimit, seeded at 2 per
   /// document type).
   ///
   /// CURRENTLY FALSE - TESTING MODE. Unlimited free document
@@ -70,10 +71,10 @@ class FeatureFlags {
   /// DemoLimitReached all still exist untouched - this flag simply
   /// skips the gate and the counting while it's off.
   ///
-  /// TO RE-ENABLE THE 1-PER-DOCUMENT FREE LIMIT: change this one line
+  /// TO RE-ENABLE THE FREE LIMIT: change this one line
   /// to `true`. Behaviour returns exactly as before - each document
-  /// type allows 1 free generation, then DemoLimitReached prompts for
-  /// a subscription.
+  /// type allows its configured number of free copies, then
+  /// DemoLimitReached prompts for a subscription.
   ///
   /// NOTE: while this is false, no demo generations are recorded at
   /// all. That is deliberate - if counts kept accumulating during

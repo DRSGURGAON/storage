@@ -9,11 +9,12 @@ import '../utils/id_generator.dart';
 class DocumentTermsType {
   DocumentTermsType._();
 
-  static const String warehouseReceipt = 'warehouse_receipt';
+  static const String quotation = 'quotation';
   static const String storageAgreement = 'storage_agreement';
-  static const String deliveryOrder = 'delivery_order';
+  static const String storageReceipt = 'storage_receipt';
   static const String bill = 'bill';
   static const String moneyReceipt = 'money_receipt';
+  static const String releaseRecord = 'release_record';
 }
 
 /// Per-document-type Terms & Conditions overrides, one optional row per

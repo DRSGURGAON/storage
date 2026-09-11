@@ -301,7 +301,7 @@ class AppDatabase {
       'whatsapp_number': '',
       'support_phone_number': '',
       'payment_instructions': '',
-      'demo_generation_limit': 3,
+      'demo_generation_limit': 2,
       'watermark_text': 'DEMO - UNLICENSED COPY',
       'watermark_opacity': 0.05,
       'expiry_warning_days_csv': '30,15,7,3,1',
