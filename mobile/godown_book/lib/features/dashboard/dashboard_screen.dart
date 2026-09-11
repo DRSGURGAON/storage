@@ -448,6 +448,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               '/payment-create', color: _brandTealDark),
           _actionButton(context, Icons.outbox_outlined, 'Release Goods',
               '/release-create', color: _brandNavy),
+          _actionButton(context, Icons.fire_truck_outlined, 'New Bilty',
+              '/bilty-create', color: _brandNavy),
           _actionButton(context, Icons.mail_outline, 'Send Notice',
               '/notices', color: _brandBlue),
           _actionButton(context, Icons.report_gmailerrorred_outlined,

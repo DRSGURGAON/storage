@@ -22,7 +22,8 @@ Quotation · Storage Agreement · Storage Receipt · Goods List · Storage Bill 
 Payment Receipt · Customer Statement · Release Record · Letter Head · Company Card ·
 **Notice Letter** · **Damage / Loss Report** · **Authority Letter** ·
 **Indemnity Bond** · **Security Deposit Receipt, Refund Voucher and Adjustment
-Note**.
+Note** · **Bilty / Lorry Receipt** · **Goods Forwarding Note** · **Delivery
+Challan**.
 
 Customer signature by link works on the Storage Receipt and on the Release
 Record.
@@ -151,7 +152,7 @@ property); an **abandonment definition**; and **who insures what**, said plainly
 
 ## Tier 2 - needed the moment the operator also moves goods (most do)
 
-### 10. Lorry Receipt / bilty (consignment note) and Goods Forwarding Note
+### 10. Lorry Receipt / bilty (consignment note) and Goods Forwarding Note - BUILT
 Status: **legal requirement**, and the single biggest gap against competitors.
 The Carriage by Road Act 2007 makes the **Goods Forwarding Note** (section 8, executed
 by the consignor, including a declaration of value and of dangerous goods) and the
@@ -170,7 +171,7 @@ Confidence: high on the sections; the GST rate on a bundled relocation service
 (5% / 18% / exempt for an unregistered customer) is genuinely contested - leave
 the rate as the operator's own setting, do not hard-code advice.
 
-### 11. Delivery challan (Rule 55, CGST Rules)
+### 11. Delivery challan (Rule 55, CGST Rules) - BUILT
 Status: **legal where applicable**. Used when goods move without a tax invoice -
 including the operator's own leg into or between godowns under one GSTIN. A move
 to a branch in another state under a different GSTIN is a supply and needs a tax
@@ -184,7 +185,9 @@ distance, staircase floors, society entry rules. Shipped by three of the Indian
 competitor apps as "Survey List".
 **Without it:** the price is revised upward on loading day with no baseline.
 
-### 13. Proof of delivery / unpacking acknowledgement, with a damage endorsement
+### 13. Proof of delivery, with a damage endorsement - BUILT (on the bilty)
+The bilty carries a delivery block: delivered on, received by, and room to note
+a shortage or damage. A separate unpacking acknowledgement is still open.
 Status: trade practice, with a sharp consequence - under the Carriage by Road Rules
 delivery is treated as prima facie evidence that the goods were delivered as
 described in the forwarding note, so a clean signature works *against* the customer.
@@ -254,15 +257,15 @@ list does not.
 
 Done: Release Record signature · security deposit settlement · non-negotiable
 legend · the missing agreement clauses · notice letters · damage / loss report ·
-authority letter and indemnity bond.
+authority letter and indemnity bond · the bilty pack (Lorry Receipt, Goods
+Forwarding Note, Delivery Challan, with delivery recorded on the bilty itself).
 
 Still open, in the order they are worth doing:
 
 1. Photos attached per item on the intake list.
-2. Lorry Receipt / bilty + Goods Forwarding Note, and the delivery challan (the "we also move goods" pack).
-3. Credit note, advance receipt voucher, no-dues certificate.
-4. Pre-move survey sheet, proof of delivery, vehicle condition report.
-5. Rent roll and aged-outstanding reports.
+2. Credit note, advance receipt voucher, no-dues certificate.
+3. Pre-move survey sheet, unpacking acknowledgement, vehicle condition report.
+4. Rent roll and aged-outstanding reports.
 
 Items 1-7 keep the app inside the V1 promise - "enter once, use everywhere", no
 ERP screens - because every one of them is a new print of data the app already

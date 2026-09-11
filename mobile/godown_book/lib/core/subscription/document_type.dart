@@ -19,6 +19,9 @@ class DocumentType {
   static const moneyReceipt = 'money_receipt';
   static const statement = 'statement';
   static const releaseRecord = 'release_record';
+  static const lorryReceipt = 'lorry_receipt';
+  static const forwardingNote = 'forwarding_note';
+  static const deliveryChallan = 'delivery_challan';
   static const notice = 'notice';
   static const incidentReport = 'incident_report';
   static const authorityLetter = 'authority_letter';
@@ -35,6 +38,9 @@ class DocumentType {
     moneyReceipt,
     statement,
     releaseRecord,
+    lorryReceipt,
+    forwardingNote,
+    deliveryChallan,
     notice,
     incidentReport,
     authorityLetter,
@@ -51,6 +57,9 @@ class DocumentType {
         moneyReceipt => 'Payment Receipt',
         statement => 'Customer Statement',
         releaseRecord => 'Release Record',
+        lorryReceipt => 'Bilty / Lorry Receipt',
+        forwardingNote => 'Goods Forwarding Note',
+        deliveryChallan => 'Delivery Challan',
         notice => 'Notice Letter',
         incidentReport => 'Damage / Loss Report',
         authorityLetter => 'Authority Letter',

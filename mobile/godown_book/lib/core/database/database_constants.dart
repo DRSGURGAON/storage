@@ -15,6 +15,8 @@ class DatabaseConstants {
     'release_items',
     'notices',
     'incidents',
+    'consignments',
+    'consignment_items',
     'invoices',
     'invoice_charges',
     'payments',
@@ -49,7 +51,9 @@ class DatabaseConstants {
   // disposal) and incidents (damage / loss reports), plus the
   // incident_id column that lets a photo belong to an incident
   // rather than to the storage record itself.
-  static const int databaseVersion = 2;
+  // v3: consignments and their items - the bilty pack (Lorry Receipt,
+  // Goods Forwarding Note and Delivery Challan from one record).
+  static const int databaseVersion = 3;
 
   // ==========================
   // Masters
@@ -74,6 +78,8 @@ class DatabaseConstants {
   static const String releaseItemTable = 'release_items';
   static const String noticeTable = 'notices';
   static const String incidentTable = 'incidents';
+  static const String consignmentTable = 'consignments';
+  static const String consignmentItemTable = 'consignment_items';
 
   // ==========================
   // Billing

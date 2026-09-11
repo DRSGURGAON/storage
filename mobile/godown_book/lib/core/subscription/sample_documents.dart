@@ -7,6 +7,8 @@ import '../../features/billing/services/bill_pdf_service.dart';
 import '../../features/billing/services/payment_receipt_pdf_service.dart';
 import '../../features/billing/services/statement_pdf_service.dart';
 import '../../features/company/models/company_model.dart';
+import '../../features/consignment/models/consignment_model.dart';
+import '../../features/consignment/services/consignment_pdf_service.dart';
 import '../../features/customers/models/customer_model.dart';
 import '../../features/incidents/models/incident_model.dart';
 import '../../features/incidents/services/incident_pdf_service.dart';
@@ -340,6 +342,53 @@ class SampleDocuments {
     createdAt: '',
   );
 
+  static final ConsignmentModel _consignment = ConsignmentModel(
+    id: 'sample-bilty',
+    lrNo: 'LR/2026/0001',
+    lrDate: DateTime(2026, 9, 1).toIso8601String(),
+    challanNo: 'DC/2026/0001',
+    challanDate: DateTime(2026, 9, 1).toIso8601String(),
+    bookingNo: 'SR/2026/0001',
+    consignorName: _customer.customerName,
+    consignorPhone: _customer.mobileNumber,
+    consignorAddress:
+        '${_customer.address}, ${_customer.city}, ${_customer.state}',
+    consigneeName: _customer.customerName,
+    consigneePhone: _customer.mobileNumber,
+    consigneeAddress: 'Flat 704, Green Residency, Pune, Maharashtra',
+    fromPlace: 'Karnal',
+    toPlace: 'Pune',
+    vehicleNumber: 'HR 45 A 1234',
+    driverName: 'Balwinder Singh',
+    driverPhone: '90000 00002',
+    driverLicence: 'HR-0620110012345',
+    goodsDescription: 'Household goods of a 3 BHK house, packed by the sender',
+    packages: 42,
+    weight: '1.8 ton',
+    declaredValue: 250000,
+    freightBasis: FreightBasis.toPay,
+    freightAmount: 24000,
+    otherCharges: 2500,
+    advancePaid: 5000,
+    riskBasis: RiskBasis.owner,
+    createdAt: '',
+    items: const [
+      ConsignmentItemModel(
+          id: 'sample-c1', itemName: 'Sofa set', quantity: 1, unit: 'Set'),
+      ConsignmentItemModel(
+          id: 'sample-c2',
+          itemName: 'Double bed with mattress',
+          quantity: 1,
+          conditionNote: 'Minor scratch on headboard'),
+      ConsignmentItemModel(
+          id: 'sample-c3', itemName: 'Refrigerator', quantity: 1),
+      ConsignmentItemModel(
+          id: 'sample-c4',
+          itemName: 'Cartons (kitchen, clothes, books)',
+          quantity: 39),
+    ],
+  );
+
   /// True when a sample exists for [documentType].
   static bool has(String documentType) => const {
         DocumentType.quotation,
@@ -350,6 +399,9 @@ class SampleDocuments {
         DocumentType.moneyReceipt,
         DocumentType.statement,
         DocumentType.releaseRecord,
+        DocumentType.lorryReceipt,
+        DocumentType.forwardingNote,
+        DocumentType.deliveryChallan,
         DocumentType.notice,
         DocumentType.incidentReport,
         DocumentType.authorityLetter,
@@ -423,6 +475,22 @@ class SampleDocuments {
           watermarkText: watermark,
           watermarkOpacity: 0.08,
           copies: const ['CUSTOMER COPY'],
+        );
+      case DocumentType.lorryReceipt:
+      case DocumentType.forwardingNote:
+      case DocumentType.deliveryChallan:
+        return ConsignmentPdfService.instance.build(
+          _consignment,
+          letterhead,
+          paper: switch (documentType) {
+            DocumentType.forwardingNote => BiltyPaper.forwardingNote,
+            DocumentType.deliveryChallan => BiltyPaper.deliveryChallan,
+            _ => BiltyPaper.lorryReceipt,
+          },
+          copies: const ['CONSIGNOR COPY'],
+          showWatermark: true,
+          watermarkText: watermark,
+          watermarkOpacity: 0.08,
         );
       case DocumentType.notice:
         return NoticePdfService.instance.build(

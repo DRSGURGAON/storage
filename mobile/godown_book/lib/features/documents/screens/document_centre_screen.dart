@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../billing/repositories/billing_repository.dart';
 import '../../quotation/repositories/quotation_repository.dart';
+import '../../consignment/repositories/consignment_repository.dart';
 import '../../incidents/repositories/incident_repository.dart';
 import '../../notices/repositories/notice_repository.dart';
 import '../../release/repositories/goods_release_repository.dart';
@@ -17,7 +18,8 @@ enum DocumentKind {
   receipt,
   release,
   notice,
-  incident;
+  incident,
+  bilty;
 
   String get label => switch (this) {
         DocumentKind.quotation => 'Quotations',
@@ -27,6 +29,7 @@ enum DocumentKind {
         DocumentKind.release => 'Releases',
         DocumentKind.notice => 'Notices',
         DocumentKind.incident => 'Damage / Loss',
+        DocumentKind.bilty => 'Bilty / LR',
       };
 
   String get singular => switch (this) {
@@ -37,6 +40,7 @@ enum DocumentKind {
         DocumentKind.release => 'Release Record',
         DocumentKind.notice => 'Notice Letter',
         DocumentKind.incident => 'Damage / Loss Report',
+        DocumentKind.bilty => 'Bilty / Lorry Receipt',
       };
 
   IconData get icon => switch (this) {
@@ -47,6 +51,7 @@ enum DocumentKind {
         DocumentKind.release => Icons.outbox_outlined,
         DocumentKind.notice => Icons.mail_outline,
         DocumentKind.incident => Icons.report_gmailerrorred_outlined,
+        DocumentKind.bilty => Icons.fire_truck_outlined,
       };
 }
 
@@ -211,6 +216,20 @@ class _DocumentCentreScreenState extends State<DocumentCentreScreen> {
       ));
     }
 
+    for (final bilty in await ConsignmentRepository.instance.getAll()) {
+      if (!mine(bilty.customerId)) continue;
+      rows.add(DocumentRow(
+        kind: DocumentKind.bilty,
+        id: bilty.id,
+        number: bilty.lrNo,
+        customerName: bilty.consignorName,
+        customerPhone: bilty.consignorPhone,
+        date: bilty.lrDate,
+        amount: bilty.freightTotal,
+        status: bilty.status.label,
+      ));
+    }
+
     rows.sort((a, b) => b.date.compareTo(a.date));
 
     if (!mounted) return;
@@ -257,6 +276,8 @@ class _DocumentCentreScreenState extends State<DocumentCentreScreen> {
         await context.push('/notice-pdf', extra: row.id);
       case DocumentKind.incident:
         await context.push('/incident-pdf', extra: row.id);
+      case DocumentKind.bilty:
+        await context.push('/bilty-pdf', extra: row.id);
     }
     await _load();
   }

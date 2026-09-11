@@ -7,6 +7,7 @@ import '../../../core/document_terms/document_terms_repository.dart';
 import '../../../core/subscription/document_type.dart';
 import '../../billing/repositories/billing_repository.dart';
 import '../../company/controllers/company_controller.dart';
+import '../../consignment/repositories/consignment_repository.dart';
 import '../../incidents/repositories/incident_repository.dart';
 import '../../signature/models/signature_request_model.dart';
 import '../../signature/repositories/signature_repository.dart';
@@ -38,6 +39,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
   double _outstanding = 0;
   DepositSummary _deposit = const DepositSummary();
   int _incidentCount = 0;
+  int _biltyCount = 0;
   List<SignatureRequestModel> _signatures = const [];
   bool _loading = true;
 
@@ -55,6 +57,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
     var outstanding = 0.0;
     var deposit = const DepositSummary();
     var incidents = 0;
+    var bilties = 0;
     var signatures = const <SignatureRequestModel>[];
     if (booking != null) {
       signatures = await SignatureRepository.instance
@@ -66,6 +69,8 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
           .depositForBooking(booking.id, agreed: booking.securityDeposit);
       incidents =
           (await IncidentRepository.instance.getForBooking(booking.id)).length;
+      bilties =
+          (await ConsignmentRepository.instance.getForBooking(booking.id)).length;
       if (booking.customerId.isNotEmpty) {
         final balance =
             await BillingRepository.instance.balanceForCustomer(booking.customerId);
@@ -81,6 +86,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
       _outstanding = outstanding;
       _deposit = deposit;
       _incidentCount = incidents;
+      _biltyCount = bilties;
       _signatures = signatures;
       _loading = false;
     });
@@ -398,6 +404,22 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
           tile(Icons.list_alt_outlined, 'Goods List', 'What is stored, what has gone out', BookingDocumentKind.inventory),
           const Divider(height: 1),
           tile(Icons.handshake_outlined, 'Storage Agreement', 'Terms both sides sign', BookingDocumentKind.agreement),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.fire_truck_outlined),
+            title: const Text('Bilty / Lorry Receipt'),
+            subtitle: Text(_biltyCount == 0
+                ? 'When the goods travel by truck'
+                : '$_biltyCount bilty${_biltyCount == 1 ? '' : 's'} on this record'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final id = await context.push('/bilty-create', extra: b.id);
+              if (id is String && mounted) {
+                await context.push('/bilty-pdf', extra: id);
+              }
+              _load();
+            },
+          ),
           const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.assignment_ind_outlined),

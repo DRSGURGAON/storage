@@ -106,6 +106,7 @@ class CompanyModel {
   final String invoicePrefix;
   final String receiptPrefix;
   final String releasePrefix;
+  final String consignmentPrefix;
 
   final String defaultTerms;
   final String footerText;
@@ -198,6 +199,7 @@ class CompanyModel {
     this.invoicePrefix = 'INV',
     this.receiptPrefix = 'MR',
     this.releasePrefix = 'RL',
+    this.consignmentPrefix = 'LR',
 
     this.defaultTerms = '',
     this.footerText = '',
@@ -261,6 +263,7 @@ class CompanyModel {
     String? invoicePrefix,
     String? receiptPrefix,
     String? releasePrefix,
+    String? consignmentPrefix,
 
     String? defaultTerms,
     String? footerText,
@@ -325,6 +328,7 @@ class CompanyModel {
       invoicePrefix: invoicePrefix ?? this.invoicePrefix,
       receiptPrefix: receiptPrefix ?? this.receiptPrefix,
       releasePrefix: releasePrefix ?? this.releasePrefix,
+      consignmentPrefix: consignmentPrefix ?? this.consignmentPrefix,
 
       defaultTerms: defaultTerms ?? this.defaultTerms,
       footerText: footerText ?? this.footerText,
@@ -391,6 +395,7 @@ class CompanyModel {
       'invoice_prefix': invoicePrefix,
       'receipt_prefix': receiptPrefix,
       'release_prefix': releasePrefix,
+      'consignment_prefix': consignmentPrefix,
 
       'default_terms': defaultTerms,
       'footer': footerText,
@@ -457,6 +462,7 @@ class CompanyModel {
       invoicePrefix: map['invoice_prefix'] ?? 'INV',
       receiptPrefix: map['receipt_prefix'] ?? 'MR',
       releasePrefix: map['release_prefix'] ?? 'RL',
+      consignmentPrefix: map['consignment_prefix'] ?? 'LR',
 
       defaultTerms: map['default_terms'] ?? '',
       footerText: map['footer'] ?? '',

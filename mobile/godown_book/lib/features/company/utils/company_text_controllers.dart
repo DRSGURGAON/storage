@@ -73,6 +73,7 @@ class CompanyTextControllers {
   final invoicePrefix = TextEditingController();
   final receiptPrefix = TextEditingController();
   final releasePrefix = TextEditingController();
+  final consignmentPrefix = TextEditingController();
 
   final defaultTerms = TextEditingController();
   final footer = TextEditingController();
@@ -121,6 +122,7 @@ class CompanyTextControllers {
     invoicePrefix.dispose();
     receiptPrefix.dispose();
     releasePrefix.dispose();
+    consignmentPrefix.dispose();
 
     defaultTerms.dispose();
     footer.dispose();

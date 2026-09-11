@@ -81,6 +81,7 @@ class Migrations {
     quotation_prefix TEXT NOT NULL DEFAULT 'QT',
     booking_prefix TEXT NOT NULL DEFAULT 'SR',
     release_prefix TEXT NOT NULL DEFAULT 'RL',
+    consignment_prefix TEXT NOT NULL DEFAULT 'LR',
     invoice_prefix TEXT NOT NULL DEFAULT 'INV',
     receipt_prefix TEXT NOT NULL DEFAULT 'MR',
 
@@ -971,6 +972,104 @@ class Migrations {
     reported_by TEXT,
 
     created_at TEXT NOT NULL
+  );
+  ''';
+  // ==========================
+  // Bilty (consignment note)
+  // ==========================
+
+  /// One consignment moved by road: the Lorry Receipt (bilty), the
+  /// Goods Forwarding Note the consignor signs, and the Delivery
+  /// Challan, all printed from this one row.
+  ///
+  /// The Carriage by Road Act 2007 puts the forwarding note on the
+  /// consignor (s. 8) and the goods receipt on the carrier (s. 9), and
+  /// caps liability at the value declared here - which is why
+  /// declared_value is on this table and not an afterthought.
+  static const String createConsignmentTable = '''
+  CREATE TABLE IF NOT EXISTS consignments(
+    id TEXT PRIMARY KEY,
+
+    company_id TEXT NOT NULL DEFAULT '',
+
+    lr_no TEXT,
+    lr_date TEXT NOT NULL,
+
+    /* Allocated the first time a delivery challan is printed, so the
+       challan series has no gaps. */
+    challan_no TEXT,
+    challan_date TEXT,
+
+    /* BOOKED | IN_TRANSIT | DELIVERED | CANCELLED. */
+    status TEXT NOT NULL DEFAULT 'BOOKED',
+
+    /* The storage record this consignment came from or went to. */
+    booking_id TEXT,
+    booking_no TEXT,
+    customer_id TEXT,
+
+    consignor_name TEXT NOT NULL DEFAULT '',
+    consignor_phone TEXT,
+    consignor_address TEXT,
+    consignor_gst TEXT,
+
+    consignee_name TEXT NOT NULL DEFAULT '',
+    consignee_phone TEXT,
+    consignee_address TEXT,
+    consignee_gst TEXT,
+
+    from_place TEXT,
+    to_place TEXT,
+
+    vehicle_number TEXT,
+    driver_name TEXT,
+    driver_phone TEXT,
+    driver_licence TEXT,
+
+    goods_description TEXT,
+    packages INTEGER NOT NULL DEFAULT 0,
+    weight TEXT,
+    declared_value REAL NOT NULL DEFAULT 0,
+
+    /* PAID | TO_PAY | TO_BE_BILLED - who pays the freight and when. */
+    freight_basis TEXT NOT NULL DEFAULT 'TO_PAY',
+    freight_amount REAL NOT NULL DEFAULT 0,
+    advance_paid REAL NOT NULL DEFAULT 0,
+    other_charges REAL NOT NULL DEFAULT 0,
+
+    /* OWNER | CARRIER - at whose risk the goods travel. */
+    risk_basis TEXT NOT NULL DEFAULT 'OWNER',
+    insured INTEGER NOT NULL DEFAULT 0,
+    insurer TEXT,
+    policy_no TEXT,
+
+    /* Filled when the goods reach the other end - the same paper then
+       doubles as proof of delivery. */
+    delivered_on TEXT,
+    received_by TEXT,
+    delivery_remarks TEXT,
+
+    notes TEXT,
+    terms TEXT,
+
+    created_at TEXT NOT NULL,
+    updated_at TEXT
+  );
+  ''';
+
+  static const String createConsignmentItemTable = '''
+  CREATE TABLE IF NOT EXISTS consignment_items(
+    id TEXT PRIMARY KEY,
+
+    company_id TEXT NOT NULL DEFAULT '',
+    consignment_id TEXT NOT NULL,
+
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    item_name TEXT NOT NULL,
+    quantity REAL NOT NULL DEFAULT 1,
+    unit TEXT NOT NULL DEFAULT 'Nos',
+    marks TEXT,
+    condition_note TEXT
   );
   ''';
 }

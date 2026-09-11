@@ -80,6 +80,8 @@ class DocumentCloudSyncService {
     'payments',
     'notices',
     'incidents',
+    'consignments',
+    'consignment_items',
     'document_terms',
   ];
 

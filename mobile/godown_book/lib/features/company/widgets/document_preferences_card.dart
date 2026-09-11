@@ -8,6 +8,7 @@ class DocumentPreferencesCard extends StatelessWidget {
     required this.invoicePrefixController,
     required this.receiptPrefixController,
     required this.releasePrefixController,
+    required this.consignmentPrefixController,
     required this.footerController,
     required this.defaultTermsController,
   });
@@ -17,6 +18,7 @@ class DocumentPreferencesCard extends StatelessWidget {
   final TextEditingController invoicePrefixController;
   final TextEditingController receiptPrefixController;
   final TextEditingController releasePrefixController;
+  final TextEditingController consignmentPrefixController;
   final TextEditingController footerController;
   final TextEditingController defaultTermsController;
 
@@ -99,6 +101,18 @@ class DocumentPreferencesCard extends StatelessWidget {
                 hintText: "RL",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.local_shipping),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: consignmentPrefixController,
+              decoration: const InputDecoration(
+                labelText: "Bilty / LR Prefix",
+                hintText: "LR",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.fire_truck_outlined),
               ),
             ),
 

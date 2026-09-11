@@ -77,6 +77,8 @@ class AppDatabase {
     await db.execute(Migrations.createReleaseItemTable);
     await db.execute(Migrations.createNoticeTable);
     await db.execute(Migrations.createIncidentTable);
+    await db.execute(Migrations.createConsignmentTable);
+    await db.execute(Migrations.createConsignmentItemTable);
 
     // ==========================
     // Billing
@@ -119,8 +121,17 @@ class AppDatabase {
     if (oldVersion < 2) {
       await db.execute(Migrations.createNoticeTable);
       await db.execute(Migrations.createIncidentTable);
+    await db.execute(Migrations.createConsignmentTable);
+    await db.execute(Migrations.createConsignmentItemTable);
       await db.execute(
         "ALTER TABLE storage_photos ADD COLUMN incident_id TEXT NOT NULL DEFAULT ''",
+      );
+    }
+    if (oldVersion < 3) {
+      await db.execute(Migrations.createConsignmentTable);
+      await db.execute(Migrations.createConsignmentItemTable);
+      await db.execute(
+        "ALTER TABLE company_settings ADD COLUMN consignment_prefix TEXT NOT NULL DEFAULT 'LR'",
       );
     }
   }

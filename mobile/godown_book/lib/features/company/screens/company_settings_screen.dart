@@ -122,6 +122,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
     c.invoicePrefix.text = company.invoicePrefix;
     c.receiptPrefix.text = company.receiptPrefix;
     c.releasePrefix.text = company.releasePrefix;
+    c.consignmentPrefix.text = company.consignmentPrefix;
 
     c.defaultTerms.text = company.defaultTerms;
     c.footer.text = company.footerText;
@@ -192,6 +193,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
       invoicePrefix: c.invoicePrefix.text.trim(),
       receiptPrefix: c.receiptPrefix.text.trim(),
       releasePrefix: c.releasePrefix.text.trim(),
+      consignmentPrefix: c.consignmentPrefix.text.trim(),
 
       defaultTerms: c.defaultTerms.text.trim(),
       footerText: c.footer.text.trim(),
@@ -583,6 +585,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
                 invoicePrefixController: c.invoicePrefix,
                 receiptPrefixController: c.receiptPrefix,
                 releasePrefixController: c.releasePrefix,
+                consignmentPrefixController: c.consignmentPrefix,
                 footerController: c.footer,
                 defaultTermsController: c.defaultTerms,
               ),

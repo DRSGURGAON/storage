@@ -37,6 +37,9 @@ import '../../features/billing/screens/bill_list_screen.dart';
 import '../../features/billing/screens/bill_pdf_screen.dart';
 import '../../features/billing/screens/payment_form_screen.dart';
 import '../../features/billing/screens/deposit_screen.dart';
+import '../../features/consignment/screens/consignment_form_screen.dart';
+import '../../features/consignment/screens/consignment_list_screen.dart';
+import '../../features/consignment/screens/consignment_pdf_screen.dart';
 import '../../features/incidents/screens/incident_form_screen.dart';
 import '../../features/incidents/screens/incident_list_screen.dart';
 import '../../features/incidents/screens/incident_pdf_screen.dart';
@@ -435,6 +438,32 @@ class AppRouter {
         path: '/notice-pdf',
         builder: (context, state) =>
             NoticePdfScreen(noticeId: state.extra as String),
+      ),
+
+      // ==========================
+      // Bilty pack
+      // ==========================
+      GoRoute(
+        path: '/bilties',
+        builder: (context, state) => const ConsignmentListScreen(),
+      ),
+
+      GoRoute(
+        path: '/bilty-create',
+        builder: (context, state) =>
+            ConsignmentFormScreen(bookingId: state.extra as String?),
+      ),
+
+      GoRoute(
+        path: '/bilty-edit',
+        builder: (context, state) =>
+            ConsignmentFormScreen(consignmentId: state.extra as String),
+      ),
+
+      GoRoute(
+        path: '/bilty-pdf',
+        builder: (context, state) =>
+            ConsignmentPdfScreen(consignmentId: state.extra as String),
       ),
 
       // ==========================
