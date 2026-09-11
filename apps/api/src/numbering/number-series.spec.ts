@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { AppModule } from '../app.module';
+import { DOCUMENT_TYPE_PREFIXES } from './numbering-defaults';
 
 /**
  * numbering.md §2's "tenants may edit prefix/format/padding/starting
@@ -50,9 +51,12 @@ describe('Number series configuration', () => {
     // have no row yet, and a screen that showed only existing rows would
     // hide the twenty-odd series it is about to create.
     // Exactly one row per document type this application numbers --
-    // whether or not it has ever been used.
-    expect(body).toHaveLength(26);
-    expect(new Set(body.map((s: { documentType: string }) => s.documentType)).size).toBe(26);
+    // whether or not it has ever been used. Counted from the map rather
+    // than written here: a hard-coded number turns "a new document type
+    // was added" into a failing test that says nothing about what broke.
+    const expected = Object.keys(DOCUMENT_TYPE_PREFIXES).length;
+    expect(body).toHaveLength(expected);
+    expect(new Set(body.map((s: { documentType: string }) => s.documentType)).size).toBe(expected);
     expect(await seriesFor('GRN_GENERATION')).toMatchObject({
       prefix: 'GRN',
       format: '{prefix}/{fy}/{seq:6}',

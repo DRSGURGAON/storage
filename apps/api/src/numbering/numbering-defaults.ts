@@ -35,6 +35,12 @@ export const DOCUMENT_TYPE_PREFIXES: Record<string, string> = {
   // Distinct from Dispatch Note's 'DN' -- numbering.md §6 flags this collision explicitly.
   DEBIT_NOTE: 'DN2',
   PAYMENT_RECEIPT: 'RCPT',
+  // Household storage. A booking is the record everything else hangs off,
+  // so it carries the number the customer quotes on the phone; a movement
+  // (goods in, goods out) gets its own, because two handovers on one
+  // booking must be tellable apart.
+  STORAGE_BOOKING: 'SB',
+  STORAGE_MOVEMENT: 'SM',
   // Masters with running codes (blueprint §10 'CUST0001'). Not documents,
   // but the same engine: one series row per tenant, one allocator.
   CUSTOMER: 'CUST',

@@ -29,6 +29,12 @@ export type AuditAction =
   // Somebody asked to move to a paid plan. Until there is a gateway this
   // row is the sales pipeline.
   | 'upgrade_requested'
+  // Household storage: goods arriving, goods handed back, and the booking
+  // being wound up. Distinct from 'create'/'update' because these three are
+  // the ones anybody ever goes back through the trail looking for.
+  | 'storage_intake'
+  | 'storage_release'
+  | 'storage_close'
   | 'permission_denied';
 
 export interface RecordAuditParams {

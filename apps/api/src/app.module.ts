@@ -40,6 +40,7 @@ import { QuotationsModule } from './quotations/quotations.module';
 import { TransportModule } from './transport/transport.module';
 import { UsersModule } from './users/users.module';
 import { WarehouseReceiptsModule } from './warehouse-receipts/warehouse-receipts.module';
+import { StorageModule } from './storage/storage.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
 import { ScopedThrottlerGuard, throttlerConfig } from './throttling';
 
@@ -64,6 +65,7 @@ import { ScopedThrottlerGuard, throttlerConfig } from './throttling';
     CompanyModule,
     CustomersModule,
     UsersModule,
+    StorageModule,
     WarehousesModule,
     ProductsModule,
     TransportModule,

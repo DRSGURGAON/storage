@@ -37,6 +37,15 @@ export const PERMISSIONS: { code: string; module: string }[] = [
   { code: 'edit_rate_card', module: 'masters' },
   { code: 'manage_company_settings', module: 'masters' },
   { code: 'manage_users_and_roles', module: 'masters' },
+  // Household storage -- the second product on this engine. Its own codes
+  // rather than borrowed operations ones, because the risky action here is
+  // a different one: handing a family's belongings to whoever turns up.
+  { code: 'view_storage_booking', module: 'storage' },
+  { code: 'create_storage_booking', module: 'storage' },
+  { code: 'edit_storage_booking', module: 'storage' },
+  { code: 'confirm_storage_intake', module: 'storage' },
+  { code: 'release_storage_goods', module: 'storage' },
+  { code: 'close_storage_booking', module: 'storage' },
   // Commercial
   { code: 'view_quotation', module: 'commercial' },
   { code: 'create_quotation', module: 'commercial' },
@@ -104,6 +113,22 @@ const MASTERS_VIEW_ONLY = [
   'view_rate_card',
 ];
 
+/**
+ * Everything except the release. Taking goods *in* is recoverable -- a
+ * wrong line on an inventory list is edited. Giving goods *out* is not:
+ * once the tempo has left with somebody's almirah, no software fixes it.
+ * So the field-level role books, records and receives; a manager signs the
+ * goods out and closes the booking.
+ */
+const STORAGE_FIELD_LEVEL = [
+  'view_storage_booking',
+  'create_storage_booking',
+  'edit_storage_booking',
+  'confirm_storage_intake',
+];
+
+const STORAGE_ALL = [...STORAGE_FIELD_LEVEL, 'release_storage_goods', 'close_storage_booking'];
+
 const OPERATIONS_ALL = [
   'create_gate_entry',
   'create_inward',
@@ -164,6 +189,7 @@ export const ROLE_PERMISSIONS: Record<SystemRoleCode, string[]> = {
     ...MASTERS_VIEW_ONLY,
     'view_agreement',
     ...OPERATIONS_ALL,
+    ...STORAGE_ALL,
     'view_stock',
     'view_stock_ledger',
     'create_stock_transfer',
@@ -179,6 +205,7 @@ export const ROLE_PERMISSIONS: Record<SystemRoleCode, string[]> = {
   warehouse_operator: [
     ...MASTERS_VIEW_ONLY,
     ...OPERATIONS_FIELD_LEVEL,
+    ...STORAGE_FIELD_LEVEL,
     'view_stock',
     'view_stock_ledger',
     'create_stock_transfer',
@@ -189,6 +216,7 @@ export const ROLE_PERMISSIONS: Record<SystemRoleCode, string[]> = {
 
   billing_executive: [
     ...MASTERS_VIEW_ONLY,
+    'view_storage_booking',
     'create_rate_card',
     'edit_rate_card',
     'view_stock',
@@ -207,6 +235,7 @@ export const ROLE_PERMISSIONS: Record<SystemRoleCode, string[]> = {
 
   accountant: [
     ...MASTERS_VIEW_ONLY,
+    'view_storage_booking',
     'view_stock',
     'view_stock_ledger',
     'generate_billing_run',
@@ -264,6 +293,20 @@ export const METERED_FEATURE_KEYS = [
  * closed, and closing one gives the slot back. `resource-limits.ts` is what
  * counts these; `usage_ledger` deliberately does not.
  */
+/**
+ * The household-storage document set, from what storage operators
+ * actually hand a customer: a quote, the agreement they sign, the
+ * item-wise inventory list the claim is settled against, the receipt for
+ * the goods, and the release note the goods leave on.
+ */
+export const STORAGE_FEATURE_KEYS = [
+  { code: 'STORAGE_QUOTATION', module: 'storage', name: 'Storage quotation' },
+  { code: 'STORAGE_AGREEMENT', module: 'storage', name: 'Storage agreement' },
+  { code: 'STORAGE_INVENTORY_LIST', module: 'storage', name: 'Inventory list' },
+  { code: 'STORAGE_RECEIPT', module: 'storage', name: 'Storage receipt' },
+  { code: 'STORAGE_RELEASE_NOTE', module: 'storage', name: 'Release / delivery note' },
+] as const;
+
 export const RESOURCE_FEATURE_KEYS = [
   { code: 'WAREHOUSE', module: 'masters', name: 'Godown' },
 ] as const;
@@ -278,6 +321,10 @@ export const UNMETERED_FEATURE_KEYS = [
 
 export const FEATURE_KEYS = [
   ...METERED_FEATURE_KEYS.map((f) => ({ ...f, isMeterable: true })),
+  // Household storage's own documents, metered on the same two-free-copies
+  // rule: an operator can print one inventory list and one receipt for
+  // free, which is enough to run a real booking end to end before paying.
+  ...STORAGE_FEATURE_KEYS.map((f) => ({ ...f, isMeterable: true })),
   // Meterable, so it appears on the Plan & Usage page next to the document
   // counts -- "2 of 3 godowns" is exactly what an owner wants to see there.
   ...RESOURCE_FEATURE_KEYS.map((f) => ({ ...f, isMeterable: true })),
