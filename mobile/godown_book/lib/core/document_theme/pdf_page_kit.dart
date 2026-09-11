@@ -59,16 +59,18 @@ class PdfPageKit {
             ),
             if (showWatermark)
               pw.Center(
-                child: pw.Watermark.text(
-                  watermarkText.isEmpty ? 'DEMO - UNLICENSED COPY' : watermarkText,
-                  style: pw.TextStyle(
-                    fontSize: 40,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColor(
-                      primary.red,
-                      primary.green,
-                      primary.blue,
-                      watermarkOpacity,
+                // The opacity has to be applied to the drawing, not to
+                // the text colour: an alpha on PdfColor is ignored for
+                // text fills, which printed the watermark solid and
+                // made the document underneath hard to read.
+                child: pw.Opacity(
+                  opacity: watermarkOpacity,
+                  child: pw.Watermark.text(
+                    watermarkText.isEmpty ? 'DEMO - UNLICENSED COPY' : watermarkText,
+                    style: pw.TextStyle(
+                      fontSize: 40,
+                      fontWeight: pw.FontWeight.bold,
+                      color: primary,
                     ),
                   ),
                 ),

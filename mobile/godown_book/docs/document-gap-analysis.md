@@ -19,9 +19,18 @@ receipt is a warehouse receipt in the regulatory sense.
 ## What Godown Book prints today
 
 Quotation · Storage Agreement · Storage Receipt · Goods List · Storage Bill ·
-Payment Receipt · Customer Statement · Release Record · Letter Head · Company Card.
+Payment Receipt · Customer Statement · Release Record · Letter Head · Company Card ·
+**Notice Letter** · **Damage / Loss Report** · **Authority Letter** ·
+**Indemnity Bond** · **Security Deposit Receipt, Refund Voucher and Adjustment
+Note**.
 
-Customer signature by link exists, but only on the Storage Receipt.
+Customer signature by link works on the Storage Receipt and on the Release
+Record.
+
+**Status of this document.** Everything marked BUILT below was built after this
+analysis was written; the rest is still open. One item in the first draft was
+wrong and is corrected here: condition remarks on each item were already in the
+app (field, form and both PDFs) - only photos per item are missing.
 
 ## The legal frame, in one paragraph
 
@@ -40,7 +49,7 @@ applies - see "If you also move goods" below.
 
 ## Tier 1 - missing, and load-bearing for a pure storage operator
 
-### 1. Security deposit receipt, and the refund / adjustment voucher
+### 1. Security deposit receipt, and the refund / adjustment voucher - BUILT
 Status: trade practice; the **GST treatment is statutory**.
 The proviso to section 2(31) of the CGST Act says a deposit is not consideration
 until the supplier applies it against the supply. So a refundable deposit is
@@ -51,7 +60,7 @@ no adjustment, and it is absent from the statement and the balance.
 **Without it:** GST charged on money that has to be refunded, and an exit argument
 with no agreed figure.
 
-### 2. Customer signature on the Release Record
+### 2. Customer signature on the Release Record - BUILT
 Status: trade practice, decisive in a dispute.
 The release slip should carry "goods received in good condition" over the
 customer's signature, with the collector's name, ID reference and vehicle number.
@@ -62,7 +71,7 @@ Storage Receipt.
 undefendable, and the quiet rule of bailment is that the operator must show the
 care they took.
 
-### 3. Authority letter, and an indemnity bond
+### 3. Authority letter, and an indemnity bond - BUILT
 Status: trade practice; the indemnity bond is a contract of indemnity (section 124)
 and carries **state-specific stamp duty** (Article 34, Schedule I, Indian Stamp Act 1899).
 Needed when somebody other than the depositor collects the goods, when the receipt
@@ -72,7 +81,7 @@ letter is what makes "on his directions" provable. If a third party disputes
 ownership, do not decide it: hold delivery and let them go to court (section 167).
 **Without it:** goods handed to the wrong person, with no defence.
 
-### 4. Notice letters: rent reminder, final notice, notice of intended disposal
+### 4. Notice letters: rent reminder, final notice, notice of intended disposal - BUILT
 Status: trade practice, but they are the precondition for every remedy.
 Research finding that matters most: **a lien is a right to retain, never a right to
 sell.** The particular lien (section 170) needs "labour or skill in respect of the
@@ -95,7 +104,7 @@ sell a family's belongings is a plausible target for an "unfair contract term"
 finding under section 2(46) of the Consumer Protection Act 2019. For a high-value
 lot, the court route is safer than self-help.
 
-### 5. Damage / loss incident report
+### 5. Damage / loss incident report - BUILT
 Status: trade practice; the gateway to every insurance claim.
 Same day, dated, with photographs, the lot and box numbers, staff statements,
 cause if known, and the FIR or fire-brigade reference for theft or fire.
@@ -122,13 +131,13 @@ defensible than a blanket "goods at owner's risk" line - Indian commentary and a
 least one High Court have pushed back on disclaimers that dilute the section 151
 duty of care, and consumer fora routinely ignore one-sided small print.
 
-### 8. "NON-NEGOTIABLE" legend on the Storage Receipt
+### 8. "NON-NEGOTIABLE" legend on the Storage Receipt - BUILT
 Status: one line of text, real protection.
 The receipt should say "NON-NEGOTIABLE - NOT A DOCUMENT OF TITLE - NOT TRANSFERABLE
 BY ENDORSEMENT", so it can never be presented as a WDRA negotiable warehouse receipt.
 *In the app:* the intent is only a code comment; the PDF says nothing.
 
-### 9. Clauses missing from the default Storage Agreement terms
+### 9. Clauses missing from the default Storage Agreement terms - BUILT
 Present today: acceptance on declared count, rent in advance, release against the
 receipt, owner's-risk, excluded goods, disposal after 90 days' written notice,
 jurisdiction.
@@ -241,18 +250,19 @@ list does not.
 
 ---
 
-## Suggested order of work
+## Order of work
 
-1. Release Record signature + "received in good condition" (finishes the signature feature).
-2. Security deposit: refund / adjustment, and show it on the statement.
-3. Non-negotiable legend, plus the missing Storage Agreement clauses.
-4. Condition column on items, and photos attached per item.
-5. Notice letters (reminder → final notice → notice of intended disposal) off the letterhead.
-6. Damage / loss incident report.
-7. Authority letter and indemnity bond.
-8. Lorry Receipt / bilty + Goods Forwarding Note, and the delivery challan (the "we also move goods" pack).
-9. Credit note, advance receipt voucher, no-dues certificate.
-10. Rent roll and aged-outstanding reports.
+Done: Release Record signature · security deposit settlement · non-negotiable
+legend · the missing agreement clauses · notice letters · damage / loss report ·
+authority letter and indemnity bond.
+
+Still open, in the order they are worth doing:
+
+1. Photos attached per item on the intake list.
+2. Lorry Receipt / bilty + Goods Forwarding Note, and the delivery challan (the "we also move goods" pack).
+3. Credit note, advance receipt voucher, no-dues certificate.
+4. Pre-move survey sheet, proof of delivery, vehicle condition report.
+5. Rent roll and aged-outstanding reports.
 
 Items 1-7 keep the app inside the V1 promise - "enter once, use everywhere", no
 ERP screens - because every one of them is a new print of data the app already
