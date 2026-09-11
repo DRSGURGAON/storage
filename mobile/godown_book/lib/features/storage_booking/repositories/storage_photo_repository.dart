@@ -26,8 +26,19 @@ class StoragePhotoRepository {
   Future<List<StoragePhotoModel>> getForBooking(String bookingId) async {
     final rows = await _db.queryScoped(
       DatabaseConstants.storagePhotoTable,
-      where: 'booking_id = ?',
-      whereArgs: [bookingId],
+      where: 'booking_id = ? AND incident_id = ?',
+      whereArgs: [bookingId, ''],
+      orderBy: 'sort_order ASC, created_at ASC',
+    );
+    return rows.map(StoragePhotoModel.fromMap).toList();
+  }
+
+  /// The photographs attached to one damage / loss report.
+  Future<List<StoragePhotoModel>> getForIncident(String incidentId) async {
+    final rows = await _db.queryScoped(
+      DatabaseConstants.storagePhotoTable,
+      where: 'incident_id = ?',
+      whereArgs: [incidentId],
       orderBy: 'sort_order ASC, created_at ASC',
     );
     return rows.map(StoragePhotoModel.fromMap).toList();
@@ -42,6 +53,7 @@ class StoragePhotoRepository {
     required String bookingId,
     required ImageSource source,
     String caption = '',
+    String incidentId = '',
   }) async {
     final file = await _picker.pickImage(source: source, imageQuality: 80);
     if (file == null) return null;
@@ -59,10 +71,13 @@ class StoragePhotoRepository {
     ));
     await File(file.path).copy(destination.path);
 
-    final existing = await getForBooking(bookingId);
+    final existing = incidentId.isEmpty
+        ? await getForBooking(bookingId)
+        : await getForIncident(incidentId);
     final photo = StoragePhotoModel(
       id: IdGenerator.generateId(),
       bookingId: bookingId,
+      incidentId: incidentId,
       filePath: destination.path,
       caption: caption,
       sortOrder: existing.length * 10,
@@ -79,11 +94,15 @@ class StoragePhotoRepository {
     required String bookingId,
     required String filePath,
     String caption = '',
+    String incidentId = '',
   }) async {
-    final existing = await getForBooking(bookingId);
+    final existing = incidentId.isEmpty
+        ? await getForBooking(bookingId)
+        : await getForIncident(incidentId);
     final photo = StoragePhotoModel(
       id: IdGenerator.generateId(),
       bookingId: bookingId,
+      incidentId: incidentId,
       filePath: filePath,
       caption: caption,
       sortOrder: existing.length * 10,

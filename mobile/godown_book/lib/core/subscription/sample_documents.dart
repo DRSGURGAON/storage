@@ -8,6 +8,10 @@ import '../../features/billing/services/payment_receipt_pdf_service.dart';
 import '../../features/billing/services/statement_pdf_service.dart';
 import '../../features/company/models/company_model.dart';
 import '../../features/customers/models/customer_model.dart';
+import '../../features/incidents/models/incident_model.dart';
+import '../../features/incidents/services/incident_pdf_service.dart';
+import '../../features/notices/models/notice_model.dart';
+import '../../features/notices/services/notice_pdf_service.dart';
 import '../../features/quotation/models/quotation_model.dart';
 import '../../features/quotation/services/quotation_pdf_service.dart';
 import '../../features/release/models/goods_release_model.dart';
@@ -15,6 +19,7 @@ import '../../features/release/services/release_pdf_service.dart';
 import '../../features/storage_booking/models/booking_item_model.dart';
 import '../../features/storage_booking/models/storage_booking_model.dart';
 import '../../features/storage_booking/models/storage_status.dart';
+import '../../features/storage_booking/services/authority_letter_pdf_service.dart';
 import '../../features/storage_booking/services/goods_list_pdf_service.dart';
 import '../../features/storage_booking/services/storage_agreement_pdf_service.dart';
 import '../../features/storage_booking/services/storage_receipt_pdf_service.dart';
@@ -296,6 +301,45 @@ class SampleDocuments {
         ),
       ];
 
+  static final NoticeModel _notice = NoticeModel(
+    id: 'sample-notice',
+    noticeNo: 'NT/2026/0001',
+    noticeDate: DateTime(2026, 11, 5).toIso8601String(),
+    kind: NoticeKind.finalNotice,
+    customerName: _customer.customerName,
+    customerPhone: _customer.mobileNumber,
+    customerAddress:
+        '${_customer.address}, ${_customer.city}, ${_customer.state}',
+    bookingNo: 'SR/2026/0001',
+    amountDue: 7850,
+    dueAsOn: DateTime(2026, 11, 5).toIso8601String(),
+    payByDate: DateTime(2026, 11, 20).toIso8601String(),
+    createdAt: '',
+  );
+
+  static final IncidentModel _incident = IncidentModel(
+    id: 'sample-incident',
+    reportNo: 'DR/2026/0001',
+    reportDate: DateTime(2026, 10, 12).toIso8601String(),
+    kind: IncidentKind.water,
+    bookingNo: 'SR/2026/0001',
+    customerName: _customer.customerName,
+    customerPhone: _customer.mobileNumber,
+    happenedOn: DateTime(2026, 10, 11).toIso8601String(),
+    place: 'Hall A - Section 2',
+    goodsAffected: 'Two cartons of books, one mattress',
+    whatHappened:
+        'Rain came in through a gap in the roof sheet overnight. The bottom '
+        'row of cartons on the north wall was found wet in the morning.',
+    actionTaken:
+        'Goods moved to a dry rack, cartons opened and aired, roof sheet '
+        'repaired the same day. Photographs taken before moving anything.',
+    estimatedLoss: 4000,
+    customerInformed: true,
+    reportedBy: 'Godown supervisor',
+    createdAt: '',
+  );
+
   /// True when a sample exists for [documentType].
   static bool has(String documentType) => const {
         DocumentType.quotation,
@@ -306,6 +350,10 @@ class SampleDocuments {
         DocumentType.moneyReceipt,
         DocumentType.statement,
         DocumentType.releaseRecord,
+        DocumentType.notice,
+        DocumentType.incidentReport,
+        DocumentType.authorityLetter,
+        DocumentType.indemnityBond,
       }.contains(documentType);
 
   /// Builds the sample for [documentType] on [real]'s letterhead.
@@ -375,6 +423,40 @@ class SampleDocuments {
           watermarkText: watermark,
           watermarkOpacity: 0.08,
           copies: const ['CUSTOMER COPY'],
+        );
+      case DocumentType.notice:
+        return NoticePdfService.instance.build(
+          _notice,
+          letterhead,
+          showWatermark: true,
+          watermarkText: watermark,
+          watermarkOpacity: 0.08,
+        );
+      case DocumentType.incidentReport:
+        return IncidentPdfService.instance.build(
+          _incident,
+          letterhead,
+          showWatermark: true,
+          watermarkText: watermark,
+          watermarkOpacity: 0.08,
+        );
+      case DocumentType.authorityLetter:
+      case DocumentType.indemnityBond:
+        return AuthorityLetterPdfService.instance.build(
+          _booking,
+          letterhead,
+          paper: documentType == DocumentType.authorityLetter
+              ? HandoverPaper.authority
+              : HandoverPaper.indemnity,
+          details: const HandoverDetails(
+            personName: 'Suresh Kumar',
+            personPhone: '90000 00001',
+            personIdProof: 'Aadhaar XXXX 1234',
+            relation: 'Brother',
+          ),
+          showWatermark: true,
+          watermarkText: watermark,
+          watermarkOpacity: 0.08,
         );
       case DocumentType.storageReceipt:
       default:

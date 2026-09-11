@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../../core/constants/default_terms.dart';
@@ -283,11 +284,28 @@ class StorageReceiptPdfService {
   }
 
   pw.Widget _acknowledgement() {
-    return pw.Text(
-      'RECEIVED THE ABOVE GOODS IN APPARENT GOOD ORDER AND CONDITION, CONTENTS NOT VERIFIED, '
-      'FOR STORAGE ON THE TERMS PRINTED ABOVE. GOODS WILL BE RELEASED ONLY AGAINST THIS RECEIPT '
-      'AFTER SETTLEMENT OF ALL DUES.',
-      style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'RECEIVED THE ABOVE GOODS IN APPARENT GOOD ORDER AND CONDITION, CONTENTS NOT VERIFIED, '
+          'FOR STORAGE ON THE TERMS PRINTED ABOVE. GOODS WILL BE RELEASED ONLY AGAINST THIS RECEIPT '
+          'AFTER SETTLEMENT OF ALL DUES.',
+          style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 2),
+        // Says on the paper what this receipt is not, so it can never
+        // be presented as a negotiable warehouse receipt or used as
+        // security against the goods.
+        pw.Text(
+          'NON-NEGOTIABLE  -  NOT A DOCUMENT OF TITLE  -  NOT TRANSFERABLE BY ENDORSEMENT.',
+          style: pw.TextStyle(
+            fontSize: 6.5,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.grey700,
+          ),
+        ),
+      ],
     );
   }
 }

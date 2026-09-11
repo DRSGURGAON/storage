@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 
 import '../../billing/repositories/billing_repository.dart';
 import '../../quotation/repositories/quotation_repository.dart';
+import '../../incidents/repositories/incident_repository.dart';
+import '../../notices/repositories/notice_repository.dart';
 import '../../release/repositories/goods_release_repository.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
 
@@ -13,7 +15,9 @@ enum DocumentKind {
   storageReceipt,
   bill,
   receipt,
-  release;
+  release,
+  notice,
+  incident;
 
   String get label => switch (this) {
         DocumentKind.quotation => 'Quotations',
@@ -21,6 +25,8 @@ enum DocumentKind {
         DocumentKind.bill => 'Bills',
         DocumentKind.receipt => 'Payment Receipts',
         DocumentKind.release => 'Releases',
+        DocumentKind.notice => 'Notices',
+        DocumentKind.incident => 'Damage / Loss',
       };
 
   String get singular => switch (this) {
@@ -29,6 +35,8 @@ enum DocumentKind {
         DocumentKind.bill => 'Storage Bill',
         DocumentKind.receipt => 'Payment Receipt',
         DocumentKind.release => 'Release Record',
+        DocumentKind.notice => 'Notice Letter',
+        DocumentKind.incident => 'Damage / Loss Report',
       };
 
   IconData get icon => switch (this) {
@@ -37,6 +45,8 @@ enum DocumentKind {
         DocumentKind.bill => Icons.receipt_long_outlined,
         DocumentKind.receipt => Icons.payments_outlined,
         DocumentKind.release => Icons.outbox_outlined,
+        DocumentKind.notice => Icons.mail_outline,
+        DocumentKind.incident => Icons.report_gmailerrorred_outlined,
       };
 }
 
@@ -172,6 +182,35 @@ class _DocumentCentreScreenState extends State<DocumentCentreScreen> {
       ));
     }
 
+    for (final notice in await NoticeRepository.instance.getAll()) {
+      if (!mine(notice.customerId)) continue;
+      rows.add(DocumentRow(
+        kind: DocumentKind.notice,
+        id: notice.id,
+        number: notice.noticeNo,
+        customerName: notice.customerName,
+        customerPhone: notice.customerPhone,
+        date: notice.noticeDate,
+        amount: notice.amountDue,
+        status: notice.kind.label,
+      ));
+    }
+
+    for (final report in await IncidentRepository.instance.getAll()) {
+      if (!mine(report.customerId)) continue;
+      rows.add(DocumentRow(
+        kind: DocumentKind.incident,
+        id: report.id,
+        number: report.reportNo,
+        customerName:
+            report.customerName.isEmpty ? 'Godown' : report.customerName,
+        customerPhone: report.customerPhone,
+        date: report.reportDate,
+        amount: report.estimatedLoss,
+        status: report.kind.label,
+      ));
+    }
+
     rows.sort((a, b) => b.date.compareTo(a.date));
 
     if (!mounted) return;
@@ -214,6 +253,10 @@ class _DocumentCentreScreenState extends State<DocumentCentreScreen> {
         await context.push('/receipt-pdf', extra: row.id);
       case DocumentKind.release:
         await context.push('/release-pdf', extra: row.id);
+      case DocumentKind.notice:
+        await context.push('/notice-pdf', extra: row.id);
+      case DocumentKind.incident:
+        await context.push('/incident-pdf', extra: row.id);
     }
     await _load();
   }

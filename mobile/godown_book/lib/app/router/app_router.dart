@@ -37,6 +37,12 @@ import '../../features/billing/screens/bill_list_screen.dart';
 import '../../features/billing/screens/bill_pdf_screen.dart';
 import '../../features/billing/screens/payment_form_screen.dart';
 import '../../features/billing/screens/deposit_screen.dart';
+import '../../features/incidents/screens/incident_form_screen.dart';
+import '../../features/incidents/screens/incident_list_screen.dart';
+import '../../features/incidents/screens/incident_pdf_screen.dart';
+import '../../features/notices/screens/notice_form_screen.dart';
+import '../../features/notices/screens/notice_list_screen.dart';
+import '../../features/notices/screens/notice_pdf_screen.dart';
 import '../../features/billing/screens/payment_list_screen.dart';
 import '../../features/billing/screens/payment_receipt_pdf_screen.dart';
 import '../../features/billing/screens/statement_screen.dart';
@@ -55,6 +61,7 @@ import '../../features/release/screens/release_list_screen.dart';
 import '../../features/release/screens/release_pdf_screen.dart';
 
 // Storage records
+import '../../features/storage_booking/screens/handover_paper_screen.dart';
 import '../../features/storage_booking/screens/storage_booking_detail_screen.dart';
 import '../../features/storage_booking/screens/storage_booking_form_screen.dart';
 import '../../features/storage_booking/screens/storage_booking_list_screen.dart';
@@ -315,6 +322,12 @@ class AppRouter {
       // Customer signature
       // ==========================
       GoRoute(
+        path: '/handover-paper',
+        builder: (context, state) =>
+            HandoverPaperScreen(bookingId: state.extra as String),
+      ),
+
+      GoRoute(
         path: '/signature',
         builder: (context, state) =>
             SignatureRequestScreen(args: state.extra as SignatureRequestArgs),
@@ -397,6 +410,57 @@ class AppRouter {
         path: '/statement',
         builder: (context, state) =>
             StatementScreen(customerId: state.extra as String),
+      ),
+
+      // ==========================
+      // Notices about money owed
+      // ==========================
+      GoRoute(
+        path: '/notices',
+        builder: (context, state) => const NoticeListScreen(),
+      ),
+
+      GoRoute(
+        path: '/notice-create',
+        builder: (context, state) {
+          final args = state.extra as Map<String, dynamic>?;
+          return NoticeFormScreen(
+            bookingId: args?['bookingId'] as String?,
+            customerId: args?['customerId'] as String?,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/notice-pdf',
+        builder: (context, state) =>
+            NoticePdfScreen(noticeId: state.extra as String),
+      ),
+
+      // ==========================
+      // Damage / loss reports
+      // ==========================
+      GoRoute(
+        path: '/incidents',
+        builder: (context, state) => const IncidentListScreen(),
+      ),
+
+      GoRoute(
+        path: '/incident-create',
+        builder: (context, state) =>
+            IncidentFormScreen(bookingId: state.extra as String?),
+      ),
+
+      GoRoute(
+        path: '/incident-edit',
+        builder: (context, state) =>
+            IncidentFormScreen(incidentId: state.extra as String),
+      ),
+
+      GoRoute(
+        path: '/incident-pdf',
+        builder: (context, state) =>
+            IncidentPdfScreen(incidentId: state.extra as String),
       ),
 
       // ==========================

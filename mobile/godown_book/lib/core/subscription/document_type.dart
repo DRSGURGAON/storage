@@ -19,6 +19,10 @@ class DocumentType {
   static const moneyReceipt = 'money_receipt';
   static const statement = 'statement';
   static const releaseRecord = 'release_record';
+  static const notice = 'notice';
+  static const incidentReport = 'incident_report';
+  static const authorityLetter = 'authority_letter';
+  static const indemnityBond = 'indemnity_bond';
   static const letterHead = 'letter_head';
 
   /// Every type, in the order screens list them.
@@ -31,6 +35,10 @@ class DocumentType {
     moneyReceipt,
     statement,
     releaseRecord,
+    notice,
+    incidentReport,
+    authorityLetter,
+    indemnityBond,
     letterHead,
   ];
 
@@ -43,6 +51,10 @@ class DocumentType {
         moneyReceipt => 'Payment Receipt',
         statement => 'Customer Statement',
         releaseRecord => 'Release Record',
+        notice => 'Notice Letter',
+        incidentReport => 'Damage / Loss Report',
+        authorityLetter => 'Authority Letter',
+        indemnityBond => 'Indemnity Bond',
         letterHead => 'Letter Head',
         _ => type,
       };

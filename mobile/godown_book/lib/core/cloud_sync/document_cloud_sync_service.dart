@@ -78,6 +78,8 @@ class DocumentCloudSyncService {
     'invoices',
     'invoice_charges',
     'payments',
+    'notices',
+    'incidents',
     'document_terms',
   ];
 

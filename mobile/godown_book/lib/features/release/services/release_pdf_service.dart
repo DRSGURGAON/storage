@@ -28,6 +28,11 @@ class ReleasePdfService {
     bool showWatermark = false,
     String watermarkText = '',
     double watermarkOpacity = 0.05,
+
+    /// The signature the customer gave from their own phone, and the
+    /// note printed under it.
+    Uint8List? customerSignature,
+    String customerSignatureNote = '',
     List<String>? copies,
   }) async {
     _style = DocumentThemeStyle.of(company?.documentTheme ?? DocumentTheme.classic);
@@ -81,6 +86,8 @@ class ReleasePdfService {
               signature,
               _style,
               otherParties: const ['Collected By (Signature)', 'Gate / Security'],
+              partySignature: customerSignature,
+              partyNote: customerSignatureNote,
             ),
           ],
         ),

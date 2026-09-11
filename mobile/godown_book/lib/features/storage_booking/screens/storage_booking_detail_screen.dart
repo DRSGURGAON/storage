@@ -7,6 +7,7 @@ import '../../../core/document_terms/document_terms_repository.dart';
 import '../../../core/subscription/document_type.dart';
 import '../../billing/repositories/billing_repository.dart';
 import '../../company/controllers/company_controller.dart';
+import '../../incidents/repositories/incident_repository.dart';
 import '../../signature/models/signature_request_model.dart';
 import '../../signature/repositories/signature_repository.dart';
 import '../../signature/screens/signature_request_screen.dart';
@@ -36,6 +37,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
   int _releaseCount = 0;
   double _outstanding = 0;
   DepositSummary _deposit = const DepositSummary();
+  int _incidentCount = 0;
   List<SignatureRequestModel> _signatures = const [];
   bool _loading = true;
 
@@ -52,6 +54,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
     var releases = 0;
     var outstanding = 0.0;
     var deposit = const DepositSummary();
+    var incidents = 0;
     var signatures = const <SignatureRequestModel>[];
     if (booking != null) {
       signatures = await SignatureRepository.instance
@@ -61,6 +64,8 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
           (await GoodsReleaseRepository.instance.getForBooking(booking.id)).length;
       deposit = await BillingRepository.instance
           .depositForBooking(booking.id, agreed: booking.securityDeposit);
+      incidents =
+          (await IncidentRepository.instance.getForBooking(booking.id)).length;
       if (booking.customerId.isNotEmpty) {
         final balance =
             await BillingRepository.instance.balanceForCustomer(booking.customerId);
@@ -75,6 +80,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
       _releaseCount = releases;
       _outstanding = outstanding;
       _deposit = deposit;
+      _incidentCount = incidents;
       _signatures = signatures;
       _loading = false;
     });
@@ -392,6 +398,50 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
           tile(Icons.list_alt_outlined, 'Goods List', 'What is stored, what has gone out', BookingDocumentKind.inventory),
           const Divider(height: 1),
           tile(Icons.handshake_outlined, 'Storage Agreement', 'Terms both sides sign', BookingDocumentKind.agreement),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.assignment_ind_outlined),
+            title: const Text('Authority Letter / Indemnity'),
+            subtitle: const Text('Someone else is collecting, or the receipt is lost'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              await context.push('/handover-paper', extra: b.id);
+              _load();
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.mail_outline),
+            title: const Text('Send a Notice'),
+            subtitle: Text(_outstanding > 0
+                ? 'Rent is unpaid - remind, warn, or give notice'
+                : 'Nothing is outstanding right now'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final noticeId = await context
+                  .push('/notice-create', extra: {'bookingId': b.id});
+              if (noticeId is String && mounted) {
+                await context.push('/notice-pdf', extra: noticeId);
+              }
+              _load();
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.report_gmailerrorred_outlined),
+            title: const Text('Damage / Loss Report'),
+            subtitle: Text(_incidentCount == 0
+                ? 'Write it down the same day, with photos'
+                : '$_incidentCount report${_incidentCount == 1 ? '' : 's'} on this record'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final id = await context.push('/incident-create', extra: b.id);
+              if (id is String && mounted) {
+                await context.push('/incident-pdf', extra: id);
+              }
+              _load();
+            },
+          ),
         ],
       ),
     );
