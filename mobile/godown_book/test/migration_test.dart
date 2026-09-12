@@ -56,10 +56,9 @@ void main() {
     );
     await db.execute(Migrations.createStorageLocationTable
         .replaceAll('    capacity INTEGER NOT NULL DEFAULT 0,\n', ''));
-    await db.execute(Migrations.createStoragePhotoTable.replaceAll(
-      "    incident_id TEXT NOT NULL DEFAULT '',\n",
-      '',
-    ));
+    await db.execute(Migrations.createStoragePhotoTable
+        .replaceAll("    incident_id TEXT NOT NULL DEFAULT '',\n", '')
+        .replaceAll("    item_id TEXT NOT NULL DEFAULT '',\n", ''));
     await db.execute(Migrations.createCustomerTable);
     await db.execute(Migrations.createStorageBookingTable);
     await db.execute(Migrations.createBookingItemTable);
@@ -172,6 +171,40 @@ void main() {
     expect(await columns(db, 'storage_locations'), contains('capacity'));
     final rows = await db.query('storage_locations');
     expect(rows.single['capacity'], 0);
+
+    await db.close();
+  });
+
+  test('a phone already on v4 gets only the photo item column', () async {
+    final db = await openVersionOne();
+    await db.execute(Migrations.createNoticeTable);
+    await db.execute(Migrations.createIncidentTable);
+    await db.execute(Migrations.createConsignmentTable);
+    await db.execute(Migrations.createConsignmentItemTable);
+    await db.execute(
+      "ALTER TABLE storage_photos ADD COLUMN incident_id TEXT NOT NULL DEFAULT ''",
+    );
+    await db.execute(
+      "ALTER TABLE company_settings ADD COLUMN consignment_prefix TEXT NOT NULL DEFAULT 'LR'",
+    );
+    await db.execute(
+      'ALTER TABLE storage_locations ADD COLUMN capacity INTEGER NOT NULL DEFAULT 0',
+    );
+    await db.insert('storage_photos', {
+      'id': 'photo-1',
+      'company_id': 'company-test',
+      'booking_id': 'booking-1',
+      'file_path': '/photos/sofa.jpg',
+      'created_at': DateTime(2026, 9, 1).toIso8601String(),
+    });
+
+    expect(await columns(db, 'storage_photos'), isNot(contains('item_id')));
+
+    await AppDatabase.instance.onUpgrade(db, 4, 5);
+
+    expect(await columns(db, 'storage_photos'), contains('item_id'));
+    // The photo that was already there is a whole-consignment photo.
+    expect((await db.query('storage_photos')).single['item_id'], '');
 
     await db.close();
   });

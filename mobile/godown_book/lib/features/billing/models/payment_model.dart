@@ -52,7 +52,13 @@ enum PaymentType {
   /// Deposit kept and applied against the customer's dues. This one
   /// settles bills like any other payment, and reduces the deposit
   /// still held.
-  depositAdjusted;
+  depositAdjusted,
+
+  /// A reduction the godown grants on what was billed - a waiver, a
+  /// goodwill discount, or a correction. No money moves; the customer
+  /// simply owes less. Numbered in its own series, printed as a credit
+  /// note.
+  creditNote;
 
   String get code => switch (this) {
         PaymentType.fullPayment => 'FULL_PAYMENT',
@@ -61,6 +67,7 @@ enum PaymentType {
         PaymentType.securityDeposit => 'SECURITY_DEPOSIT',
         PaymentType.depositRefund => 'DEPOSIT_REFUND',
         PaymentType.depositAdjusted => 'DEPOSIT_ADJUSTED',
+        PaymentType.creditNote => 'CREDIT_NOTE',
       };
 
   String get label => switch (this) {
@@ -70,6 +77,7 @@ enum PaymentType {
         PaymentType.securityDeposit => 'Security Deposit',
         PaymentType.depositRefund => 'Deposit Returned',
         PaymentType.depositAdjusted => 'Deposit Adjusted',
+        PaymentType.creditNote => 'Credit Note',
       };
 
   /// Deposit money coming in - held for the customer, never income.
@@ -87,12 +95,28 @@ enum PaymentType {
   bool get lowersDeposit =>
       this == PaymentType.depositRefund || this == PaymentType.depositAdjusted;
 
+  /// Whether money actually arrived on this entry - the figure a
+  /// "collected today" tile should add up. A credit note moves no
+  /// money, a deposit adjustment uses money that came in earlier, and
+  /// a refund goes the other way.
+  bool get isCashIn =>
+      this == PaymentType.fullPayment ||
+      this == PaymentType.partPayment ||
+      this == PaymentType.advance ||
+      this == PaymentType.securityDeposit;
+
+  /// The entries an operator records on the Receive Payment screen.
+  /// A credit note has its own screen, because it is not a receipt.
+  static List<PaymentType> get receivable =>
+      values.where((t) => t != PaymentType.creditNote).toList();
+
   static PaymentType fromCode(String? code) => switch (code) {
         'PART_PAYMENT' => PaymentType.partPayment,
         'ADVANCE' => PaymentType.advance,
         'SECURITY_DEPOSIT' => PaymentType.securityDeposit,
         'DEPOSIT_REFUND' => PaymentType.depositRefund,
         'DEPOSIT_ADJUSTED' => PaymentType.depositAdjusted,
+        'CREDIT_NOTE' => PaymentType.creditNote,
         _ => PaymentType.fullPayment,
       };
 }
@@ -144,6 +168,8 @@ class PaymentModel {
   });
 
   bool get isOnAccount => billId.isEmpty;
+
+  bool get isCreditNote => paymentType == PaymentType.creditNote;
 
   PaymentModel copyWith({
     String? id,

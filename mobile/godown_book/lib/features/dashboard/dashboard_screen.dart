@@ -894,6 +894,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ('Send a notice', Icons.mail_outline, '/notices'),
               ('Damage report', Icons.report_gmailerrorred_outlined, '/incidents'),
               ('Release records', Icons.outbox_outlined, '/releases'),
+              ('Reports', Icons.bar_chart_outlined, '/reports'),
               ('All documents', Icons.folder_open_outlined, '/documents'),
             ])
               ListTile(

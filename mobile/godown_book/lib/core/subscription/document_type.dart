@@ -17,6 +17,7 @@ class DocumentType {
   static const itemList = 'item_list';
   static const bill = 'bill';
   static const moneyReceipt = 'money_receipt';
+  static const creditNote = 'credit_note';
   static const statement = 'statement';
   static const releaseRecord = 'release_record';
   static const lorryReceipt = 'lorry_receipt';
@@ -26,6 +27,9 @@ class DocumentType {
   static const incidentReport = 'incident_report';
   static const authorityLetter = 'authority_letter';
   static const indemnityBond = 'indemnity_bond';
+  static const noDues = 'no_dues';
+  static const rentRoll = 'rent_roll';
+  static const agedOutstanding = 'aged_outstanding';
   static const letterHead = 'letter_head';
 
   /// Every type, in the order screens list them.
@@ -36,6 +40,7 @@ class DocumentType {
     itemList,
     bill,
     moneyReceipt,
+    creditNote,
     statement,
     releaseRecord,
     lorryReceipt,
@@ -45,6 +50,9 @@ class DocumentType {
     incidentReport,
     authorityLetter,
     indemnityBond,
+    noDues,
+    rentRoll,
+    agedOutstanding,
     letterHead,
   ];
 
@@ -55,6 +63,7 @@ class DocumentType {
         itemList => 'Goods List',
         bill => 'Storage Bill',
         moneyReceipt => 'Payment Receipt',
+        creditNote => 'Credit Note',
         statement => 'Customer Statement',
         releaseRecord => 'Release Record',
         lorryReceipt => 'Bilty / Lorry Receipt',
@@ -64,6 +73,9 @@ class DocumentType {
         incidentReport => 'Damage / Loss Report',
         authorityLetter => 'Authority Letter',
         indemnityBond => 'Indemnity Bond',
+        noDues => 'No Dues Certificate',
+        rentRoll => 'Rent Roll',
+        agedOutstanding => 'Aged Outstanding',
         letterHead => 'Letter Head',
         _ => type,
       };

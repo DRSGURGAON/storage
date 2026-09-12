@@ -53,7 +53,7 @@ class DatabaseConstants {
   // rather than to the storage record itself.
   // v3: consignments and their items - the bilty pack (Lorry Receipt,
   // Goods Forwarding Note and Delivery Challan from one record).
-  static const int databaseVersion = 4;
+  static const int databaseVersion = 5;
 
   // ==========================
   // Masters

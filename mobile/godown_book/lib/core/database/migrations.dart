@@ -429,6 +429,10 @@ class Migrations {
        belongs to a damage / loss report. */
     incident_id TEXT NOT NULL DEFAULT '',
 
+    /* Set when the photo is of one listed item rather than the whole
+       consignment - the sofa's tear, not the pile of cartons. */
+    item_id TEXT NOT NULL DEFAULT '',
+
     file_path TEXT NOT NULL,
     caption TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,

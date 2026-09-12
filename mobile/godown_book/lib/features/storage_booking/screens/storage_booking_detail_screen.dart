@@ -382,6 +382,19 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
     _load();
   }
 
+  /// One line under the No Dues tile: ready, or the first thing in
+  /// the way. The screen itself lists everything when it is opened.
+  String _noDuesHint(StorageBookingModel b) {
+    if (b.status.isOpen) return 'Once the goods are out and everything is paid';
+    if (_outstanding > 0.004) {
+      return '₹${_outstanding.toStringAsFixed(0)} still outstanding';
+    }
+    if (_deposit.held > 0.004) {
+      return 'Deposit of ₹${_deposit.held.toStringAsFixed(0)} still held';
+    }
+    return 'Goods collected, nothing owed - ready to issue';
+  }
+
   Widget _papersCard(StorageBookingModel b) {
     Widget tile(IconData icon, String title, String subtitle, BookingDocumentKind kind) {
       return ListTile(
@@ -445,6 +458,17 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
               if (noticeId is String && mounted) {
                 await context.push('/notice-pdf', extra: noticeId);
               }
+              _load();
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.verified_outlined),
+            title: const Text('No Dues Certificate'),
+            subtitle: Text(_noDuesHint(b)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              await context.push('/no-dues-pdf', extra: b.id);
               _load();
             },
           ),

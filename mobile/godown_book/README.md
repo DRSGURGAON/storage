@@ -33,12 +33,15 @@ left alone on purpose.
 | Records goods coming in | Storage Receipt, Goods List |
 | Sends a signature link | The customer signs on their own phone, and it prints on the document |
 | Charges for a period | Storage Bill |
-| Takes money | Payment Receipt, and the balance updates |
+| Takes money | Payment Receipt, and the balance updates; an advance prints as an Advance Receipt Voucher |
+| Waives or corrects a charge | Credit Note in its own number series - the bill comes down, nothing is counted as received |
 | Is asked "what do I owe?" | Customer Statement |
 | Hands the goods back | Release Record (customer and gate copies), signed by the customer |
 | Takes a deposit | Security Deposit Receipt, and later a Refund Voucher or an Adjustment Note |
 | Is not paid for months | Payment Reminder, then Final Notice, then Notice Before Disposal - each one kept as proof it went out |
-| Finds goods damaged or missing | Damage / Loss Report with photographs on the same paper |
+| Finds goods damaged or missing | Damage / Loss Report with photographs on the same paper; photos can also sit against one listed item |
+| Closes a storage record | No Dues Certificate, issued only when the goods are out and nothing is owed either way |
+| Sits down at month end | Rent Roll (what is inside and what it earns) and Aged Outstanding (who owes what, oldest first) |
 | Sends the goods to someone else | Authority Letter, or an Indemnity Bond when the receipt is lost |
 | Moves goods by truck | Bilty / Lorry Receipt in four copies, the Goods Forwarding Note the sender signs, and a Delivery Challan - and the same bilty records the delivery |
 | Would rather talk than type | Speaks a storage entry, a bill, a payment or a quotation in Hindi or English; the form fills itself and waits to be checked |

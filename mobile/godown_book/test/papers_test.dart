@@ -336,6 +336,47 @@ void main() {
     });
   });
 
+  group('photos of one item', () {
+    test('sit next to the item, and the whole-load photos stay separate',
+        () async {
+      final c = await customer();
+      final b = await StorageBookingRepository.instance.save(StorageBookingModel(
+        id: '',
+        bookingDate: DateTime(2026, 9, 1).toIso8601String(),
+        customerId: c.id,
+        customerName: c.customerName,
+        customerPhone: c.mobileNumber,
+        storageStartDate: DateTime(2026, 9, 1).toIso8601String(),
+        createdAt: '',
+        items: const [
+          BookingItemModel(id: '', bookingId: '', itemName: 'Sofa', quantity: 1),
+          BookingItemModel(id: '', bookingId: '', itemName: 'Fridge', quantity: 1),
+        ],
+      ));
+      final sofa = b.items.firstWhere((i) => i.itemName == 'Sofa');
+
+      final file = File('${Directory.systemTemp.path}/item-photo-test.png')
+        ..writeAsBytesSync(_onePixelPng);
+      await StoragePhotoRepository.instance.attachFile(
+        bookingId: b.id,
+        filePath: file.path,
+        itemId: sofa.id,
+        caption: 'Tear on the left arm',
+      );
+      await StoragePhotoRepository.instance
+          .attachFile(bookingId: b.id, filePath: file.path, itemId: sofa.id);
+      await StoragePhotoRepository.instance
+          .attachFile(bookingId: b.id, filePath: file.path);
+
+      final repo = StoragePhotoRepository.instance;
+      expect(await repo.getForItem(sofa.id), hasLength(2));
+      expect((await repo.getForItem(sofa.id)).first.caption, 'Tear on the left arm');
+      // Every goods photo, item or not, is still a photo of the record.
+      expect(await repo.getForBooking(b.id), hasLength(3));
+      expect(await repo.countByItem(b.id), {sofa.id: 2, '': 1});
+    });
+  });
+
   group('handover papers', () {
     test('the authority letter and the indemnity bond both render', () async {
       final c = await customer();

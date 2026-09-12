@@ -109,23 +109,37 @@ class _PaymentListScreenState extends ConsumerState<PaymentListScreen> {
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 6),
                         child: ListTile(
-                          leading: const CircleAvatar(
-                            child: Icon(Icons.payments_outlined, size: 18),
+                          leading: CircleAvatar(
+                            backgroundColor: payment.isCreditNote
+                                ? const Color(0xffFFF3E0)
+                                : null,
+                            child: Icon(
+                              payment.isCreditNote
+                                  ? Icons.remove_circle_outline
+                                  : Icons.payments_outlined,
+                              size: 18,
+                            ),
                           ),
                           title: Text(
                             payment.receiptNo.isEmpty ? 'Receipt' : payment.receiptNo,
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                           subtitle: Text(
-                            '${payment.payerName}  •  ${payment.mode.label}'
+                            '${payment.payerName}  •  '
+                            '${payment.isCreditNote ? 'Credit note' : payment.mode.label}'
                             '${payment.against.isEmpty ? '' : '  •  ${payment.against}'}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                           trailing: Text(
+                            '${payment.isCreditNote ? '- ' : ''}'
                             '₹${payment.amount.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, color: Color(0xff2E7D32)),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: payment.isCreditNote
+                                  ? const Color(0xffB35C00)
+                                  : const Color(0xff2E7D32),
+                            ),
                           ),
                           onTap: () => _showActions(payment),
                         ),
@@ -152,9 +166,11 @@ class _PaymentListScreenState extends ConsumerState<PaymentListScreen> {
       title: payment.receiptNo,
       subtitle: '${payment.payerName}  •  ₹${payment.amount.toStringAsFixed(0)}',
       customerPhone: payment.payerPhone,
-      whatsAppMessage:
-          'Hello ${payment.payerName}, sharing the receipt ${payment.receiptNo} '
-          'for ₹${payment.amount.toStringAsFixed(0)} received. Thank you.',
+      whatsAppMessage: payment.isCreditNote
+          ? 'Hello ${payment.payerName}, sharing credit note ${payment.receiptNo} '
+              'for ₹${payment.amount.toStringAsFixed(0)} against your account.'
+          : 'Hello ${payment.payerName}, sharing the receipt ${payment.receiptNo} '
+              'for ₹${payment.amount.toStringAsFixed(0)} received. Thank you.',
       actions: [
         DocumentAction(
           icon: Icons.picture_as_pdf_outlined,
@@ -167,14 +183,17 @@ class _PaymentListScreenState extends ConsumerState<PaymentListScreen> {
         ),
         DocumentAction(
           icon: Icons.delete_outline,
-          label: 'Delete Receipt',
+          label: payment.isCreditNote ? 'Delete Credit Note' : 'Delete Receipt',
           isDestructive: true,
           onTap: () async {
             if (!await confirmDelete(
               context,
-              what: 'receipt',
-              warning: 'The receipt will be deleted and the money taken off the '
-                  'bill it settled.',
+              what: payment.isCreditNote ? 'credit note' : 'receipt',
+              warning: payment.isCreditNote
+                  ? 'The credit note will be deleted and the amount put back '
+                      'on the bill.'
+                  : 'The receipt will be deleted and the money taken off the '
+                      'bill it settled.',
             )) {
               return;
             }

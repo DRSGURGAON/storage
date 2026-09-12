@@ -29,23 +29,28 @@ class CustomerBalance {
   /// earned, and must never make a customer look paid up.
   final double depositHeld;
 
+  /// Credit notes issued - amounts written off the bills. Not money
+  /// received, but it lowers what is owed just the same.
+  final double credited;
+
   const CustomerBalance({
     required this.customerId,
     required this.customerName,
     required this.billed,
     required this.received,
+    this.credited = 0,
     this.depositHeld = 0,
   });
 
   double get outstanding {
-    final due = billed - received;
+    final due = billed - received - credited;
     return due < 0 ? 0 : due;
   }
 
   /// Money received beyond what has been billed - an advance sitting
   /// with the operator.
   double get advance {
-    final extra = received - billed;
+    final extra = received + credited - billed;
     return extra < 0 ? 0 : extra;
   }
 }
@@ -432,15 +437,25 @@ class BillingRepository {
   // Receiving money
   // ==========================
 
+  /// Credit notes run in their own series, so a receipt book and a
+  /// credit note book never share a number.
+  static const String creditNotePrefix = 'CN';
+
   Future<int> _maxReceiptSerialInFinancialYear(
     DatabaseExecutor executor,
-    int fyStart,
-  ) async {
+    int fyStart, {
+    bool creditNotes = false,
+  }) async {
     final rows = await executor.query(
       DatabaseConstants.paymentTable,
       columns: ['receipt_no'],
-      where: 'company_id = ? AND receipt_no LIKE ?',
-      whereArgs: [TenantScope.companyId, '%/$fyStart/%'],
+      where: 'company_id = ? AND receipt_no LIKE ? AND payment_type '
+          '${creditNotes ? '=' : '!='} ?',
+      whereArgs: [
+        TenantScope.companyId,
+        '%/$fyStart/%',
+        PaymentType.creditNote.code,
+      ],
     );
 
     var maxNumber = 0;
@@ -461,9 +476,12 @@ class BillingRepository {
     final nowIso = now.toIso8601String();
 
     final company = await CompanyController.instance.getCompany();
-    final prefix = (company?.receiptPrefix.isNotEmpty ?? false)
-        ? company!.receiptPrefix
-        : 'MR';
+    final isCreditNote = payment.paymentType == PaymentType.creditNote;
+    final prefix = isCreditNote
+        ? creditNotePrefix
+        : (company?.receiptPrefix.isNotEmpty ?? false)
+            ? company!.receiptPrefix
+            : 'MR';
 
     var customerId = payment.customerId;
     if (customerId.isEmpty && payment.payerName.trim().isNotEmpty) {
@@ -482,8 +500,12 @@ class BillingRepository {
     for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         final saved = await _db.transaction((txn) async {
-          final serial =
-              await _maxReceiptSerialInFinancialYear(txn, fyStart) + attempt;
+          final serial = await _maxReceiptSerialInFinancialYear(
+                txn,
+                fyStart,
+                creditNotes: isCreditNote,
+              ) +
+              attempt;
           final receiptNo =
               '$prefix/${FinancialYear.documentNumber(date: now, serial: serial)}';
 
@@ -558,9 +580,14 @@ class BillingRepository {
     final payments = await getPaymentsForCustomer(customerId);
 
     var received = 0.0;
+    var credited = 0.0;
     var deposit = 0.0;
     for (final payment in payments) {
-      if (payment.paymentType.settlesDues) received += payment.amount;
+      if (payment.paymentType == PaymentType.creditNote) {
+        credited += payment.amount;
+      } else if (payment.paymentType.settlesDues) {
+        received += payment.amount;
+      }
       if (payment.paymentType.isDepositIn) deposit += payment.amount;
       if (payment.paymentType.lowersDeposit) deposit -= payment.amount;
     }
@@ -572,6 +599,7 @@ class BillingRepository {
           : (payments.isNotEmpty ? payments.first.payerName : ''),
       billed: bills.fold(0.0, (sum, b) => sum + b.grandTotal),
       received: received,
+      credited: credited,
       depositHeld: deposit < 0 ? 0 : deposit,
     );
   }
@@ -613,7 +641,11 @@ class BillingRepository {
         entry: StatementEntry(
           date: payment.paymentDate,
           reference: payment.receiptNo,
-          particulars: payment.paymentType == PaymentType.depositAdjusted
+          particulars: payment.paymentType == PaymentType.creditNote
+              ? (payment.notes.trim().isEmpty
+                  ? 'Credit note'
+                  : 'Credit note - ${payment.notes.trim()}')
+              : payment.paymentType == PaymentType.depositAdjusted
               ? 'Security deposit adjusted'
               : payment.billId.isEmpty
                   ? (payment.against.trim().isEmpty

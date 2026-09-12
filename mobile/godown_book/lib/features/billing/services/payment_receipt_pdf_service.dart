@@ -12,7 +12,9 @@ import '../models/bill_model.dart';
 import '../models/payment_model.dart';
 
 /// The payment receipt - proof that money was received, and what it
-/// leaves outstanding.
+/// leaves outstanding. The same paper, with different words on it,
+/// serves as the advance receipt voucher, the deposit papers and the
+/// credit note: one numbered entry, one printed record of it.
 class PaymentReceiptPdfService {
   PaymentReceiptPdfService._();
 
@@ -67,7 +69,11 @@ class PaymentReceiptPdfService {
             company,
             signature,
             _style,
-            otherParties: const ['Received From (Signature)'],
+            otherParties: [
+              payment.isCreditNote
+                  ? 'Customer (Acknowledged)'
+                  : 'Received From (Signature)',
+            ],
           ),
         ],
       ),
@@ -79,17 +85,44 @@ class PaymentReceiptPdfService {
   /// A deposit is not a payment and money going back is not a receipt -
   /// the paper has to say which one it is.
   String _heading(PaymentModel payment) => switch (payment.paymentType) {
+        PaymentType.advance => 'ADVANCE RECEIPT VOUCHER',
         PaymentType.securityDeposit => 'SECURITY DEPOSIT RECEIPT',
         PaymentType.depositRefund => 'DEPOSIT REFUND VOUCHER',
         PaymentType.depositAdjusted => 'DEPOSIT ADJUSTMENT NOTE',
+        PaymentType.creditNote => 'CREDIT NOTE',
         _ => 'PAYMENT RECEIPT',
       };
 
   String _footerLabel(PaymentModel payment) => switch (payment.paymentType) {
+        PaymentType.advance => 'Advance Receipt Voucher',
         PaymentType.securityDeposit => 'Security Deposit Receipt',
         PaymentType.depositRefund => 'Deposit Refund Voucher',
         PaymentType.depositAdjusted => 'Deposit Adjustment Note',
+        PaymentType.creditNote => 'Credit Note',
         _ => 'Payment Receipt',
+      };
+
+  /// The one line that says what this paper does, printed under the
+  /// figures so nobody has to guess.
+  String _meaning(PaymentModel payment, BillModel? bill) =>
+      switch (payment.paymentType) {
+        PaymentType.advance =>
+          'Advance received against storage charges. It will be adjusted '
+              'in the bill raised for the storage period. This voucher is '
+              'not a tax invoice.',
+        PaymentType.creditNote => bill != null
+            ? 'This credit note reduces the amount payable against Bill '
+                '${bill.billNo}. No money has changed hands.'
+            : 'This credit note reduces the amount payable on the '
+                'customer\'s account. No money has changed hands.',
+        PaymentType.securityDeposit =>
+          'Security deposit held for the customer. It is refundable when '
+              'the goods are collected and all charges are settled.',
+        PaymentType.depositRefund =>
+          'Security deposit returned to the customer.',
+        PaymentType.depositAdjusted =>
+          'Security deposit applied against the charges outstanding.',
+        _ => '',
       };
 
   pw.Widget _infoRow(PaymentModel payment, BillModel? bill) {
@@ -99,16 +132,21 @@ class PaymentReceiptPdfService {
         child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            PdfPageKit.boxHead('RECEIPT', _style),
-            PdfPageKit.gridRow('Receipt No.', payment.receiptNo, _style, bold: true),
+            PdfPageKit.boxHead(payment.isCreditNote ? 'CREDIT NOTE' : 'RECEIPT', _style),
+            PdfPageKit.gridRow(
+                payment.isCreditNote ? 'Credit Note No.' : 'Receipt No.',
+                payment.receiptNo,
+                _style,
+                bold: true),
             PdfPageKit.gridRow('Date', PdfPageKit.date(payment.paymentDate), _style, bold: true),
-            PdfPageKit.gridRow('Mode', payment.mode.label, _style),
+            if (!payment.isCreditNote)
+              PdfPageKit.gridRow('Mode', payment.mode.label, _style),
             PdfPageKit.gridRow('Type', payment.paymentType.label, _style, isLast: true),
           ],
         ),
       ),
       PdfPageKit.box(
-        'RECEIVED FROM',
+        payment.isCreditNote ? 'ISSUED TO' : 'RECEIVED FROM',
         _style,
         pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -142,7 +180,8 @@ class PaymentReceiptPdfService {
             padding: const pw.EdgeInsets.symmetric(vertical: 8),
             alignment: pw.Alignment.center,
             child: pw.Text(
-              'AMOUNT RECEIVED  ${PdfPageKit.money(payment.amount)}',
+              '${payment.isCreditNote ? 'AMOUNT CREDITED' : 'AMOUNT RECEIVED'}  '
+              '${PdfPageKit.money(payment.amount)}',
               style: pw.TextStyle(
                 fontSize: 14,
                 fontWeight: pw.FontWeight.bold,
@@ -164,13 +203,16 @@ class PaymentReceiptPdfService {
   }
 
   pw.Widget _detailBox(PaymentModel payment, BillModel? bill, double? balanceAfter) {
+    final meaning = _meaning(payment, bill);
+    final noteLabel = payment.isCreditNote ? 'Reason' : 'Note';
+
     return pw.Container(
       decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfPageKit.black, width: 0.7)),
       child: pw.Column(
         children: [
           if (bill != null) ...[
             PdfPageKit.gridRow('Bill Total', PdfPageKit.money(bill.grandTotal), _style),
-            PdfPageKit.gridRow('Received Against This Bill',
+            PdfPageKit.gridRow('Received / Credited Against This Bill',
                 PdfPageKit.money(bill.amountPaid), _style),
             PdfPageKit.gridRow('Balance On This Bill',
                 PdfPageKit.money(bill.balanceDue), _style, bold: true),
@@ -183,7 +225,17 @@ class PaymentReceiptPdfService {
               bold: true,
             ),
           if (payment.notes.trim().isNotEmpty)
-            PdfPageKit.gridRow('Note', payment.notes.trim(), _style, isLast: true),
+            PdfPageKit.gridRow(noteLabel, payment.notes.trim(), _style,
+                isLast: meaning.isEmpty),
+          if (meaning.isNotEmpty)
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+              child: pw.Text(
+                meaning,
+                style: const pw.TextStyle(fontSize: 7.5, lineSpacing: 1.4),
+              ),
+            ),
         ],
       ),
     );

@@ -16,6 +16,9 @@ import '../../features/notices/models/notice_model.dart';
 import '../../features/notices/services/notice_pdf_service.dart';
 import '../../features/quotation/models/quotation_model.dart';
 import '../../features/quotation/services/quotation_pdf_service.dart';
+import '../../features/reports/services/aged_outstanding_pdf_service.dart';
+import '../../features/reports/services/rent_roll_pdf_service.dart';
+import '../../features/reports/services/report_builder.dart';
 import '../../features/release/models/goods_release_model.dart';
 import '../../features/release/services/release_pdf_service.dart';
 import '../../features/storage_booking/models/booking_item_model.dart';
@@ -23,6 +26,7 @@ import '../../features/storage_booking/models/storage_booking_model.dart';
 import '../../features/storage_booking/models/storage_status.dart';
 import '../../features/storage_booking/services/authority_letter_pdf_service.dart';
 import '../../features/storage_booking/services/goods_list_pdf_service.dart';
+import '../../features/storage_booking/services/no_dues_pdf_service.dart';
 import '../../features/storage_booking/services/storage_agreement_pdf_service.dart';
 import '../../features/storage_booking/services/storage_receipt_pdf_service.dart';
 import '../../features/master/models/charge_head_model.dart';
@@ -253,6 +257,20 @@ class SampleDocuments {
         createdAt: '2026-10-02T00:00:00.000',
       );
 
+  static PaymentModel get _creditNote => PaymentModel(
+        id: 'sample-credit-note',
+        receiptNo: 'CN/2026/0001',
+        billId: 'sample-bill',
+        customerId: _customer.id,
+        payerName: _customer.customerName,
+        payerPhone: _customer.mobileNumber,
+        amount: 500,
+        paymentType: PaymentType.creditNote,
+        paymentDate: '2026-10-04T00:00:00.000',
+        notes: 'Handling charge waived - goods were shifted for our convenience',
+        createdAt: '2026-10-04T00:00:00.000',
+      );
+
   static GoodsReleaseModel get _release => GoodsReleaseModel(
         id: 'sample-release',
         releaseNo: 'RL/2026/0001',
@@ -397,6 +415,7 @@ class SampleDocuments {
         DocumentType.itemList,
         DocumentType.bill,
         DocumentType.moneyReceipt,
+        DocumentType.creditNote,
         DocumentType.statement,
         DocumentType.releaseRecord,
         DocumentType.lorryReceipt,
@@ -406,6 +425,9 @@ class SampleDocuments {
         DocumentType.incidentReport,
         DocumentType.authorityLetter,
         DocumentType.indemnityBond,
+        DocumentType.noDues,
+        DocumentType.rentRoll,
+        DocumentType.agedOutstanding,
       }.contains(documentType);
 
   /// Builds the sample for [documentType] on [real]'s letterhead.
@@ -456,6 +478,16 @@ class SampleDocuments {
           watermarkText: watermark,
           watermarkOpacity: 0.08,
           balanceAfter: 3720,
+        );
+      case DocumentType.creditNote:
+        return PaymentReceiptPdfService.instance.build(
+          _creditNote,
+          letterhead,
+          bill: _bill,
+          showWatermark: true,
+          watermarkText: watermark,
+          watermarkOpacity: 0.08,
+          balanceAfter: 3220,
         );
       case DocumentType.statement:
         return StatementPdfService.instance.build(
@@ -522,6 +554,74 @@ class SampleDocuments {
             personIdProof: 'Aadhaar XXXX 1234',
             relation: 'Brother',
           ),
+          showWatermark: true,
+          watermarkText: watermark,
+          watermarkOpacity: 0.08,
+        );
+      case DocumentType.noDues:
+        return NoDuesPdfService.instance.build(
+          _booking.copyWith(
+            status: StorageStatus.released,
+            actualEndDate: '2026-11-30T00:00:00.000',
+          ),
+          letterhead,
+          balance: const CustomerBalance(
+            customerId: 'sample-customer',
+            customerName: 'Rajesh Kumar (sample)',
+            billed: 12850,
+            received: 12350,
+            credited: 500,
+          ),
+          deposit: const DepositSummary(agreed: 5000, received: 5000, returned: 5000),
+          issuedOn: '2026-12-01T00:00:00.000',
+          collectedOn: '2026-11-30T00:00:00.000',
+          showWatermark: true,
+          watermarkText: watermark,
+          watermarkOpacity: 0.08,
+        );
+      case DocumentType.rentRoll:
+        return RentRollPdfService.instance.build(
+          ReportBuilder.rentRoll(
+            [
+              _booking,
+              _booking.copyWith(
+                id: 'sample-storage-2',
+                bookingNo: 'SR/2026/0002',
+                customerName: 'Meena Verma (sample)',
+                locationName: 'Hall B - Rack 4',
+                rentBasis: RentBasis.perBoxMonthly,
+                rentRate: 120,
+                totalPackages: 25,
+                items: const [],
+                rentBilledUpto: '2026-09-30',
+              ),
+            ],
+            asOn: DateTime(2026, 10, 15),
+          ),
+          letterhead,
+          showWatermark: true,
+          watermarkText: watermark,
+          watermarkOpacity: 0.08,
+        );
+      case DocumentType.agedOutstanding:
+        return AgedOutstandingPdfService.instance.build(
+          ReportBuilder.agedOutstanding(
+            [
+              _bill,
+              _bill.copyWith(
+                id: 'sample-bill-2',
+                billNo: 'INV/2026/0002',
+                billDate: '2026-07-31T00:00:00.000',
+                dueDate: '2026-08-07',
+                customerId: 'sample-customer-2',
+                customerName: 'Meena Verma (sample)',
+                customerPhone: '97XXXXXXXX',
+                amountPaid: 0,
+              ),
+            ],
+            asOn: DateTime(2026, 11, 5),
+          ),
+          letterhead,
           showWatermark: true,
           watermarkText: watermark,
           watermarkOpacity: 0.08,

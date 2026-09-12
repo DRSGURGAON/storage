@@ -281,7 +281,7 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
                 Wrap(
                   spacing: 8,
                   children: [
-                    for (final option in PaymentType.values)
+                    for (final option in PaymentType.receivable)
                       ChoiceChip(
                         label: Text(option.label),
                         selected: _type == option,

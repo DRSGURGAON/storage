@@ -194,6 +194,18 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => context.push('/documents'),
             ),
           ),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: ListTile(
+              leading: const Icon(Icons.bar_chart_outlined),
+              title: const Text('Reports'),
+              subtitle: const Text(
+                'Rent roll and aged outstanding, as of today',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/reports'),
+            ),
+          ),
 
           const SizedBox(height: 16),
 

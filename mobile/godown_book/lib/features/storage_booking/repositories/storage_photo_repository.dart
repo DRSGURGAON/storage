@@ -47,6 +47,27 @@ class StoragePhotoRepository {
   Future<int> countForBooking(String bookingId) async =>
       (await getForBooking(bookingId)).length;
 
+  /// The photos of one listed item.
+  Future<List<StoragePhotoModel>> getForItem(String itemId) async {
+    final rows = await _db.queryScoped(
+      DatabaseConstants.storagePhotoTable,
+      where: 'item_id = ?',
+      whereArgs: [itemId],
+      orderBy: 'sort_order ASC, created_at ASC',
+    );
+    return rows.map(StoragePhotoModel.fromMap).toList();
+  }
+
+  /// How many photos each item on a storage record has, keyed by item
+  /// id. The whole-consignment photos sit under the empty key.
+  Future<Map<String, int>> countByItem(String bookingId) async {
+    final counts = <String, int>{};
+    for (final photo in await getForBooking(bookingId)) {
+      counts[photo.itemId] = (counts[photo.itemId] ?? 0) + 1;
+    }
+    return counts;
+  }
+
   /// Takes a photo with the camera, or picks one from the gallery, and
   /// attaches it to [bookingId]. Returns null if the user backed out.
   Future<StoragePhotoModel?> addPhoto({
@@ -54,6 +75,7 @@ class StoragePhotoRepository {
     required ImageSource source,
     String caption = '',
     String incidentId = '',
+    String itemId = '',
   }) async {
     final file = await _picker.pickImage(source: source, imageQuality: 80);
     if (file == null) return null;
@@ -78,6 +100,7 @@ class StoragePhotoRepository {
       id: IdGenerator.generateId(),
       bookingId: bookingId,
       incidentId: incidentId,
+      itemId: itemId,
       filePath: destination.path,
       caption: caption,
       sortOrder: existing.length * 10,
@@ -95,6 +118,7 @@ class StoragePhotoRepository {
     required String filePath,
     String caption = '',
     String incidentId = '',
+    String itemId = '',
   }) async {
     final existing = incidentId.isEmpty
         ? await getForBooking(bookingId)
@@ -103,6 +127,7 @@ class StoragePhotoRepository {
       id: IdGenerator.generateId(),
       bookingId: bookingId,
       incidentId: incidentId,
+      itemId: itemId,
       filePath: filePath,
       caption: caption,
       sortOrder: existing.length * 10,

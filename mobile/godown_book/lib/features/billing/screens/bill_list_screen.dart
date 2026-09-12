@@ -239,6 +239,22 @@ Future<void> showBillActions(
             }
           },
         ),
+      if (bill.balanceDue > 0)
+        DocumentAction(
+          icon: Icons.remove_circle_outline,
+          label: 'Issue Credit Note',
+          subtitle: 'Waive or reduce part of this bill',
+          color: const Color(0xffB35C00),
+          onTap: () async {
+            final noteId =
+                await context.push('/credit-note-create', extra: bill.id);
+            onChanged();
+            if (noteId is String && context.mounted) {
+              await context.push('/receipt-pdf', extra: noteId);
+              onChanged();
+            }
+          },
+        ),
       DocumentAction(
         icon: Icons.edit_outlined,
         label: 'Edit Bill',

@@ -17,6 +17,8 @@ import '../../features/settings/screens/cloud_backup_screen.dart';
 import '../../features/settings/screens/delete_account_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/reports/screens/document_customisation_screen.dart';
+import '../../features/reports/screens/report_pdf_screen.dart';
+import '../../features/reports/screens/reports_screen.dart';
 
 // Company
 import '../../features/company/screens/company_card_screen.dart';
@@ -36,6 +38,7 @@ import '../../features/billing/screens/bill_form_screen.dart';
 import '../../features/billing/screens/bill_list_screen.dart';
 import '../../features/billing/screens/bill_pdf_screen.dart';
 import '../../features/billing/screens/payment_form_screen.dart';
+import '../../features/billing/screens/credit_note_form_screen.dart';
 import '../../features/billing/screens/deposit_screen.dart';
 import '../../features/consignment/screens/consignment_form_screen.dart';
 import '../../features/consignment/screens/consignment_list_screen.dart';
@@ -65,6 +68,7 @@ import '../../features/release/screens/release_pdf_screen.dart';
 
 // Storage records
 import '../../features/storage_booking/screens/handover_paper_screen.dart';
+import '../../features/storage_booking/screens/no_dues_pdf_screen.dart';
 import '../../features/storage_booking/screens/storage_booking_detail_screen.dart';
 import '../../features/storage_booking/screens/storage_booking_form_screen.dart';
 import '../../features/storage_booking/screens/storage_booking_list_screen.dart';
@@ -196,6 +200,23 @@ class AppRouter {
       GoRoute(
         path: '/reports/customise-documents',
         builder: (context, state) => const DocumentCustomisationScreen(),
+      ),
+
+      GoRoute(
+        path: '/reports',
+        builder: (context, state) => const ReportsScreen(),
+      ),
+
+      GoRoute(
+        path: '/reports/rent-roll',
+        builder: (context, state) =>
+            const ReportPdfScreen(kind: ReportKind.rentRoll),
+      ),
+
+      GoRoute(
+        path: '/reports/aged-outstanding',
+        builder: (context, state) =>
+            const ReportPdfScreen(kind: ReportKind.agedOutstanding),
       ),
 
       GoRoute(
@@ -335,6 +356,12 @@ class AppRouter {
       // Customer signature
       // ==========================
       GoRoute(
+        path: '/no-dues-pdf',
+        builder: (context, state) =>
+            NoDuesPdfScreen(bookingId: state.extra as String),
+      ),
+
+      GoRoute(
         path: '/handover-paper',
         builder: (context, state) =>
             HandoverPaperScreen(bookingId: state.extra as String),
@@ -411,6 +438,12 @@ class AppRouter {
         path: '/deposit',
         builder: (context, state) =>
             DepositScreen(bookingId: state.extra as String),
+      ),
+
+      GoRoute(
+        path: '/credit-note-create',
+        builder: (context, state) =>
+            CreditNoteFormScreen(billId: state.extra as String),
       ),
 
       GoRoute(

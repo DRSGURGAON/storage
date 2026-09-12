@@ -10,6 +10,7 @@ import 'package:godown_book/features/billing/services/statement_pdf_service.dart
 import 'package:godown_book/features/billing/services/storage_charge_calculator.dart';
 import 'package:godown_book/features/company/models/company_model.dart';
 import 'package:godown_book/features/customers/repositories/customer_repository.dart';
+import 'package:godown_book/features/dashboard/services/dashboard_stats_service.dart';
 import 'package:godown_book/features/storage_booking/models/booking_item_model.dart';
 import 'package:godown_book/features/storage_booking/models/storage_booking_model.dart';
 import 'package:godown_book/features/storage_booking/models/storage_status.dart';
@@ -224,6 +225,108 @@ void main() {
     reloaded = (await repo.getBillById(bill.id))!;
     expect(reloaded.amountPaid, 2000);
     expect(reloaded.derivedStatus, BillStatus.partlyPaid);
+  });
+
+  test('a credit note lowers the bill without counting as money received',
+      () async {
+    final booking = await storedGoods();
+    final bill = await repo.saveBill(
+      await repo.draftForBooking(booking, upto: DateTime(2026, 9, 30)),
+    );
+    final fy = FinancialYear.startYear(DateTime.now());
+
+    final receipt = await repo.recordPayment(PaymentModel(
+      id: '',
+      billId: bill.id,
+      customerId: bill.customerId,
+      payerName: bill.customerName,
+      amount: 2000,
+      paymentType: PaymentType.partPayment,
+      paymentDate: DateTime(2026, 10, 2).toIso8601String(),
+      createdAt: '',
+    ));
+    final note = await repo.recordPayment(PaymentModel(
+      id: '',
+      billId: bill.id,
+      customerId: bill.customerId,
+      payerName: bill.customerName,
+      amount: 500,
+      paymentType: PaymentType.creditNote,
+      paymentDate: DateTime(2026, 10, 4).toIso8601String(),
+      notes: 'Handling charge waived',
+      createdAt: '',
+    ));
+
+    // Its own book: the receipt series is untouched by the credit note.
+    expect(receipt.receiptNo, 'MR/$fy/0001');
+    expect(note.receiptNo, 'CN/$fy/0001');
+    final second = await repo.recordPayment(PaymentModel(
+      id: '',
+      billId: bill.id,
+      customerId: bill.customerId,
+      payerName: bill.customerName,
+      amount: 100,
+      paymentDate: DateTime(2026, 10, 6).toIso8601String(),
+      createdAt: '',
+    ));
+    expect(second.receiptNo, 'MR/$fy/0002');
+
+    // The bill comes down by the credit, like a payment would.
+    final reloaded = (await repo.getBillById(bill.id))!;
+    expect(reloaded.amountPaid, 2600);
+    expect(reloaded.balanceDue, 900);
+
+    // But the customer account keeps the two apart, and the credit is
+    // never money in the till.
+    final balance = await repo.balanceForCustomer(bill.customerId);
+    expect(balance.received, 2100);
+    expect(balance.credited, 500);
+    expect(balance.outstanding, 900);
+
+    final stats = DashboardStats(
+      customers: const [],
+      bookings: const [],
+      bills: const [],
+      payments: [
+        receipt.copyWith(paymentDate: DateTime.now().toIso8601String()),
+        note.copyWith(paymentDate: DateTime.now().toIso8601String()),
+      ],
+      quotations: const [],
+    );
+    expect(stats.collectedToday, 2000);
+    expect(stats.collectedThisMonth, 2000);
+
+    // The statement shows it as a credit with its reason.
+    final statement = await repo.statementForCustomer(bill.customerId);
+    final line = statement.firstWhere((e) => e.reference == note.receiptNo);
+    expect(line.credit, 500);
+    expect(line.particulars, contains('Credit note'));
+    expect(line.particulars, contains('Handling charge waived'));
+
+    // The paper says CREDIT NOTE, and the advance voucher says what it is.
+    final noteBytes = await PaymentReceiptPdfService.instance.build(
+      note,
+      _company,
+      bill: reloaded,
+      balanceAfter: 900,
+    );
+    expect(String.fromCharCodes(noteBytes.take(5)), '%PDF-');
+    final advance = await repo.recordPayment(PaymentModel(
+      id: '',
+      customerId: bill.customerId,
+      payerName: bill.customerName,
+      amount: 1000,
+      paymentType: PaymentType.advance,
+      paymentDate: DateTime(2026, 10, 7).toIso8601String(),
+      createdAt: '',
+    ));
+    final advanceBytes =
+        await PaymentReceiptPdfService.instance.build(advance, _company);
+    expect(String.fromCharCodes(advanceBytes.take(5)), '%PDF-');
+
+    // Deleting the note puts the amount back on the bill.
+    await repo.deletePayment(note.id);
+    expect((await repo.getBillById(bill.id))!.balanceDue, 1400);
   });
 
   test('deleting a bill keeps the money on the customer account', () async {

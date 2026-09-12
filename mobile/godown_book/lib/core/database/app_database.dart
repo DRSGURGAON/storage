@@ -139,6 +139,11 @@ class AppDatabase {
         'ALTER TABLE storage_locations ADD COLUMN capacity INTEGER NOT NULL DEFAULT 0',
       );
     }
+    if (oldVersion < 5) {
+      await db.execute(
+        "ALTER TABLE storage_photos ADD COLUMN item_id TEXT NOT NULL DEFAULT ''",
+      );
+    }
   }
 
   /// The charge heads a godown bills for. Storage Rent is the system

@@ -16,6 +16,7 @@ enum DocumentKind {
   storageReceipt,
   bill,
   receipt,
+  creditNote,
   release,
   notice,
   incident,
@@ -26,6 +27,7 @@ enum DocumentKind {
         DocumentKind.storageReceipt => 'Storage Receipts',
         DocumentKind.bill => 'Bills',
         DocumentKind.receipt => 'Payment Receipts',
+        DocumentKind.creditNote => 'Credit Notes',
         DocumentKind.release => 'Releases',
         DocumentKind.notice => 'Notices',
         DocumentKind.incident => 'Damage / Loss',
@@ -37,6 +39,7 @@ enum DocumentKind {
         DocumentKind.storageReceipt => 'Storage Receipt',
         DocumentKind.bill => 'Storage Bill',
         DocumentKind.receipt => 'Payment Receipt',
+        DocumentKind.creditNote => 'Credit Note',
         DocumentKind.release => 'Release Record',
         DocumentKind.notice => 'Notice Letter',
         DocumentKind.incident => 'Damage / Loss Report',
@@ -48,6 +51,7 @@ enum DocumentKind {
         DocumentKind.storageReceipt => Icons.inventory_2_outlined,
         DocumentKind.bill => Icons.receipt_long_outlined,
         DocumentKind.receipt => Icons.payments_outlined,
+        DocumentKind.creditNote => Icons.remove_circle_outline,
         DocumentKind.release => Icons.outbox_outlined,
         DocumentKind.notice => Icons.mail_outline,
         DocumentKind.incident => Icons.report_gmailerrorred_outlined,
@@ -164,14 +168,14 @@ class _DocumentCentreScreenState extends State<DocumentCentreScreen> {
     for (final payment in await BillingRepository.instance.getAllPayments()) {
       if (!mine(payment.customerId)) continue;
       rows.add(DocumentRow(
-        kind: DocumentKind.receipt,
+        kind: payment.isCreditNote ? DocumentKind.creditNote : DocumentKind.receipt,
         id: payment.id,
         number: payment.receiptNo,
         customerName: payment.payerName,
         customerPhone: payment.payerPhone,
         date: payment.paymentDate,
         amount: payment.amount,
-        status: payment.mode.label,
+        status: payment.isCreditNote ? payment.paymentType.label : payment.mode.label,
       ));
     }
 
@@ -269,6 +273,7 @@ class _DocumentCentreScreenState extends State<DocumentCentreScreen> {
       case DocumentKind.bill:
         await context.push('/bill-pdf', extra: row.id);
       case DocumentKind.receipt:
+      case DocumentKind.creditNote:
         await context.push('/receipt-pdf', extra: row.id);
       case DocumentKind.release:
         await context.push('/release-pdf', extra: row.id);

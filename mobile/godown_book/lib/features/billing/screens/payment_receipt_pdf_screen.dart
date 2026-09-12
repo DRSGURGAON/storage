@@ -50,7 +50,7 @@ class _PaymentReceiptPdfScreenState extends State<PaymentReceiptPdfScreen> {
     if (payment != null && payment.customerId.isNotEmpty) {
       final balance =
           await BillingRepository.instance.balanceForCustomer(payment.customerId);
-      balanceAfter = balance.billed - balance.received;
+      balanceAfter = balance.billed - balance.received - balance.credited;
     }
 
     if (!mounted) return;
@@ -63,8 +63,11 @@ class _PaymentReceiptPdfScreenState extends State<PaymentReceiptPdfScreen> {
     });
   }
 
+  bool get _isCreditNote => _payment?.isCreditNote ?? false;
+
   String get _fileName =>
-      'Receipt-${(_payment?.receiptNo ?? '').replaceAll('/', '-')}.pdf';
+      '${_isCreditNote ? 'CreditNote' : 'Receipt'}-'
+      '${(_payment?.receiptNo ?? '').replaceAll('/', '-')}.pdf';
 
   @override
   Widget build(BuildContext context) {
@@ -76,19 +79,22 @@ class _PaymentReceiptPdfScreenState extends State<PaymentReceiptPdfScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.canPop() ? context.pop() : context.go('/payments'),
         ),
-        title: const Text('Payment Receipt'),
+        title: Text(_isCreditNote ? 'Credit Note' : 'Payment Receipt'),
         centerTitle: true,
         actions: [
           PdfActionsMenu(
-            documentLabel: 'Receipt',
+            documentLabel: _isCreditNote ? 'Credit Note' : 'Receipt',
             fileName: () => _fileName,
             getPdfBytes: () => _menuPdfBytes,
             customerPhone: payment?.payerPhone,
             onDelete: () => BillingRepository.instance.deletePayment(widget.paymentId),
             afterDelete: () =>
                 context.canPop() ? context.pop() : context.go('/payments'),
-            deleteWarning: 'The receipt will be deleted and the money taken off '
-                'the bill it settled.',
+            deleteWarning: _isCreditNote
+                ? 'The credit note will be deleted and the amount put back '
+                    'on the bill.'
+                : 'The receipt will be deleted and the money taken off '
+                    'the bill it settled.',
           ),
         ],
       ),
@@ -100,7 +106,9 @@ class _PaymentReceiptPdfScreenState extends State<PaymentReceiptPdfScreen> {
                   ? CompanyNotConfigured(
                       missing: _company?.missingFields ?? const ['Company details'])
                   : DocumentPdfView(
-                      documentType: DocumentType.moneyReceipt,
+                      documentType: _isCreditNote
+                          ? DocumentType.creditNote
+                          : DocumentType.moneyReceipt,
                       fileName: _fileName,
                       onBytes: (bytes) => _menuPdfBytes = bytes,
                       build: ({required showWatermark}) =>

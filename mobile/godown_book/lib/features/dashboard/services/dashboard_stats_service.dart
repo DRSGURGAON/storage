@@ -46,8 +46,11 @@ class DashboardStats {
 
   int get quotationsToday => quotations.where((q) => _isToday(q.quotationDate)).length;
 
+  /// Cash that actually came in today. A credit note or a deposit
+  /// adjustment settles a bill without any money arriving, so neither
+  /// counts here.
   double get collectedToday => payments
-      .where((p) => _isToday(p.paymentDate))
+      .where((p) => p.paymentType.isCashIn && _isToday(p.paymentDate))
       .fold(0.0, (sum, p) => sum + p.amount);
 
   // ==========================
@@ -88,6 +91,7 @@ class DashboardStats {
   double get collectedThisMonth {
     final now = DateTime.now();
     return payments.where((p) {
+      if (!p.paymentType.isCashIn) return false;
       final date = DateTime.tryParse(p.paymentDate);
       return date != null && date.year == now.year && date.month == now.month;
     }).fold(0.0, (sum, p) => sum + p.amount);

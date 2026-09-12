@@ -9,6 +9,10 @@ class StoragePhotoModel {
   /// than a picture of the goods as they came in.
   final String incidentId;
 
+  /// Set when the photo shows one listed item in particular. Empty for
+  /// a photo of the consignment as a whole.
+  final String itemId;
+
   final String filePath;
   final String caption;
   final int sortOrder;
@@ -18,6 +22,7 @@ class StoragePhotoModel {
     required this.id,
     required this.bookingId,
     this.incidentId = '',
+    this.itemId = '',
     required this.filePath,
     this.caption = '',
     this.sortOrder = 0,
@@ -29,6 +34,7 @@ class StoragePhotoModel {
       id: id,
       bookingId: bookingId,
       incidentId: incidentId,
+      itemId: itemId,
       filePath: filePath,
       caption: caption ?? this.caption,
       sortOrder: sortOrder ?? this.sortOrder,
@@ -40,6 +46,7 @@ class StoragePhotoModel {
         'id': id,
         'booking_id': bookingId,
         'incident_id': incidentId,
+        'item_id': itemId,
         'file_path': filePath,
         'caption': caption,
         'sort_order': sortOrder,
@@ -53,6 +60,7 @@ class StoragePhotoModel {
       id: map['id'] as String,
       bookingId: text('booking_id'),
       incidentId: text('incident_id'),
+      itemId: text('item_id'),
       filePath: text('file_path'),
       caption: text('caption'),
       sortOrder: (map['sort_order'] as int?) ?? 0,
