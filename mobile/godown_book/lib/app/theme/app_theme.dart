@@ -35,7 +35,7 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        titleTextStyle: const TextStyle(
+        titleTextStyle: TextStyle(
           color: Colors.white,
           fontSize: 17,
           fontWeight: FontWeight.w800,
