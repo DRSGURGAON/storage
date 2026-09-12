@@ -46,3 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+# Assembled design canvases are ~2 MB of editor code; the .dc.html
+# artboards and canvas.json are the source and are what gets kept.
+design/**/*.html
+!design/**/*.dc.html

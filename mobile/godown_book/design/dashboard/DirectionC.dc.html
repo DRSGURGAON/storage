@@ -1,0 +1,156 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Outfit:wght@600;700;800&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Manrope', 'Segoe UI', system-ui, sans-serif; color: #17202B; }
+    a { color: #0D2B49; } a:hover { color: #14D1A0; }
+    .num { font-family: 'Outfit', 'Manrope', system-ui, sans-serif; letter-spacing: -0.02em; }
+  </style>
+</helmet>
+<div style="width: 390px; height: 844px; background: #FFFFFF; overflow: hidden; display: flex; flex-direction: column; position: relative;">
+
+  <!-- Navy header block -->
+  <div style="background: #0D2B49; padding: 58px 22px 26px 22px; border-radius: 0 0 30px 30px; display: flex; flex-direction: column; gap: 18px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 38px; height: 38px; border-radius: 12px; background: #14D1A0; display: flex; align-items: center; justify-content: center;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#06261E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-6 9 6"></path><path d="M5 9v11h14V9"></path><rect x="9" y="13" width="6" height="7"></rect></svg>
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="font-size: 15px; font-weight: 800; color: #FFFFFF;">Sharma Godown</div>
+          <div style="font-size: 11.5px; font-weight: 600; color: #9FB3C8;">Gurgaon · Pro plan</div>
+        </div>
+      </div>
+      <div style="width: 40px; height: 40px; border-radius: 20px; background: #16375C; display: flex; align-items: center; justify-content: center;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>
+      </div>
+    </div>
+
+    <!-- Occupancy visual -->
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: baseline;">
+        <div class="num" style="font-size: 30px; font-weight: 800; color: #FFFFFF;">42 <span style="font-size: 16px; font-weight: 700; color: #9FB3C8;">/ 60 slots bhare</span></div>
+        <div style="font-size: 13px; font-weight: 800; color: {{accent}};">70%</div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 4px;">
+        <div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: #FF6B6B;"></div><div style="height: 10px; border-radius: 3px; background: #FF6B6B;"></div><div style="height: 10px; border-radius: 3px; background: #1E4470;"></div><div style="height: 10px; border-radius: 3px; background: #1E4470;"></div><div style="height: 10px; border-radius: 3px; background: #1E4470;"></div><div style="height: 10px; border-radius: 3px; background: #1E4470;"></div>
+        <div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: #F5A524;"></div><div style="height: 10px; border-radius: 3px; background: #F5A524;"></div><div style="height: 10px; border-radius: 3px; background: #1E4470;"></div><div style="height: 10px; border-radius: 3px; background: #1E4470;"></div><div style="height: 10px; border-radius: 3px; background: #1E4470;"></div><div style="height: 10px; border-radius: 3px; background: #1E4470;"></div>
+        <div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: {{accent}};"></div><div style="height: 10px; border-radius: 3px; background: #1E4470;"></div><div style="height: 10px; border-radius: 3px; background: #1E4470;"></div><div style="height: 10px; border-radius: 3px; background: #1E4470;"></div><div style="height: 10px; border-radius: 3px; background: #1E4470;"></div>
+      </div>
+      <div style="display: flex; gap: 14px; font-size: 11.5px; font-weight: 700; color: #9FB3C8;">
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 8px; height: 8px; border-radius: 2px; background: {{accent}};"></div>Paid up</div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 8px; height: 8px; border-radius: 2px; background: #F5A524;"></div>Bill due</div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 8px; height: 8px; border-radius: 2px; background: #FF6B6B;"></div>Overdue</div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 8px; height: 8px; border-radius: 2px; background: #1E4470;"></div>Khali</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bento numbers -->
+  <div style="margin: 18px 22px 0 22px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+    <div style="grid-column: span 2; background: #FDECEC; border-radius: 20px; padding: 16px 18px; display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <div style="font-size: 12px; font-weight: 800; color: #B23B3B; text-transform: uppercase; letter-spacing: 0.06em;">Lena baaki</div>
+        <div class="num" style="font-size: 30px; font-weight: 800; color: #8E2626;">₹48,500</div>
+      </div>
+      <div style="height: 42px; padding: 0 16px; border-radius: 21px; background: #B23B3B; color: #FFFFFF; font-size: 13px; font-weight: 800; display: flex; align-items: center;">6 bills dekho</div>
+    </div>
+    <div style="background: #E6F8F2; border-radius: 20px; padding: 16px 18px; display: flex; flex-direction: column; gap: 2px;">
+      <div style="font-size: 12px; font-weight: 800; color: #0E7A5C; text-transform: uppercase; letter-spacing: 0.06em;">Aaj aaya</div>
+      <div class="num" style="font-size: 26px; font-weight: 800; color: #0B5C45;">₹12,000</div>
+    </div>
+    <div style="background: #FFF4E0; border-radius: 20px; padding: 16px 18px; display: flex; flex-direction: column; gap: 2px;">
+      <div style="font-size: 12px; font-weight: 800; color: #9A5B00; text-transform: uppercase; letter-spacing: 0.06em;">Bill banao</div>
+      <div class="num" style="font-size: 26px; font-weight: 800; color: #7A4700;">2</div>
+    </div>
+  </div>
+
+  <!-- Action grid -->
+  <div style="margin: 20px 22px 0 22px; display: flex; flex-direction: column; gap: 12px; flex: 1;">
+    <div style="font-size: 15px; font-weight: 800; color: #0D2B49;">Kya karna hai?</div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+        <div style="width: 60px; height: 60px; border-radius: 20px; background: #0D2B49; display: flex; align-items: center; justify-content: center;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#14D1A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-4 9 4v10l-9 4-9-4z"></path><path d="M3 8l9 4 9-4M12 12v10"></path></svg></div>
+        <div style="font-size: 11.5px; font-weight: 800; color: #17202B;">Storage</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+        <div style="width: 60px; height: 60px; border-radius: 20px; background: #FFF4E0; display: flex; align-items: center; justify-content: center;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#C97A00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h16v18l-3-2-3 2-2-2-2 2-3-2-3 2z"></path><path d="M8 8h8M8 12h8"></path></svg></div>
+        <div style="font-size: 11.5px; font-weight: 800; color: #17202B;">Bill</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+        <div style="width: 60px; height: 60px; border-radius: 20px; background: #E6F8F2; display: flex; align-items: center; justify-content: center;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0E7A5C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="3"></circle></svg></div>
+        <div style="font-size: 11.5px; font-weight: 800; color: #17202B;">Payment</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+        <div style="width: 60px; height: 60px; border-radius: 20px; background: #E9F0FA; display: flex; align-items: center; justify-content: center;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2F62A8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"></path><path d="M9 13h6M9 17h6"></path></svg></div>
+        <div style="font-size: 11.5px; font-weight: 800; color: #17202B;">Quotation</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+        <div style="width: 60px; height: 60px; border-radius: 20px; background: #F1EEE8; display: flex; align-items: center; justify-content: center;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0D2B49" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7z"></path><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></div>
+        <div style="font-size: 11.5px; font-weight: 800; color: #17202B;">Bilty</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+        <div style="width: 60px; height: 60px; border-radius: 20px; background: #F1EEE8; display: flex; align-items: center; justify-content: center;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0D2B49" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H8"></path><path d="M14 6l7 6-7 6"></path><path d="M3 5v14"></path></svg></div>
+        <div style="font-size: 11.5px; font-weight: 800; color: #17202B;">Release</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+        <div style="width: 60px; height: 60px; border-radius: 20px; background: #F1EEE8; display: flex; align-items: center; justify-content: center;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0D2B49" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg></div>
+        <div style="font-size: 11.5px; font-weight: 800; color: #17202B;">Customer</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 7px;">
+        <div style="width: 60px; height: 60px; border-radius: 20px; background: #F1EEE8; display: flex; align-items: center; justify-content: center;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0D2B49" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg></div>
+        <div style="font-size: 11.5px; font-weight: 800; color: #17202B;">Aur</div>
+      </div>
+    </div>
+
+    <!-- Recent -->
+    <div style="margin-top: 6px; font-size: 15px; font-weight: 800; color: #0D2B49;">Abhi-abhi</div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 36px; height: 36px; border-radius: 18px; background: #E6F8F2; color: #0E7A5C; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center;">SD</div>
+        <div style="flex: 1; display: flex; flex-direction: column;"><div style="font-size: 13.5px; font-weight: 800;">Sunita Devi · ₹7,000 aaya</div><div style="font-size: 11.5px; font-weight: 600; color: #7A7F87;">UPI · 11:40</div></div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 36px; height: 36px; border-radius: 18px; background: #E9F0FA; color: #2F62A8; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center;">RK</div>
+        <div style="flex: 1; display: flex; flex-direction: column;"><div style="font-size: 13.5px; font-weight: 800;">Rajesh Kumar · storage entry</div><div style="font-size: 11.5px; font-weight: 600; color: #7A7F87;">1 almirah, 2 bed, 3 carton · 10:05</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom nav -->
+  <div style="height: 82px; border-top: 1px solid #ECE8E1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: center; padding: 0 6px 12px 6px; background: #FFFFFF;">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+      <div style="height: 30px; padding: 0 16px; border-radius: 15px; background: #0D2B49; display: flex; align-items: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14D1A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"></path></svg></div>
+      <div style="font-size: 10.5px; font-weight: 800; color: #0D2B49;">Home</div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+      <div style="height: 30px; display: flex; align-items: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7A7F87" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg></div>
+      <div style="font-size: 10.5px; font-weight: 700; color: #7A7F87;">Customers</div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+      <div style="height: 30px; display: flex; align-items: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7A7F87" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"></path></svg></div>
+      <div style="font-size: 10.5px; font-weight: 700; color: #7A7F87;">Documents</div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+      <div style="height: 30px; display: flex; align-items: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7A7F87" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></div>
+      <div style="font-size: 10.5px; font-weight: 700; color: #7A7F87;">Bolo</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#14D1A0","options":["#14D1A0","#F5A524","#FF6B6B","#3B82F6"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#14D1A0' };
+  }
+}
+</script>
+</body>
+</html>

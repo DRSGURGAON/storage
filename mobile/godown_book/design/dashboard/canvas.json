@@ -1,0 +1,14 @@
+{
+  "artboards": [
+    { "file": "DirectionA.dc.html", "x": 0,    "y": 0, "w": 390, "h": 844, "title": "A · Command Centre (dark)" },
+    { "file": "Main.dc.html",       "x": 480,  "y": 0, "w": 390, "h": 844, "title": "B · Aaj ke Kaam (light)" },
+    { "file": "DirectionC.dc.html", "x": 960,  "y": 0, "w": 390, "h": 844, "title": "C · Godown Floor (colour)" }
+  ],
+  "annotations": [
+    { "id": "brief", "x": 0, "y": -170, "w": 420, "text": "StorageBill Pro — dashboard ke 3 alag direction. Sab sample data hai.\nHar ek ke upar 'accent' chip se colour badal kar dekh sakte ho.\nEk chuniye, ya do ko milane ko boliye." },
+    { "id": "note-a", "x": 0, "y": 900, "w": 390, "text": "A — Dark, numbers-first. Paisa sabse upar, bottom nav, + button.\nKiske liye: jo roz ka hisaab ek nazar mein chahta hai.\nTradeoff: dhoop mein / bright godown mein dark screen bhaari lag sakti hai." },
+    { "id": "note-b", "x": 480, "y": 900, "w": 390, "text": "B — Light, kaam-first. Screen khud ek to-do list hai: har card par ek button.\nKiske liye: jo phone kholte hi jaanna chahta hai 'aaj kya karna hai'.\nTradeoff: dashboard jaisa kam lagta hai; numbers chhote hain." },
+    { "id": "note-c", "x": 960, "y": 900, "w": 390, "text": "C — Colourful, visual. Godown ke slots ka nakshaa, rang-birange tiles, bade icon.\nKiske liye: jo app 'dikhne' mein alag chahta hai aur staff ko bhi chalana ho.\nTradeoff: rang zyada hai — restraint na rakha to khilona lagega." }
+  ],
+  "launch": { "view": "canvas" }
+}
