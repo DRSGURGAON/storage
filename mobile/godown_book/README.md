@@ -1,4 +1,4 @@
-# Godown Book
+# StorageBill Pro
 
 Storage paperwork for packers and movers, and for godown owners who keep
 household goods: quotations, storage agreements, storage receipts, goods
@@ -9,6 +9,19 @@ the bilty pack - made on a phone, shared on WhatsApp.
 The app is sold on a subscription. Every company gets two free copies of
 each document, marked as a demo; after that a subscription is needed,
 which a Super Admin activates once payment is received.
+
+## The name on the store
+
+| Where | What it says |
+| --- | --- |
+| Launcher and app bar | StorageBill Pro |
+| Play title (30 char limit) | `StorageBill Pro: Godown Rent` (28) |
+| Play short description (80) | `Storage receipts, rent bills, bilty and notices for godowns - on your phone.` (76) |
+
+The Android `applicationId` stays `com.drs.godownbook`. It is never
+shown to anyone, it is what Firebase and the Play listing are keyed to,
+and it can only be changed before the first upload to Play - so it is
+left alone on purpose.
 
 ## What it does
 

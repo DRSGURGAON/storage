@@ -1,4 +1,4 @@
-# Which documents a household-storage operator needs, and which ones Godown Book still lacks
+# Which documents a household-storage operator needs, and which ones StorageBill Pro still lacks
 
 Researched September 2026, for the V1 product direction ("Simple Storage Management
 & Document App for Packers & Movers").
@@ -16,7 +16,7 @@ without a lawyer reading it first.**
 The app must never claim a document is "legally binding" or that a storage
 receipt is a warehouse receipt in the regulatory sense.
 
-## What Godown Book prints today
+## What StorageBill Pro prints today
 
 Quotation · Storage Agreement · Storage Receipt · Goods List · Storage Bill ·
 Payment Receipt · Customer Statement · Release Record · Letter Head · Company Card ·
@@ -166,7 +166,7 @@ the customer's real protection. Section 16 also requires written notice within
 Under GST the consignment note is definitional rather than mandatory: issuing one
 is what makes a transporter a Goods Transport Agency.
 Every Indian bilty app ships this (Packers Bill, QuickBilty, Bill Bilty, OnlineLR,
-Packers Billing). Godown Book has nothing.
+Packers Billing). StorageBill Pro has nothing.
 Confidence: high on the sections; the GST rate on a bundled relocation service
 (5% / 18% / exempt for an unregistered customer) is genuinely contested - leave
 the rate as the operator's own setting, do not hard-code advice.

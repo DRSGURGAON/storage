@@ -12,7 +12,7 @@
          a camera too. -->
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <application
-        android:label="Godown Book"
+        android:label="StorageBill Pro"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

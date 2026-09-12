@@ -323,7 +323,7 @@ class GodownBookApp extends ConsumerWidget {
 
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      title: 'Godown Book',
+      title: 'StorageBill Pro',
       theme: AppTheme.light(documentTheme),
       darkTheme: AppTheme.dark(documentTheme),
       themeMode: themeMode,

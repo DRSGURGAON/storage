@@ -150,7 +150,7 @@ class _BrandedSplashScreenState extends State<BrandedSplashScreen>
               child: SlideTransition(
                 position: _nameSlide,
                 child: const Text(
-                  'Godown Book',
+                  'StorageBill Pro',
                   style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
@@ -164,7 +164,7 @@ class _BrandedSplashScreenState extends State<BrandedSplashScreen>
             FadeTransition(
               opacity: _taglineOpacity,
               child: const Text(
-                'Storage Receipts, Gate Passes & Rent Bills for Godowns',
+                'Storage Receipts, Rent Bills & Bilty for Godowns',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,

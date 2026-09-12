@@ -480,7 +480,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     context,
                     settings!.whatsappNumber,
                     message:
-                        'Hi, I have made a payment for my Godown Book subscription'
+                        'Hi, I have made a payment for my StorageBill Pro subscription'
                         '${(_company?.companyName ?? '').trim().isEmpty ? '' : ' for ${_company!.companyName.trim()}'}'
                         '. Sharing the screenshot.',
                   ),

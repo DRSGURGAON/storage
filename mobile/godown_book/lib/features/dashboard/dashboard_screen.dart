@@ -147,7 +147,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         elevation: 2,
         centerTitle: false,
         title: const Text(
-          'Godown Book',
+          'StorageBill Pro',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -274,7 +274,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     ContactLauncher.openWhatsAppWithChoice(
                                       context,
                                       number,
-                                      message: 'Hello Godown Book,\n\n'
+                                      message: 'Hello StorageBill Pro,\n\n'
                                           'I need some help getting started.\n\n'
                                           'My App ID: ${company.companyCode}',
                                     );

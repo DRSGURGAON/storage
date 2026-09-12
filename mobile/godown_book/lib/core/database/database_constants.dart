@@ -38,7 +38,7 @@ class DatabaseConstants {
 
   static const String databaseName = 'godown_book.db';
 
-  // v1: the first schema of Godown Book - company profile, customers,
+  // v1: the first schema of StorageBill Pro - company profile, customers,
   // storage locations, charge heads, quotations with their service
   // lines, storage records with their goods items, goods releases with
   // their items, storage bills with charge lines, payments (receipts),

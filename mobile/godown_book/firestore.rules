@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Godown Book - Cloud Firestore security rules.
+// StorageBill Pro - Cloud Firestore security rules.
 //
 // What lives in the cloud: each company's own profile and document
 // backup under companies/{uid}, its subscription, the platform's

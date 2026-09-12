@@ -1,6 +1,6 @@
 {
-    "name": "godown_book",
-    "short_name": "godown_book",
+    "name": "StorageBill Pro",
+    "short_name": "StorageBill",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
