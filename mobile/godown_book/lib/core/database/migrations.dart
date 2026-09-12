@@ -149,6 +149,7 @@ class Migrations {
     description TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
+    capacity INTEGER NOT NULL DEFAULT 0,
 
     UNIQUE(company_id, code)
   );

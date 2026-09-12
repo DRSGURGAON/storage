@@ -113,6 +113,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _open(String route, {Object? extra}) async {
+    // Customers and Documents are tabs on the shell's bar, so they are
+    // switched to, never stacked on top of Home.
+    if (route == '/customers' || route == '/documents') {
+      context.go(route);
+      return;
+    }
     await context.push(route, extra: extra);
     if (mounted) _load();
   }
@@ -158,7 +164,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _bottomNav(),
     );
   }
 
@@ -273,11 +278,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   /// picture a godown owner has in their head, drawn.
   Widget _godownMap(DashboardStats? stats) {
     final states = stats?.slotStates ?? const <SlotState>[];
-    final lots = states.length;
+    final capacity = stats?.capacity ?? 0;
+    final lots = states.where((s) => s != SlotState.empty).length;
     final overdue = states.where((s) => s == SlotState.overdue).length;
     final due = states.where((s) => s == SlotState.billDue).length;
 
-    if (stats != null && lots == 0) {
+    if (stats != null && lots == 0 && capacity == 0) {
       return InkWell(
         onTap: () => _open('/storage-create'),
         borderRadius: BorderRadius.circular(16),
@@ -364,13 +370,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       SlotState.overdue => Brand.coral,
                       SlotState.billDue => Brand.amber,
                       SlotState.paidUp => Brand.green,
+                      SlotState.empty => Brand.navyLine,
                     },
                     borderRadius: BorderRadius.circular(3),
                   ),
                 ),
-              if (lots > shown)
+              if (states.length > shown)
                 Text(
-                  '+${lots - shown}',
+                  '+${states.length - shown}',
                   style: const TextStyle(
                     color: Brand.inkOnNavyMuted,
                     fontSize: 10,
@@ -1049,67 +1056,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       fontWeight: FontWeight.w800, fontSize: 13, color: Brand.ink)),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  // ==========================================================================
-  // Bottom navigation
-  // ==========================================================================
-
-  Widget _bottomNav() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Brand.card,
-        border: Border(top: BorderSide(color: Brand.line)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 66,
-          child: Row(
-            children: [
-              _navItem(Icons.home_rounded, 'Home', selected: true, onTap: () {}),
-              _navItem(Icons.people_outline, 'Customers', onTap: () => _open('/customers')),
-              _navItem(Icons.folder_open_outlined, 'Documents',
-                  onTap: () => _open('/documents')),
-              _navItem(Icons.mic_none, 'Speak',
-                  onTap: () => _open('/storage-create', extra: 'voice')),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _navItem(IconData icon, String label,
-      {bool selected = false, required VoidCallback onTap}) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              height: 30,
-              padding: EdgeInsets.symmetric(horizontal: selected ? 16 : 0),
-              decoration: BoxDecoration(
-                color: selected ? Brand.navy : Colors.transparent,
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Icon(icon, size: 21, color: selected ? Brand.green : Brand.inkMuted),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
-                color: selected ? Brand.navy : Brand.inkMuted,
-              ),
-            ),
-          ],
         ),
       ),
     );

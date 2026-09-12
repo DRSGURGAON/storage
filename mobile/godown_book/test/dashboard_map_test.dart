@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:godown_book/features/billing/models/bill_model.dart';
 import 'package:godown_book/features/dashboard/services/dashboard_stats_service.dart';
+import 'package:godown_book/features/master/models/storage_location_model.dart';
 import 'package:godown_book/features/storage_booking/models/storage_booking_model.dart';
 import 'package:godown_book/features/storage_booking/models/storage_status.dart';
 
@@ -94,5 +95,36 @@ void main() {
       quotations: const [],
     );
     expect(stats.slotStates, [SlotState.billDue]);
+  });
+
+  test('capacity beyond what is stored shows as empty slots, at the end', () {
+    final stats = DashboardStats(
+      customers: const [],
+      bookings: [lot('a', billedUpto: recent), lot('b', billedUpto: recent)],
+      bills: const [],
+      payments: const [],
+      quotations: const [],
+      locations: const [
+        StorageLocationModel(id: 'hall', code: 'H', name: 'Hall A', capacity: 3),
+        StorageLocationModel(id: 'shut', code: 'S', name: 'Shut', capacity: 9, isActive: false),
+      ],
+    );
+    expect(stats.capacity, 3);
+    expect(stats.slotStates, [SlotState.paidUp, SlotState.paidUp, SlotState.empty]);
+  });
+
+  test('more lots than declared capacity never goes negative', () {
+    final stats = DashboardStats(
+      customers: const [],
+      bookings: [lot('a', billedUpto: recent), lot('b', billedUpto: recent)],
+      bills: const [],
+      payments: const [],
+      quotations: const [],
+      locations: const [
+        StorageLocationModel(id: 'hall', code: 'H', name: 'Hall A', capacity: 1),
+      ],
+    );
+    expect(stats.slotStates, hasLength(2));
+    expect(stats.slotStates, isNot(contains(SlotState.empty)));
   });
 }

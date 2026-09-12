@@ -17,6 +17,7 @@ class StorageLocationRepository {
     required String name,
     String code = '',
     String description = '',
+    int capacity = 0,
   }) async {
     final all = await _dao.getAll(activeOnly: false);
 
@@ -37,6 +38,7 @@ class StorageLocationRepository {
       name: name.trim(),
       description: description.trim(),
       sortOrder: maxSort + 10,
+      capacity: capacity < 0 ? 0 : capacity,
     );
 
     await _dao.insert(row);

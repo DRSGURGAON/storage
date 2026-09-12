@@ -11,16 +11,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app/router/app_router.dart';
 import 'app/splash/branded_splash_screen.dart';
 import 'app/theme/app_theme.dart';
-import 'app/theme/theme_provider.dart';
 import 'core/auth/auth_scope.dart';
 import 'core/auth/auth_session.dart';
 import 'core/cloud_sync/document_cloud_sync_service.dart';
-import 'core/document_theme/document_theme.dart';
 import 'core/permissions/permission_service.dart';
 import 'core/subscription/super_admin_scope.dart';
 import 'core/tenant/tenant_scope.dart';
 import 'features/company/controllers/company_controller.dart';
-import 'features/company/providers/company_provider.dart';
 import 'features/company/services/company_firestore_sync_service.dart';
 import 'features/signature/repositories/signature_repository.dart';
 import 'features/subscription/services/platform_settings_service.dart';
@@ -348,24 +345,13 @@ class GodownBookApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeModeProvider);
-
-    // The company's own selected DocumentTheme - same 7-theme
-    // setting that already styles every generated PDF, now also
-    // driving the in-app UI's own color scheme. Falls back to
-    // Classic while the company profile is still loading or hasn't
-    // been set up yet (asyncValue.value stays null in both cases),
-    // rather than blocking the app on this.
-    final documentTheme =
-        ref.watch(companyProvider).value?.documentTheme ??
-            DocumentTheme.classic;
-
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'StorageBill Pro',
-      theme: AppTheme.light(documentTheme),
-      darkTheme: AppTheme.dark(documentTheme),
-      themeMode: themeMode,
+      // One brand, one look. The company's DocumentTheme styles its
+      // PDFs, not the app.
+      theme: AppTheme.light(),
+      themeMode: ThemeMode.light,
       routerConfig: AppRouter.router,
       builder: (context, child) =>
           BrandedSplashScreen(child: child ?? const SizedBox.shrink()),

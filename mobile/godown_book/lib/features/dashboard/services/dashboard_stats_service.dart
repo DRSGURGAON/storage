@@ -3,6 +3,8 @@ import '../../billing/models/payment_model.dart';
 import '../../billing/repositories/billing_repository.dart';
 import '../../customers/models/customer_model.dart';
 import '../../customers/repositories/customer_repository.dart';
+import '../../master/models/storage_location_model.dart';
+import '../../master/repositories/storage_location_repository.dart';
 import '../../quotation/models/quotation_model.dart';
 import '../../quotation/repositories/quotation_repository.dart';
 import '../../storage_booking/models/storage_booking_model.dart';
@@ -18,6 +20,7 @@ class DashboardStats {
   final List<BillModel> bills;
   final List<PaymentModel> payments;
   final List<QuotationModel> quotations;
+  final List<StorageLocationModel> locations;
 
   const DashboardStats({
     required this.customers,
@@ -25,6 +28,7 @@ class DashboardStats {
     required this.bills,
     required this.payments,
     required this.quotations,
+    this.locations = const [],
   });
 
   static bool _isToday(String iso) {
@@ -145,12 +149,23 @@ class DashboardStats {
                 : SlotState.paidUp,
     ];
     states.sort((a, b) => b.index.compareTo(a.index));
+
+    // Whatever the locations say they hold beyond what is in them is
+    // empty space - shown, so a full godown looks full.
+    final free = capacity - states.length;
+    if (free > 0) states.addAll(List.filled(free, SlotState.empty));
     return states;
   }
+
+  /// How many lots the godown holds, as the storage locations declare
+  /// it. Zero when nobody has set a capacity yet.
+  int get capacity =>
+      locations.where((l) => l.isActive).fold(0, (sum, l) => sum + l.capacity);
 }
 
 /// How one lot in the godown is doing, for the map on the dashboard.
-enum SlotState { paidUp, billDue, overdue }
+/// The order matters: the map sorts worst first, and empty last.
+enum SlotState { empty, paidUp, billDue, overdue }
 
 class DashboardStatsService {
   DashboardStatsService._();
@@ -164,6 +179,7 @@ class DashboardStatsService {
     final bills = await BillingRepository.instance.getAllBills();
     final payments = await BillingRepository.instance.getAllPayments();
     final quotations = await QuotationRepository.instance.getAll();
+    final locations = await StorageLocationRepository.instance.getAll();
 
     return DashboardStats(
       customers: customers,
@@ -171,6 +187,7 @@ class DashboardStatsService {
       bills: bills,
       payments: payments,
       quotations: quotations,
+      locations: locations,
     );
   }
 }

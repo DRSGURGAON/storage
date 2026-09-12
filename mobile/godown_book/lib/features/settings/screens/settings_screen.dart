@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../app/theme/theme_provider.dart';
 import '../../../core/auth/auth_session.dart';
 import '../../../core/subscription/super_admin_scope.dart';
 
@@ -75,7 +74,6 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeModeProvider);
     final session = ref.watch(authSessionProvider);
 
     return Scaffold(
@@ -234,36 +232,6 @@ class SettingsScreen extends ConsumerWidget {
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/storage-locations'),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          _SectionHeader('Appearance'),
-          Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: RadioGroup<ThemeMode>(
-              groupValue: themeMode,
-              onChanged: (mode) {
-                if (mode == null) return;
-                ref.read(themeModeProvider.notifier).setThemeMode(mode);
-              },
-              child: const Column(
-                children: [
-                  RadioListTile<ThemeMode>(
-                    title: Text('Light'),
-                    value: ThemeMode.light,
-                  ),
-                  RadioListTile<ThemeMode>(
-                    title: Text('Dark'),
-                    value: ThemeMode.dark,
-                  ),
-                  RadioListTile<ThemeMode>(
-                    title: Text('Follow System'),
-                    value: ThemeMode.system,
-                  ),
-                ],
-              ),
             ),
           ),
 

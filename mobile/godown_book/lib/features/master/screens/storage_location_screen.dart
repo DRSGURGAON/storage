@@ -38,6 +38,9 @@ class _StorageLocationScreenState extends State<StorageLocationScreen> {
     final codeController = TextEditingController(text: existing?.code ?? '');
     final descriptionController =
         TextEditingController(text: existing?.description ?? '');
+    final capacityController = TextEditingController(
+      text: (existing?.capacity ?? 0) == 0 ? '' : '${existing!.capacity}',
+    );
 
     final saved = await showDialog<bool>(
       context: context,
@@ -71,6 +74,16 @@ class _StorageLocationScreenState extends State<StorageLocationScreen> {
                 maxLines: 2,
                 decoration: const InputDecoration(labelText: 'Description'),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: capacityController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Capacity (lots)',
+                  hintText: 'How many customers\' lots fit here',
+                  helperText: 'Sets how full the godown looks on the dashboard',
+                ),
+              ),
             ],
           ),
         ),
@@ -92,11 +105,14 @@ class _StorageLocationScreenState extends State<StorageLocationScreen> {
 
     if (saved != true) return;
 
+    final capacity = int.tryParse(capacityController.text.trim()) ?? 0;
+
     if (existing == null) {
       await StorageLocationRepository.instance.create(
         name: nameController.text,
         code: codeController.text,
         description: descriptionController.text,
+        capacity: capacity,
       );
     } else {
       await StorageLocationRepository.instance.update(
@@ -106,6 +122,7 @@ class _StorageLocationScreenState extends State<StorageLocationScreen> {
               ? existing.code
               : codeController.text.trim().toUpperCase(),
           description: descriptionController.text.trim(),
+          capacity: capacity < 0 ? 0 : capacity,
         ),
       );
     }

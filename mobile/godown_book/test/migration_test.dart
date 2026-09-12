@@ -43,7 +43,7 @@ void main() {
   }
 
   /// The v1 shape: no notices, no incidents, no consignments, and
-  /// without the two columns later versions add.
+  /// without the columns later versions add.
   Future<Database> openVersionOne() async {
     final db = await databaseFactory.openDatabase(
       path('v1'),
@@ -54,6 +54,8 @@ void main() {
       Migrations.createCompanyTable
           .replaceAll("    consignment_prefix TEXT NOT NULL DEFAULT 'LR',\n", ''),
     );
+    await db.execute(Migrations.createStorageLocationTable
+        .replaceAll('    capacity INTEGER NOT NULL DEFAULT 0,\n', ''));
     await db.execute(Migrations.createStoragePhotoTable.replaceAll(
       "    incident_id TEXT NOT NULL DEFAULT '',\n",
       '',
@@ -98,6 +100,7 @@ void main() {
         'consignment_items']));
     expect(await columns(db, 'storage_photos'), contains('incident_id'));
     expect(await columns(db, 'company_settings'), contains('consignment_prefix'));
+    expect(await columns(db, 'storage_locations'), contains('capacity'));
 
     // The rows that were already there are untouched, and the added
     // column has its default rather than null.
@@ -139,6 +142,36 @@ void main() {
 
     // The letter that phone had sent is still there.
     expect(await db.query('notices'), hasLength(1));
+
+    await db.close();
+  });
+
+  test('a phone already on v3 gets only the capacity column', () async {
+    final db = await openVersionOne();
+    await db.execute(Migrations.createNoticeTable);
+    await db.execute(Migrations.createIncidentTable);
+    await db.execute(Migrations.createConsignmentTable);
+    await db.execute(Migrations.createConsignmentItemTable);
+    await db.execute(
+      "ALTER TABLE storage_photos ADD COLUMN incident_id TEXT NOT NULL DEFAULT ''",
+    );
+    await db.execute(
+      "ALTER TABLE company_settings ADD COLUMN consignment_prefix TEXT NOT NULL DEFAULT 'LR'",
+    );
+    await db.insert('storage_locations', {
+      'id': 'hall-a',
+      'company_id': 'company-test',
+      'code': 'H1',
+      'name': 'Hall A',
+    });
+
+    expect(await columns(db, 'storage_locations'), isNot(contains('capacity')));
+
+    await AppDatabase.instance.onUpgrade(db, 3, 4);
+
+    expect(await columns(db, 'storage_locations'), contains('capacity'));
+    final rows = await db.query('storage_locations');
+    expect(rows.single['capacity'], 0);
 
     await db.close();
   });

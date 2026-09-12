@@ -134,6 +134,11 @@ class AppDatabase {
         "ALTER TABLE company_settings ADD COLUMN consignment_prefix TEXT NOT NULL DEFAULT 'LR'",
       );
     }
+    if (oldVersion < 4) {
+      await db.execute(
+        'ALTER TABLE storage_locations ADD COLUMN capacity INTEGER NOT NULL DEFAULT 0',
+      );
+    }
   }
 
   /// The charge heads a godown bills for. Storage Rent is the system

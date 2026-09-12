@@ -1,44 +1,36 @@
 import 'package:flutter/material.dart';
 
-import '../../core/document_theme/document_theme.dart';
 import 'brand.dart';
 
 /// The app's own look. It is one brand - navy, green, warm paper - and
-/// it no longer follows the company's chosen DocumentTheme: that
-/// setting styles the PDFs a customer receives, which is the company's
+/// it does not follow the company's chosen DocumentTheme: that setting
+/// styles the PDFs a customer receives, which is the company's
 /// letterhead, while the screens the operator taps all day belong to
-/// StorageBill Pro. [theme] is still accepted so nothing that builds
-/// the ThemeData has to change; it is deliberately unused here.
+/// StorageBill Pro. There is no dark variant: the dashboard's map and
+/// tiles are designed for paper, and a half-themed dark mode is worse
+/// than none.
 class AppTheme {
   AppTheme._();
 
-  static ThemeData light(DocumentTheme theme) => _build(Brightness.light);
-
-  static ThemeData dark(DocumentTheme theme) => _build(Brightness.dark);
-
-  static ThemeData _build(Brightness brightness) {
-    final dark = brightness == Brightness.dark;
-
+  static ThemeData light() {
     final scheme = ColorScheme.fromSeed(
       seedColor: Brand.navy,
-      brightness: brightness,
-      primary: dark ? const Color(0xFF9FC3EA) : Brand.navy,
-      onPrimary: dark ? Brand.navyDeep : Colors.white,
+      primary: Brand.navy,
+      onPrimary: Colors.white,
       secondary: Brand.green,
       onSecondary: Brand.greenInk,
       tertiary: Brand.amber,
-      surface: dark ? const Color(0xFF10233A) : Brand.card,
+      surface: Brand.card,
       error: Brand.coralDeep,
     );
 
     return ThemeData(
       useMaterial3: true,
-      brightness: brightness,
       colorScheme: scheme,
-      scaffoldBackgroundColor: dark ? Brand.navyDeep : Brand.paper,
+      scaffoldBackgroundColor: Brand.paper,
 
-      appBarTheme: AppBarTheme(
-        backgroundColor: dark ? Brand.navyDeep : Brand.navy,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Brand.navy,
         foregroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -51,11 +43,11 @@ class AppTheme {
       ),
 
       cardTheme: CardThemeData(
-        color: dark ? const Color(0xFF13294A) : Brand.card,
+        color: Brand.card,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: dark ? Brand.navyLine : Brand.line),
+          side: const BorderSide(color: Brand.line),
         ),
         margin: EdgeInsets.zero,
       ),
@@ -64,7 +56,7 @@ class AppTheme {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: dark ? Brand.navyLine : Brand.line),
+          borderSide: const BorderSide(color: Brand.line),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -90,14 +82,14 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(double.infinity, 48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          side: BorderSide(color: dark ? Brand.navyLine : Brand.line),
+          side: const BorderSide(color: Brand.line),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
 
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        side: BorderSide(color: dark ? Brand.navyLine : Brand.line),
+        side: const BorderSide(color: Brand.line),
         labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
       ),
 

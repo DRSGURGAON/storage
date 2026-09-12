@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_scope.dart';
+import '../shell/app_shell.dart';
 import '../../core/subscription/super_admin_scope.dart';
 
 // Auth
@@ -19,7 +20,6 @@ import '../../features/reports/screens/document_customisation_screen.dart';
 
 // Company
 import '../../features/company/screens/company_card_screen.dart';
-import '../../features/company/screens/company_onboarding_screen.dart';
 import '../../features/company/screens/company_settings_screen.dart';
 import '../../features/company/screens/letterhead_pdf_screen.dart';
 import '../../features/kyc/screens/kyc_screen.dart';
@@ -157,19 +157,37 @@ class AppRouter {
       ),
 
       // ==========================
-      // Dashboard / Settings
+      // The three tabs - everything else is pushed over them
       // ==========================
-      GoRoute(
-        path: '/dashboard',
-        builder: (context, state) => const DashboardScreen(),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            AppShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/dashboard',
+              builder: (context, state) => const DashboardScreen(),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/customers',
+              builder: (context, state) => const CustomerListScreen(),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/documents',
+              builder: (context, state) =>
+                  DocumentCentreScreen(customerId: state.extra as String?),
+            ),
+          ]),
+        ],
       ),
 
-      GoRoute(
-        path: '/documents',
-        builder: (context, state) =>
-            DocumentCentreScreen(customerId: state.extra as String?),
-      ),
-
+      // ==========================
+      // Settings
+      // ==========================
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
@@ -194,11 +212,6 @@ class AppRouter {
       // Company
       // ==========================
       GoRoute(
-        path: '/company-onboarding',
-        builder: (context, state) => const CompanyOnboardingScreen(),
-      ),
-
-      GoRoute(
         path: '/company-settings',
         builder: (context, state) => const CompanySettingsScreen(),
       ),
@@ -221,11 +234,6 @@ class AppRouter {
       // ==========================
       // Masters
       // ==========================
-      GoRoute(
-        path: '/customers',
-        builder: (context, state) => const CustomerListScreen(),
-      ),
-
       GoRoute(
         path: '/customer-create',
         builder: (context, state) => const CustomerFormScreen(),

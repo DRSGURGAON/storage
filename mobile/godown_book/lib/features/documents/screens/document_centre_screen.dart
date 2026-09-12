@@ -288,10 +288,15 @@ class _DocumentCentreScreenState extends State<DocumentCentreScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.canPop() ? context.pop() : context.go('/dashboard'),
-        ),
+        // A tab root has the bar below it; a customer's own document
+        // list is pushed on top and gets a way back.
+        automaticallyImplyLeading: false,
+        leading: context.canPop()
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => context.pop(),
+              )
+            : null,
         title: const Text('Documents'),
         centerTitle: true,
       ),

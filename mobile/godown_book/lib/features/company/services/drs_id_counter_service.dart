@@ -22,7 +22,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// REQUIRES NETWORK CONNECTIVITY: a Firestore transaction genuinely
 /// cannot complete offline (confirmed via Firebase's own
 /// documentation) - assignDrsId() will throw if called with no
-/// internet connection. Callers (CompanyOnboardingScreen) must handle
+/// internet connection. Callers (the dashboard's App ID backfill) must handle
 /// this as a genuine failure, not silently proceed without an ID.
 class DrsIdCounterService {
   DrsIdCounterService._();

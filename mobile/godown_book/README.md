@@ -123,6 +123,21 @@ firebase deploy --only firestore:rules
 Until this is done the app opens on its "Could not connect" screen,
 deliberately.
 
+#### Deploying the rules from CI
+
+The build workflow deploys `firestore.rules` on every push when two
+repository secrets exist; without them it prints a warning and skips.
+
+| Secret | What goes in it |
+| --- | --- |
+| `GODOWN_BOOK_FIREBASE_PROJECT_ID` | The project id, e.g. `storagebill-pro` |
+| `GODOWN_BOOK_FIREBASE_SERVICE_ACCOUNT` | The whole JSON of a service-account key |
+
+To make the key: Firebase Console → Project settings → **Service
+accounts** → **Generate new private key**. The default service account
+already has the Editor role, which is enough to deploy rules. Paste the
+downloaded file's contents into the secret and never commit it.
+
 On Android the two files carry the same facts, and the native SDK reads
 `google-services.json` before any Dart code runs - so a build that has
 only that file still starts, using it. `firebase_options.dart` is what
