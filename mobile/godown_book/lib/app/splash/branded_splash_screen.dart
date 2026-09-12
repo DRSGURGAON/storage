@@ -39,15 +39,13 @@ class _BrandedSplashScreenState extends State<BrandedSplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
-  // Four staged intervals within one controller, matching the task's
-  // own explicit 4-step sequence (logo fade+scale -> brand name
-  // fade/slide -> tagline fade -> reveal). Deliberately simple,
-  // professional easing (no bounce/elastic/particle effects, per the
-  // task's own explicit exclusions).
+  // Three staged intervals within one controller: the logo fades and
+  // scales in, the tagline follows, then the app is revealed. The brand
+  // name is not drawn as text - it is part of the logo artwork - so
+  // there is nothing to stage between the two. Simple, professional
+  // easing; no bounce, no particles.
   late final Animation<double> _logoOpacity;
   late final Animation<double> _logoScale;
-  late final Animation<double> _nameOpacity;
-  late final Animation<Offset> _nameSlide;
   late final Animation<double> _taglineOpacity;
 
   bool _showApp = false;
@@ -69,20 +67,6 @@ class _BrandedSplashScreenState extends State<BrandedSplashScreen>
       CurvedAnimation(
         parent: _controller,
         curve: const Interval(0.0, 0.40, curve: Curves.easeOut),
-      ),
-    );
-
-    _nameOpacity = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.25, 0.65, curve: Curves.easeOut),
-    );
-    _nameSlide = Tween<Offset>(
-      begin: const Offset(0, 0.15),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.25, 0.65, curve: Curves.easeOut),
       ),
     );
 
@@ -124,11 +108,10 @@ class _BrandedSplashScreenState extends State<BrandedSplashScreen>
     }
 
     return Scaffold(
-      // Same light-teal brand tint as the native splash
-      // (#EBF8F8, matches android/app/src/main/res/values/colors.xml)
-      // so there is genuinely no color jump at the native-to-Flutter
-      // handoff.
-      backgroundColor: const Color(0xFFEBF8F8),
+      // brand_splash in android/app/src/main/res/values/colors.xml,
+      // which the native launch background paints too, so there is no
+      // colour jump at the native-to-Flutter handoff.
+      backgroundColor: const Color(0xFFF2F5F9),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -138,29 +121,13 @@ class _BrandedSplashScreenState extends State<BrandedSplashScreen>
               child: ScaleTransition(
                 scale: _logoScale,
                 child: Image.asset(
-                  'assets/images/godown_book_logo.png',
-                  width: 160,
+                  'assets/images/app_logo.png',
+                  width: 230,
                   fit: BoxFit.contain,
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-            FadeTransition(
-              opacity: _nameOpacity,
-              child: SlideTransition(
-                position: _nameSlide,
-                child: const Text(
-                  'StorageBill Pro',
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0A2540),
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             FadeTransition(
               opacity: _taglineOpacity,
               child: const Text(

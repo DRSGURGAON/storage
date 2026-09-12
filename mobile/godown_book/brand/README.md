@@ -1,39 +1,32 @@
 # StorageBill Pro brand artwork
 
-The source artwork, kept here so the app's icons can always be rebuilt
-from something rather than recovered from a chat.
+The source artwork, kept here so every icon in the app can be rebuilt
+from something rather than recovered from a chat. Run
+`python3 tool/brand_assets.py` after changing any of it; that script only
+crops, scales and pads these files - it never draws anything.
 
-| File | What it is |
-| --- | --- |
-| `brand_sheet.png` | Every approved logo variant, the palette and where each one is meant to be used |
-| `app_icon_master.png` | The full vertical logo - mark, wordmark and tagline on the navy card |
+| File | What it is | What it feeds |
+| --- | --- | --- |
+| `brand_sheet.png` | Every approved variant, the palette, and where each is meant to be used | reference |
+| `icon_navy.png` | The mark on the navy card, bleeding to all four edges | Launcher icon on Android 7 and older, the web icons, the Play listing icon |
+| `mark_light.png` | The mark in white and green, transparent | Adaptive launcher icon on Android 8+, drawn over `brand_navy` |
+| `logo_full_navy.png` | The whole logo - mark, wordmark, tagline - in navy, transparent | The app's own splash and the login screen, and the Android 12 splash icon is cropped from its top |
+| `logo_full_white_on_navy.png` | The same logo the other way round, for dark surfaces | reference, not currently used |
+| `store/play_icon_512.png` | Generated: the 512x512 Play Console icon | uploaded by hand |
 
-Colours, as the sheet states them:
+## Colours
 
 | | Hex |
 | --- | --- |
 | Primary navy | `#0D2B49` |
 | Accent green | `#14D1A0` |
+| Splash background | `#F2F5F9` |
 | White | `#FFFFFF` |
 
-## What the app still needs
+The splash is light, so the icon Android 12 shows on it is the navy mark
+rather than the white one - white on `#F2F5F9` would be invisible.
 
-Nothing in `android/app/src/main/res` or `assets/images` has been
-changed yet - the app still ships the old mark. These are the exports
-the icons will be built from, each supplied as artwork rather than
-derived from another file:
+## Still to be supplied
 
-| Needed | Size | Background | Used for |
-| --- | --- | --- | --- |
-| Mark only, on navy | 1024x1024 | Navy, full bleed, square corners | Launcher icon on Android 7 and older, Play Store, web |
-| Mark only, white and green | 1024x1024 | Transparent | Adaptive launcher icon, Android 8+ |
-| Mark only, navy | 1024x1024 | Transparent | Android 12+ splash, if the splash stays light |
-| Full vertical logo | 1024x1024 | Transparent outside the card | The app's own splash and the login screen |
-
-On the two transparent ones the artwork has to sit inside the middle
-two thirds of the canvas: Android masks a launcher icon to a circle or a
-squircle, and anything nearer the edge than that is cut off.
-
-Play Console needs its own uploads, which never enter this repo: a
-512x512 icon, a 1024x500 feature graphic, and at least two phone
-screenshots.
+Play Console needs two more uploads, which never enter this repo: a
+1024x500 feature graphic, and at least two phone screenshots.

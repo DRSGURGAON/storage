@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 replaced the launch drawable with its own splash screen:
+     one masked icon on one colour. The icon is the mark in navy,
+     because this background is light and the white mark would vanish. -->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">@color/brand_splash</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_splash_foreground</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>
