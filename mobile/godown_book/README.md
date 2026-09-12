@@ -28,9 +28,33 @@ which a Super Admin activates once payment is received.
 | Finds goods damaged or missing | Damage / Loss Report with photographs on the same paper |
 | Sends the goods to someone else | Authority Letter, or an Indemnity Bond when the receipt is lost |
 | Moves goods by truck | Bilty / Lorry Receipt in four copies, the Goods Forwarding Note the sender signs, and a Delivery Challan - and the same bilty records the delivery |
+| Would rather talk than type | Speaks the whole entry in Hindi or English; the form fills itself and waits to be checked |
 
 Used personal and household effects need no e-way bill, and the bilty
 and the challan say so on the paper.
+
+### Filling the form by speaking
+
+On a new storage entry there is a mic. The operator says the whole thing
+in one breath -
+
+> Rajesh Kumar, 9876500001, aaj se, ek almari do palang teen carton,
+> mahine ka teen hazaar, paanch hazaar advance
+
+- and the app reads it back as a list: the name, the mobile, the date,
+three lines of goods, the rent and the deposit. Whatever is wrong gets
+unticked; only the ticked rows reach the form, and Save is still a tap.
+The goods are written to the inventory in English, so "do palang" prints
+as *Bed - 2*.
+
+This runs on the phone. Android's own recogniser turns speech into
+words, and the rest - Hindi numbers like *sadhe teen hazaar* and *dedh
+lakh*, dates, mobile numbers spoken digit by digit, vehicle numbers, and
+a vocabulary of the things people actually store - is plain Dart in
+`lib/features/voice_entry`. There is no API key, nothing is billed per
+entry, and no customer's name or number leaves the device. On a phone
+whose Hindi recogniser needs the network, or where the mic is refused,
+the same sheet takes the sentence typed instead.
 
 Storage charges are worked out four ways: a fixed amount per month, an
 amount per day, an amount per box per month, or one agreed amount. A

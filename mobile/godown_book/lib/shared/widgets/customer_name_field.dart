@@ -17,11 +17,21 @@ class CustomerNameField extends StatelessWidget {
   final String label;
   final ValueChanged<CustomerSuggestion> onSelected;
 
+  /// Tints the box when something other than the operator's own typing
+  /// put the name there - today that is the voice entry.
+  final bool highlight;
+
+  /// Called on every keystroke, so a form can drop that tint again the
+  /// moment the operator corrects the name themselves.
+  final ValueChanged<String>? onChanged;
+
   const CustomerNameField({
     super.key,
     required this.controller,
     required this.label,
     required this.onSelected,
+    this.highlight = false,
+    this.onChanged,
   });
 
   @override
@@ -51,7 +61,15 @@ class CustomerNameField extends StatelessWidget {
           controller: textController,
           focusNode: focusNode,
           onSubmitted: (_) => onSubmitted(),
-          decoration: InputDecoration(labelText: label),
+          onChanged: onChanged,
+          decoration: InputDecoration(
+            labelText: label,
+            filled: highlight,
+            fillColor: highlight
+                ? Theme.of(context).colorScheme.primaryContainer
+                    .withValues(alpha: 0.45)
+                : null,
+          ),
         );
       },
       optionsViewBuilder: (context, onSelectedOption, options) {

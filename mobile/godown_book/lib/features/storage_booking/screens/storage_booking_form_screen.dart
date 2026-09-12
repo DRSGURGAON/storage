@@ -8,6 +8,8 @@ import '../../../shared/widgets/customer_name_field.dart';
 import '../../../shared/widgets/state_autocomplete_field.dart';
 import '../../master/models/storage_location_model.dart';
 import '../../master/repositories/storage_location_repository.dart';
+import '../../voice_entry/models/voice_entry_draft.dart';
+import '../../voice_entry/widgets/voice_entry_sheet.dart';
 import '../models/booking_item_model.dart';
 import '../models/storage_booking_model.dart';
 import '../models/storage_status.dart';
@@ -62,6 +64,14 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
   String _locationName = '';
   List<StorageLocationModel> _locations = const [];
   final List<BookingItemModel> _items = [];
+
+  /// Which boxes the voice entry filled, so they stay tinted until the
+  /// operator has looked at them. Nothing here is ever saved on its own.
+  final Set<VoiceFieldKind> _fromVoice = {};
+
+  /// The customer field seeds its autocomplete from the initial value,
+  /// so it needs a fresh key before it will show a name voice put there.
+  int _nameSeed = 0;
 
   bool get _isEdit => widget.editBookingId != null;
 
@@ -164,6 +174,84 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
     });
   }
 
+  /// Puts what the operator accepted on the voice sheet into the form.
+  /// Only the rows they ticked are touched, the rest is left exactly as
+  /// they typed it, and nothing is saved - Save is still their tap.
+  Future<void> _fillByVoice() async {
+    final spoken = await VoiceEntrySheet.show(context, bookingId: _draft.id);
+    if (spoken == null || !mounted) return;
+
+    setState(() {
+      _fromVoice.addAll(spoken.fields.map((f) => f.kind));
+      if (spoken.customerName != null) {
+        _customerName.text = spoken.customerName!;
+        _customerId = '';
+        _nameSeed++;
+      }
+      if (spoken.customerPhone != null) {
+        _customerPhone.text = spoken.customerPhone!;
+      }
+      if (spoken.customerCity != null) {
+        _customerCity.text = spoken.customerCity!;
+      }
+      if (spoken.customerPincode != null) {
+        _customerPincode.text = spoken.customerPincode!;
+      }
+      if (spoken.storageStart != null) _storageStart = spoken.storageStart!;
+      if (spoken.items.isNotEmpty) {
+        for (final item in spoken.items) {
+          _items.add(item.copyWith(
+            bookingId: _draft.id,
+            sortOrder: _items.length,
+          ));
+        }
+      }
+      if (spoken.rentRate != null) _rentRate.text = _num(spoken.rentRate!);
+      if (spoken.rentBasis != null) _rentBasis = spoken.rentBasis!;
+      if (spoken.securityDeposit != null) {
+        _securityDeposit.text = _num(spoken.securityDeposit!);
+      }
+      if (spoken.declaredValue != null) {
+        _declaredValue.text = _num(spoken.declaredValue!);
+      }
+      if (spoken.vehicleNumber != null) {
+        _vehicleNumber.text = spoken.vehicleNumber!;
+      }
+    });
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${spoken.fields.length} cheez bhar di. Dekh lijiye, phir Save.'),
+      ),
+    );
+  }
+
+  void _typedOver(VoiceFieldKind kind) {
+    if (!_fromVoice.contains(kind)) return;
+    setState(() => _fromVoice.remove(kind));
+  }
+
+  /// The label plus the tint that says "your voice put this here".
+  InputDecoration _voiceDecoration(
+    String label,
+    VoiceFieldKind kind, {
+    String? hintText,
+  }) {
+    final touched = _fromVoice.contains(kind);
+    return InputDecoration(
+      labelText: label,
+      hintText: hintText,
+      filled: touched,
+      fillColor: touched
+          ? Theme.of(context)
+              .colorScheme
+              .primaryContainer
+              .withValues(alpha: 0.45)
+          : null,
+    );
+  }
+
   Future<void> _pickDate({
     required DateTime initial,
     required ValueChanged<DateTime> onPicked,
@@ -233,6 +321,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
 
     try {
       final saved = await StorageBookingRepository.instance.save(booking);
+      _fromVoice.clear();
       if (!mounted) return;
       context.pop(saved.id);
     } catch (error) {
@@ -355,12 +444,25 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
       appBar: AppBar(
         title: Text(_isEdit ? 'Edit Storage' : 'New Storage'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Bol kar bhariye',
+            icon: const Icon(Icons.mic_none),
+            onPressed: _loadingExisting ? null : _fillByVoice,
+          ),
+        ],
       ),
       body: _loadingExisting
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                OutlinedButton.icon(
+                  onPressed: _fillByVoice,
+                  icon: const Icon(Icons.mic_none),
+                  label: const Text('Bol kar bhariye'),
+                ),
+                const SizedBox(height: 18),
                 _section('Storage'),
                 Row(
                   children: [
@@ -412,9 +514,12 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
 
                 _section('Customer'),
                 CustomerNameField(
+                  key: ValueKey('customer-name-$_nameSeed'),
                   controller: _customerName,
                   label: 'Customer name *',
                   onSelected: _applySuggestion,
+                  highlight: _fromVoice.contains(VoiceFieldKind.customerName),
+                  onChanged: (_) => _typedOver(VoiceFieldKind.customerName),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -423,7 +528,10 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                       child: TextField(
                         controller: _customerPhone,
                         keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'Mobile'),
+                        onChanged: (_) =>
+                            _typedOver(VoiceFieldKind.customerPhone),
+                        decoration: _voiceDecoration(
+                            'Mobile', VoiceFieldKind.customerPhone),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -450,7 +558,10 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                       child: TextField(
                         controller: _customerCity,
                         textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(labelText: 'City'),
+                        onChanged: (_) =>
+                            _typedOver(VoiceFieldKind.customerCity),
+                        decoration: _voiceDecoration(
+                            'City', VoiceFieldKind.customerCity),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -458,7 +569,10 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                       child: TextField(
                         controller: _customerPincode,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Pincode'),
+                        onChanged: (_) =>
+                            _typedOver(VoiceFieldKind.customerPincode),
+                        decoration: _voiceDecoration(
+                            'Pincode', VoiceFieldKind.customerPincode),
                       ),
                     ),
                   ],
@@ -529,7 +643,10 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                       child: TextField(
                         controller: _declaredValue,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(labelText: 'Declared value (₹)'),
+                        onChanged: (_) =>
+                            _typedOver(VoiceFieldKind.declaredValue),
+                        decoration: _voiceDecoration('Declared value (₹)',
+                            VoiceFieldKind.declaredValue),
                       ),
                     ),
                   ],
@@ -563,8 +680,10 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                       child: TextField(
                         controller: _rentRate,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: 'Rent (₹ ${_rentBasis.label.toLowerCase()})',
+                        onChanged: (_) => _typedOver(VoiceFieldKind.rent),
+                        decoration: _voiceDecoration(
+                          'Rent (₹ ${_rentBasis.label.toLowerCase()})',
+                          VoiceFieldKind.rent,
                         ),
                       ),
                     ),
@@ -595,7 +714,10 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                       child: TextField(
                         controller: _securityDeposit,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(labelText: 'Security deposit (₹)'),
+                        onChanged: (_) =>
+                            _typedOver(VoiceFieldKind.securityDeposit),
+                        decoration: _voiceDecoration('Security deposit (₹)',
+                            VoiceFieldKind.securityDeposit),
                       ),
                     ),
                   ],
@@ -609,7 +731,10 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                       child: TextField(
                         controller: _vehicleNumber,
                         textCapitalization: TextCapitalization.characters,
-                        decoration: const InputDecoration(labelText: 'Vehicle no.'),
+                        onChanged: (_) =>
+                            _typedOver(VoiceFieldKind.vehicleNumber),
+                        decoration: _voiceDecoration(
+                            'Vehicle no.', VoiceFieldKind.vehicleNumber),
                       ),
                     ),
                     const SizedBox(width: 12),

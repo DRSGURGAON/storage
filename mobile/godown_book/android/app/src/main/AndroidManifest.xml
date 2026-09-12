@@ -2,6 +2,11 @@
     <!-- Phone sign-in and the cloud backup both need the network. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- The voice entry uses the phone's own recogniser, so the app has
+         to be allowed to record while the operator is speaking. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+
     <!-- Photos of stored goods come from the camera or the gallery;
          both are optional, so the app must install on a device without
          a camera too. -->
@@ -67,6 +72,11 @@
         <intent>
             <action android:name="android.intent.action.SEND"/>
             <data android:mimeType="*/*"/>
+        </intent>
+        <!-- Without this the speech recogniser is invisible on Android
+             11 and above, and the voice entry silently never starts. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
         </intent>
         <package android:name="com.whatsapp"/>
         <package android:name="com.whatsapp.w4b"/>
