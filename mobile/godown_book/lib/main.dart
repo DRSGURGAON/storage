@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,17 +31,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    // Firebase.apps.isEmpty guards against [core/duplicate-app]: if
-    // Retry (below) re-runs main() after Firebase.initializeApp()
-    // itself already succeeded once (and a LATER line in main() is
-    // what actually threw), re-calling initializeApp() would crash
-    // with "A Firebase App named [DEFAULT] already exists" instead of
-    // genuinely retrying - this check makes the retry idempotent.
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    }
+    await _startFirebase();
   } catch (error, stackTrace) {
     // Firebase is genuinely required for the entire login flow
     // (FirebaseAuth.instance) - there is no meaningful way to proceed
@@ -86,6 +77,54 @@ Future<void> main() async {
   // changed), so starting it unconditionally here is safe: it no-ops
   // by itself when nobody is signed in or no company exists yet.
   DocumentCloudSyncService.instance.start();
+}
+
+/// Starts Firebase from whichever configuration this build actually
+/// has.
+///
+/// There are two of them and they can disagree. `firebase_options.dart`
+/// is the Dart one; `android/app/google-services.json` is the native
+/// one, and on Android the Firebase SDK reads it before any Dart code
+/// runs. Handing Dart's placeholder values to an Android build whose
+/// google-services.json is real means asking the SDK to re-initialise
+/// the default app with a different project - which is not a state
+/// worth trying to survive.
+///
+/// So when the Dart file is still the placeholder, Android is started
+/// from google-services.json instead, and only a build with neither
+/// falls through to the "Could not connect" screen. A build with just
+/// the one file the platform actually needs now works.
+Future<void> _startFirebase() async {
+  // Firebase.apps.isEmpty guards against [core/duplicate-app]: if
+  // Retry (below) re-runs main() after Firebase.initializeApp()
+  // itself already succeeded once (and a LATER line in main() is
+  // what actually threw), re-calling initializeApp() would crash
+  // with "A Firebase App named [DEFAULT] already exists" instead of
+  // genuinely retrying - this check makes the retry idempotent.
+  if (Firebase.apps.isNotEmpty) return;
+
+  if (kIsWeb || !DefaultFirebaseOptions.isPlaceholder) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    return;
+  }
+
+  // No options: android/app/google-services.json is the whole story.
+  final app = await Firebase.initializeApp();
+
+  // The CI build writes a stub google-services.json when no secret is
+  // set, purely so the Google Services Gradle plugin does not fail the
+  // build. It is not a project anybody can talk to, so say so here
+  // rather than letting every later call fail on its own.
+  if (app.options.projectId == 'placeholder' ||
+      app.options.projectId.isEmpty) {
+    throw StateError(
+      'This build has no Firebase configuration. Run "flutterfire '
+      'configure", or set the GODOWN_BOOK_GOOGLE_SERVICES_JSON secret '
+      'for CI builds.',
+    );
+  }
 }
 
 /// Shown only when Firebase.initializeApp() itself genuinely fails -

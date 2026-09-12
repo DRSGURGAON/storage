@@ -18,6 +18,15 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
 class DefaultFirebaseOptions {
+  /// The value flutterfire_configure has not replaced yet.
+  static const placeholder = 'REPLACE_WITH_FLUTTERFIRE_CONFIGURE';
+
+  /// True while this file is still the one in source control. On
+  /// Android that is survivable - google-services.json carries the same
+  /// facts, and main() falls back to it - so the app has to be able to
+  /// ask.
+  static bool get isPlaceholder => android.apiKey == placeholder;
+
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
       return web;

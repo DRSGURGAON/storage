@@ -123,6 +123,14 @@ firebase deploy --only firestore:rules
 Until this is done the app opens on its "Could not connect" screen,
 deliberately.
 
+On Android the two files carry the same facts, and the native SDK reads
+`google-services.json` before any Dart code runs - so a build that has
+only that file still starts, using it. `firebase_options.dart` is what
+the web build needs. A build with neither gets the "Could not connect"
+screen; a build whose Dart options and `google-services.json` name
+*different* projects is the one state worth avoiding, which is why the
+placeholder is never handed to the SDK.
+
 ### The customer signing page
 
 The operator can ask a customer to sign a document from their own phone:
