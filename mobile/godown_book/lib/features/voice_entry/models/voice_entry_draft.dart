@@ -1,48 +1,14 @@
 import '../../storage_booking/models/booking_item_model.dart';
 import '../../storage_booking/models/storage_status.dart';
+import 'voice_reading.dart';
 
-/// One thing the app believes it heard, and the words it heard it in.
-///
-/// The operator sees this list before anything touches the form, so a
-/// wrong reading costs a tap, never a wrong receipt.
-class VoiceField {
-  /// Which form field this belongs to.
-  final VoiceFieldKind kind;
-
-  /// What to show on the review list, e.g. "Rent" / "3,500 per month".
-  final String label;
-  final String display;
-
-  /// The part of the sentence this came from, so the operator can see
-  /// why the app read it that way.
-  final String heard;
-
-  const VoiceField({
-    required this.kind,
-    required this.label,
-    required this.display,
-    required this.heard,
-  });
-}
-
-enum VoiceFieldKind {
-  customerName,
-  customerPhone,
-  customerCity,
-  customerPincode,
-  storageStart,
-  items,
-  totalPackages,
-  rent,
-  securityDeposit,
-  declaredValue,
-  vehicleNumber,
-}
-
-/// Everything one spoken sentence produced. Fields the app did not hear
-/// stay null, and the form leaves them alone.
-class VoiceEntryDraft {
+/// What one spoken sentence produced for a new storage entry. Anything
+/// the app did not hear stays null, and the form leaves it alone.
+class VoiceEntryDraft implements VoiceReading {
+  @override
   final String transcript;
+  @override
+  final List<VoiceField> fields;
 
   final String? customerName;
   final String? customerPhone;
@@ -55,9 +21,6 @@ class VoiceEntryDraft {
   final double? securityDeposit;
   final double? declaredValue;
   final String? vehicleNumber;
-
-  /// The review list, in the order it should be shown.
-  final List<VoiceField> fields;
 
   const VoiceEntryDraft({
     required this.transcript,
@@ -75,10 +38,13 @@ class VoiceEntryDraft {
     this.fields = const [],
   });
 
+  @override
   bool get isEmpty => fields.isEmpty;
 
-  /// The same reading with the rows the operator unticked dropped, so a
-  /// wrong guess never reaches the form.
+  int get totalPackages =>
+      items.fold(0.0, (sum, item) => sum + item.quantity).round();
+
+  @override
   VoiceEntryDraft keeping(Set<VoiceFieldKind> kinds) => VoiceEntryDraft(
         transcript: transcript,
         customerName:
@@ -105,7 +71,4 @@ class VoiceEntryDraft {
             kinds.contains(VoiceFieldKind.vehicleNumber) ? vehicleNumber : null,
         fields: fields.where((f) => kinds.contains(f.kind)).toList(),
       );
-
-  int get totalPackages =>
-      items.fold(0.0, (sum, item) => sum + item.quantity).round();
 }

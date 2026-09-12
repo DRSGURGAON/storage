@@ -28,15 +28,16 @@ which a Super Admin activates once payment is received.
 | Finds goods damaged or missing | Damage / Loss Report with photographs on the same paper |
 | Sends the goods to someone else | Authority Letter, or an Indemnity Bond when the receipt is lost |
 | Moves goods by truck | Bilty / Lorry Receipt in four copies, the Goods Forwarding Note the sender signs, and a Delivery Challan - and the same bilty records the delivery |
-| Would rather talk than type | Speaks the whole entry in Hindi or English; the form fills itself and waits to be checked |
+| Would rather talk than type | Speaks a storage entry, a bill, a payment or a quotation in Hindi or English; the form fills itself and waits to be checked |
 
 Used personal and household effects need no e-way bill, and the bilty
 and the challan say so on the paper.
 
 ### Filling the form by speaking
 
-On a new storage entry there is a mic. The operator says the whole thing
-in one breath -
+There is a mic on the four forms an operator fills all day - new
+storage, storage bill, receive payment and quotation. They say the whole
+thing in one breath -
 
 > Rajesh Kumar, 9876500001, aaj se, ek almari do palang teen carton,
 > mahine ka teen hazaar, paanch hazaar advance
@@ -47,14 +48,27 @@ unticked; only the ticked rows reach the form, and Save is still a tap.
 The goods are written to the inventory in English, so "do palang" prints
 as *Bed - 2*.
 
+The other three forms listen for what belongs on them:
+
+| Form | Say | It reads |
+| --- | --- | --- |
+| Storage bill | "Rajesh Kumar, ek October se atharah October tak, storage teen hazaar, mazdoori paanch sau, GST atharah percent" | The period, each charge by name, the discount and the GST |
+| Receive payment | "Suresh ne das hazaar UPI se diye, reference 445566" | Who paid, how much, cash or UPI or cheque, an advance from a deposit, the date and the reference |
+| Quotation | "Anil Sharma, Gurgaon se Jaipur, packing das hazaar, transport pandrah hazaar, teen mahine storage" | Both towns, the move date, the months in storage, and an amount against each service already on the list |
+
+The bill never lets a spoken storage line overwrite the one worked out
+from the agreed rate, and the payment sheet keeps a deposit apart from
+an ordinary payment, because those two are not the same thing on the
+ledger.
+
 This runs on the phone. Android's own recogniser turns speech into
 words, and the rest - Hindi numbers like *sadhe teen hazaar* and *dedh
 lakh*, dates, mobile numbers spoken digit by digit, vehicle numbers, and
-a vocabulary of the things people actually store - is plain Dart in
-`lib/features/voice_entry`. There is no API key, nothing is billed per
-entry, and no customer's name or number leaves the device. On a phone
-whose Hindi recogniser needs the network, or where the mic is refused,
-the same sheet takes the sentence typed instead.
+vocabularies of the things people store and the charges they name - is
+plain Dart in `lib/features/voice_entry`. There is no API key, nothing
+is billed per entry, and no customer's name or number leaves the device.
+On a phone whose Hindi recogniser needs the network, or where the mic is
+refused, the same sheet takes the sentence typed instead.
 
 Storage charges are worked out four ways: a fixed amount per month, an
 amount per day, an amount per box per month, or one agreed amount. A

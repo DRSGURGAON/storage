@@ -1,42 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
-import '../models/voice_entry_draft.dart';
-import '../services/voice_entry_parser.dart';
+import '../models/voice_reading.dart';
+
+/// What one screen wants read out of a spoken sentence: the example to
+/// show, the parser to run, and how to drop the rows the operator
+/// unticks. The sheet itself knows nothing about storage or bills.
+class VoiceRecipe<T extends VoiceReading> {
+  /// What a good sentence sounds like on this screen.
+  final String example;
+
+  /// Runs on the phone; no network, no key.
+  final T Function(String transcript) parse;
+
+  const VoiceRecipe({required this.example, required this.parse});
+}
 
 /// Speak the entry, see exactly what the app understood, then let it
 /// fill the form.
 ///
 /// Nothing is saved from here and nothing is sent anywhere: the phone's
-/// own recogniser turns speech into words and [VoiceEntryParser] turns
-/// those words into fields. The operator ticks off what is right before
-/// a single box on the form changes.
-class VoiceEntrySheet extends StatefulWidget {
-  /// Used for the item ids the sheet hands back.
-  final String bookingId;
+/// own recogniser turns speech into words and the screen's own parser
+/// turns those words into fields. The operator ticks off what is right
+/// before a single box on the form changes.
+class VoiceEntrySheet<T extends VoiceReading> extends StatefulWidget {
+  final VoiceRecipe<T> recipe;
 
-  const VoiceEntrySheet({super.key, required this.bookingId});
+  const VoiceEntrySheet({super.key, required this.recipe});
 
   /// Returns what the operator accepted, or null if they backed out.
-  static Future<VoiceEntryDraft?> show(
+  static Future<T?> show<T extends VoiceReading>(
     BuildContext context, {
-    required String bookingId,
+    required VoiceRecipe<T> recipe,
   }) {
-    return showModalBottomSheet<VoiceEntryDraft>(
+    return showModalBottomSheet<T>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => VoiceEntrySheet(bookingId: bookingId),
+      builder: (_) => VoiceEntrySheet<T>(recipe: recipe),
     );
   }
 
   @override
-  State<VoiceEntrySheet> createState() => _VoiceEntrySheetState();
+  State<VoiceEntrySheet<T>> createState() => _VoiceEntrySheetState<T>();
 }
 
 enum _Stage { idle, listening, review, typing }
 
-class _VoiceEntrySheetState extends State<VoiceEntrySheet> {
+class _VoiceEntrySheetState<T extends VoiceReading>
+    extends State<VoiceEntrySheet<T>> {
   final _speech = SpeechToText();
   final _typed = TextEditingController();
 
@@ -48,12 +60,8 @@ class _VoiceEntrySheetState extends State<VoiceEntrySheet> {
   double _level = 0;
   String _locale = 'hi_IN';
 
-  VoiceEntryDraft? _draft;
+  T? _reading;
   final _accepted = <VoiceFieldKind>{};
-
-  static const _example =
-      'Rajesh Kumar, 9876500001, aaj se, ek almari do palang teen carton, '
-      'mahine ka teen hazaar, paanch hazaar advance';
 
   @override
   void initState() {
@@ -171,19 +179,19 @@ class _VoiceEntrySheetState extends State<VoiceEntrySheet> {
   }
 
   void _readIt(String sentence) {
-    final draft = VoiceEntryParser(bookingId: widget.bookingId).parse(sentence);
+    final reading = widget.recipe.parse(sentence);
     setState(() {
-      _draft = draft;
+      _reading = reading;
       _accepted
         ..clear()
-        ..addAll(draft.fields.map((f) => f.kind));
+        ..addAll(reading.fields.map((f) => f.kind));
       _stage = _Stage.review;
     });
   }
 
   void _again() {
     setState(() {
-      _draft = null;
+      _reading = null;
       _heard = '';
       _problem = '';
       _stage = _ready ? _Stage.idle : _Stage.typing;
@@ -317,7 +325,7 @@ class _VoiceEntrySheetState extends State<VoiceEntrySheet> {
   // --------------------------------------------------------------- review
 
   List<Widget> _reviewView(ThemeData theme) {
-    final draft = _draft!;
+    final reading = _reading!;
     return [
       Container(
         width: double.infinity,
@@ -326,17 +334,17 @@ class _VoiceEntrySheetState extends State<VoiceEntrySheet> {
           color: theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Text('"${draft.transcript}"',
+        child: Text('"${reading.transcript}"',
             style: theme.textTheme.bodyMedium
                 ?.copyWith(fontStyle: FontStyle.italic)),
       ),
       const SizedBox(height: 16),
-      if (draft.fields.isEmpty)
+      if (reading.fields.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Text(
             'Isme se kuch samajh nahi aaya. Thoda dheere, ek ek cheez '
-            'bataiye - naam, number, saaman, kiraya.',
+            'bataiye.',
             style: theme.textTheme.bodyMedium,
           ),
         )
@@ -348,7 +356,7 @@ class _VoiceEntrySheetState extends State<VoiceEntrySheet> {
               letterSpacing: 0.5,
             )),
         const SizedBox(height: 4),
-        for (final field in draft.fields)
+        for (final field in reading.fields)
           CheckboxListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
@@ -386,7 +394,8 @@ class _VoiceEntrySheetState extends State<VoiceEntrySheet> {
             child: FilledButton.icon(
               onPressed: _accepted.isEmpty
                   ? null
-                  : () => Navigator.of(context).pop(draft.keeping(_accepted)),
+                  : () => Navigator.of(context)
+                      .pop(reading.keeping(_accepted) as T),
               icon: const Icon(Icons.edit_note),
               label: const Text('Form bharo'),
             ),
@@ -481,10 +490,10 @@ class _VoiceEntrySheetState extends State<VoiceEntrySheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('AISE BOLIYE',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(letterSpacing: 0.5, fontWeight: FontWeight.bold)),
+                style: theme.textTheme.labelSmall?.copyWith(
+                    letterSpacing: 0.5, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
-            Text(_example, style: theme.textTheme.bodyMedium),
+            Text(widget.recipe.example, style: theme.textTheme.bodyMedium),
           ],
         ),
       );

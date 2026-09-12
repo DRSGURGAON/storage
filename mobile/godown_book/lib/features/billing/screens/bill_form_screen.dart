@@ -7,6 +7,11 @@ import '../../../shared/widgets/customer_name_field.dart';
 import '../../master/repositories/charge_head_repository.dart';
 import '../../storage_booking/models/storage_booking_model.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
+import '../../voice_entry/models/voice_bill_draft.dart';
+import '../../voice_entry/models/voice_reading.dart';
+import '../../voice_entry/services/voice_bill_parser.dart';
+import '../../voice_entry/widgets/voice_entry_sheet.dart';
+import '../../voice_entry/widgets/voice_fill.dart';
 import '../models/bill_model.dart';
 import '../repositories/billing_repository.dart';
 import '../services/storage_charge_calculator.dart';
@@ -26,7 +31,7 @@ class BillFormScreen extends StatefulWidget {
   State<BillFormScreen> createState() => _BillFormScreenState();
 }
 
-class _BillFormScreenState extends State<BillFormScreen> {
+class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
   static final _dateFormat = DateFormat('dd MMM yyyy');
 
   BillModel? _draft;
@@ -328,6 +333,56 @@ class _BillFormScreenState extends State<BillFormScreen> {
     });
   }
 
+  /// Puts what the operator accepted on the voice sheet into the bill.
+  /// The storage line is still worked out from the agreed rate - a
+  /// spoken one never overwrites the calculated one.
+  Future<void> _fillByVoice() async {
+    final spoken = await VoiceEntrySheet.show<VoiceBillDraft>(
+      context,
+      recipe: VoiceRecipe(
+        example: 'Rajesh Kumar, ek October se atharah October tak, '
+            'storage teen hazaar, mazdoori paanch sau, GST atharah percent',
+        parse: (text) => VoiceBillParser().parse(text),
+      ),
+    );
+    if (spoken == null || !mounted) return;
+
+    setState(() {
+      markVoice(spoken.fields);
+      if (spoken.customerName != null) {
+        _customerName.text = spoken.customerName!;
+        _customerId = '';
+        nameSeed++;
+      }
+      if (spoken.customerPhone != null) {
+        _customerPhone.text = spoken.customerPhone!;
+      }
+      if (spoken.periodFrom != null) _periodFrom = spoken.periodFrom;
+      if (spoken.periodTo != null) _periodTo = spoken.periodTo;
+      if (spoken.periodFrom != null || spoken.periodTo != null) {
+        _refreshStorageLine();
+      }
+
+      for (final charge in spoken.charges) {
+        final alreadyCalculated = charge.name == 'Storage Charge' &&
+            _lines.any((l) => l.chargeName == 'Storage Charge');
+        if (alreadyCalculated) continue;
+        _lines.add(BillLineModel(
+          id: IdGenerator.generateId(),
+          chargeName: charge.name,
+          quantity: 1,
+          rate: charge.amount,
+          amount: charge.amount,
+        ));
+      }
+
+      if (spoken.discount != null) _discount.text = _num(spoken.discount!);
+      if (spoken.gstPercent != null) _gstPercent.text = _num(spoken.gstPercent!);
+    });
+
+    announceVoice(spoken.fields.length);
+  }
+
   Future<void> _pickDate({
     required DateTime initial,
     required ValueChanged<DateTime> onPicked,
@@ -364,6 +419,7 @@ class _BillFormScreenState extends State<BillFormScreen> {
     try {
       final saved = await BillingRepository.instance.saveBill(_compose());
       if (!mounted) return;
+      voiceFilled.clear();
       context.pop(saved.id);
     } catch (error) {
       if (!mounted) return;
@@ -382,6 +438,13 @@ class _BillFormScreenState extends State<BillFormScreen> {
       appBar: AppBar(
         title: Text(_isEdit ? 'Edit Bill' : 'New Storage Bill'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Bol kar bhariye',
+            icon: const Icon(Icons.mic_none),
+            onPressed: _loading ? null : _fillByVoice,
+          ),
+        ],
       ),
       bottomNavigationBar: preview == null
           ? null
@@ -425,6 +488,12 @@ class _BillFormScreenState extends State<BillFormScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                OutlinedButton.icon(
+                  onPressed: _fillByVoice,
+                  icon: const Icon(Icons.mic_none),
+                  label: const Text('Bol kar bhariye'),
+                ),
+                const SizedBox(height: 18),
                 _section('Storage'),
                 Card(
                   child: ListTile(
@@ -445,13 +514,15 @@ class _BillFormScreenState extends State<BillFormScreen> {
                     Expanded(
                       child: _dateTile('Period from', _periodFrom,
                           () => _pickDate(initial: _periodFrom ?? DateTime.now(),
-                              onPicked: (d) => _periodFrom = d)),
+                              onPicked: (d) => _periodFrom = d),
+                          kind: VoiceFieldKind.periodFrom),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: _dateTile('Period to', _periodTo,
                           () => _pickDate(initial: _periodTo ?? DateTime.now(),
-                              onPicked: (d) => _periodTo = d)),
+                              onPicked: (d) => _periodTo = d),
+                          kind: VoiceFieldKind.periodTo),
                     ),
                   ],
                 ),
@@ -459,8 +530,11 @@ class _BillFormScreenState extends State<BillFormScreen> {
 
                 _section('Customer'),
                 CustomerNameField(
+                  key: ValueKey('bill-customer-$nameSeed'),
                   controller: _customerName,
                   label: 'Customer name *',
+                  highlight: cameFromVoice(VoiceFieldKind.customerName),
+                  onChanged: (_) => typedOver(VoiceFieldKind.customerName),
                   onSelected: (s) => setState(() {
                     _customerId = s.customerId;
                     if (_customerPhone.text.trim().isEmpty) _customerPhone.text = s.phone;
@@ -478,7 +552,10 @@ class _BillFormScreenState extends State<BillFormScreen> {
                       child: TextField(
                         controller: _customerPhone,
                         keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'Mobile'),
+                        onChanged: (_) =>
+                            typedOver(VoiceFieldKind.customerPhone),
+                        decoration: voiceDecoration(
+                            'Mobile', VoiceFieldKind.customerPhone),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -545,8 +622,12 @@ class _BillFormScreenState extends State<BillFormScreen> {
                       child: TextField(
                         controller: _discount,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(labelText: 'Discount (₹)'),
+                        onChanged: (_) {
+                          typedOver(VoiceFieldKind.discount);
+                          setState(() {});
+                        },
+                        decoration: voiceDecoration(
+                            'Discount (₹)', VoiceFieldKind.discount),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -554,8 +635,12 @@ class _BillFormScreenState extends State<BillFormScreen> {
                       child: TextField(
                         controller: _gstPercent,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(labelText: 'GST %'),
+                        onChanged: (_) {
+                          typedOver(VoiceFieldKind.gstPercent);
+                          setState(() {});
+                        },
+                        decoration:
+                            voiceDecoration('GST %', VoiceFieldKind.gstPercent),
                       ),
                     ),
                   ],
@@ -572,7 +657,9 @@ class _BillFormScreenState extends State<BillFormScreen> {
     );
   }
 
-  Widget _dateTile(String label, DateTime? value, VoidCallback onTap) {
+  Widget _dateTile(String label, DateTime? value, VoidCallback onTap,
+      {VoiceFieldKind? kind}) {
+    final touched = kind != null && cameFromVoice(kind);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -580,6 +667,13 @@ class _BillFormScreenState extends State<BillFormScreen> {
         decoration: InputDecoration(
           labelText: label,
           suffixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+          filled: touched,
+          fillColor: touched
+              ? Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withValues(alpha: 0.45)
+              : null,
         ),
         child: Text(value == null ? 'Not set' : _dateFormat.format(value)),
       ),

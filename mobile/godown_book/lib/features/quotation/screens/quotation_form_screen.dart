@@ -7,6 +7,11 @@ import '../../../core/utils/id_generator.dart';
 import '../../../shared/widgets/customer_name_field.dart';
 import '../../../shared/widgets/state_autocomplete_field.dart';
 import '../../master/models/charge_head_model.dart';
+import '../../voice_entry/models/voice_quotation_draft.dart';
+import '../../voice_entry/models/voice_reading.dart';
+import '../../voice_entry/services/voice_quotation_parser.dart';
+import '../../voice_entry/widgets/voice_entry_sheet.dart';
+import '../../voice_entry/widgets/voice_fill.dart';
 import '../models/quotation_model.dart';
 import '../repositories/quotation_repository.dart';
 
@@ -25,7 +30,8 @@ class QuotationFormScreen extends StatefulWidget {
   State<QuotationFormScreen> createState() => _QuotationFormScreenState();
 }
 
-class _QuotationFormScreenState extends State<QuotationFormScreen> {
+class _QuotationFormScreenState extends State<QuotationFormScreen>
+    with VoiceFill {
   static final _dateFormat = DateFormat('dd MMM yyyy');
 
   late QuotationModel _draft;
@@ -187,6 +193,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
     setState(() => _saving = true);
     try {
       final saved = await QuotationRepository.instance.save(_compose());
+      voiceFilled.clear();
       if (!mounted) return;
       context.pop(saved.id);
     } catch (error) {
@@ -325,6 +332,67 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
     });
   }
 
+  /// Puts what the operator accepted on the voice sheet into the
+  /// quotation. A service the company already lists keeps its own row -
+  /// only its amount is filled in - so the printed order stays put.
+  Future<void> _fillByVoice() async {
+    final spoken = await VoiceEntrySheet.show<VoiceQuotationDraft>(
+      context,
+      recipe: VoiceRecipe(
+        example: 'Anil Sharma, 9812345678, Gurgaon se Jaipur, packing das '
+            'hazaar, transport pandrah hazaar, teen mahine storage, '
+            'GST atharah percent',
+        parse: (text) => VoiceQuotationParser().parse(text),
+      ),
+    );
+    if (spoken == null || !mounted) return;
+
+    setState(() {
+      markVoice(spoken.fields);
+      if (spoken.customerName != null) {
+        _customerName.text = spoken.customerName!;
+        _customerId = '';
+        nameSeed++;
+      }
+      if (spoken.customerPhone != null) {
+        _customerPhone.text = spoken.customerPhone!;
+      }
+      if (spoken.fromCity != null) _fromCity.text = spoken.fromCity!;
+      if (spoken.toCity != null) _toCity.text = spoken.toCity!;
+      if (spoken.moveDate != null) _moveDate = spoken.moveDate;
+      if (spoken.storageMonths != null) {
+        _storageMonths.text = _num(spoken.storageMonths!);
+      }
+
+      for (final service in spoken.services) {
+        final at = _lines.indexWhere((l) =>
+            l.serviceName.toLowerCase() == service.name.toLowerCase());
+        if (at >= 0) {
+          _lines[at] = _lines[at].copyWith(
+            mode: ChargeMode.amount,
+            quantity: 1,
+            rate: service.amount,
+            amount: service.amount,
+          );
+        } else {
+          _lines.add(QuotationLineModel(
+            id: IdGenerator.generateId(),
+            sortOrder: _lines.length,
+            serviceName: service.name,
+            quantity: 1,
+            rate: service.amount,
+            amount: service.amount,
+          ));
+        }
+      }
+
+      if (spoken.discount != null) _discount.text = _num(spoken.discount!);
+      if (spoken.gstPercent != null) _gstPercent.text = _num(spoken.gstPercent!);
+    });
+
+    announceVoice(spoken.fields.length);
+  }
+
   Future<void> _pickDate({
     required DateTime initial,
     required ValueChanged<DateTime> onPicked,
@@ -346,6 +414,13 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
       appBar: AppBar(
         title: Text(_isEdit ? 'Edit Quotation' : 'New Quotation'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Bol kar bhariye',
+            icon: const Icon(Icons.mic_none),
+            onPressed: _loading ? null : _fillByVoice,
+          ),
+        ],
       ),
       bottomNavigationBar: _loading
           ? null
@@ -387,10 +462,19 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                OutlinedButton.icon(
+                  onPressed: _fillByVoice,
+                  icon: const Icon(Icons.mic_none),
+                  label: const Text('Bol kar bhariye'),
+                ),
+                const SizedBox(height: 18),
                 _section('Customer'),
                 CustomerNameField(
+                  key: ValueKey('quotation-customer-$nameSeed'),
                   controller: _customerName,
                   label: 'Customer name *',
+                  highlight: cameFromVoice(VoiceFieldKind.customerName),
+                  onChanged: (_) => typedOver(VoiceFieldKind.customerName),
                   onSelected: _applySuggestion,
                 ),
                 const SizedBox(height: 12),
@@ -400,7 +484,10 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                       child: TextField(
                         controller: _customerPhone,
                         keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'Mobile'),
+                        onChanged: (_) =>
+                            typedOver(VoiceFieldKind.customerPhone),
+                        decoration: voiceDecoration(
+                            'Mobile', VoiceFieldKind.customerPhone),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -451,7 +538,9 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                       child: TextField(
                         controller: _fromCity,
                         textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(labelText: 'From (city)'),
+                        onChanged: (_) => typedOver(VoiceFieldKind.fromCity),
+                        decoration: voiceDecoration(
+                            'From (city)', VoiceFieldKind.fromCity),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -459,7 +548,9 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                       child: TextField(
                         controller: _toCity,
                         textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(labelText: 'To (city)'),
+                        onChanged: (_) => typedOver(VoiceFieldKind.toCity),
+                        decoration:
+                            voiceDecoration('To (city)', VoiceFieldKind.toCity),
                       ),
                     ),
                   ],
@@ -482,7 +573,8 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                 const SizedBox(height: 12),
                 _dateTile('Move date (if known)', _moveDate,
                     () => _pickDate(initial: _moveDate ?? DateTime.now(), onPicked: (d) => _moveDate = d),
-                    onClear: _moveDate == null ? null : () => setState(() => _moveDate = null)),
+                    onClear: _moveDate == null ? null : () => setState(() => _moveDate = null),
+                    kind: VoiceFieldKind.moveDate),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _goodsDescription,
@@ -500,7 +592,10 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                       child: TextField(
                         controller: _storageMonths,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(labelText: 'Storage (months)'),
+                        onChanged: (_) =>
+                            typedOver(VoiceFieldKind.storageMonths),
+                        decoration: voiceDecoration(
+                            'Storage (months)', VoiceFieldKind.storageMonths),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -558,8 +653,12 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                       child: TextField(
                         controller: _discount,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(labelText: 'Discount (₹)'),
+                        onChanged: (_) {
+                          typedOver(VoiceFieldKind.discount);
+                          setState(() {});
+                        },
+                        decoration: voiceDecoration(
+                            'Discount (₹)', VoiceFieldKind.discount),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -567,8 +666,12 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
                       child: TextField(
                         controller: _gstPercent,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(labelText: 'GST %'),
+                        onChanged: (_) {
+                          typedOver(VoiceFieldKind.gstPercent);
+                          setState(() {});
+                        },
+                        decoration:
+                            voiceDecoration('GST %', VoiceFieldKind.gstPercent),
                       ),
                     ),
                   ],
@@ -629,7 +732,9 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
     );
   }
 
-  Widget _dateTile(String label, DateTime? value, VoidCallback onTap, {VoidCallback? onClear}) {
+  Widget _dateTile(String label, DateTime? value, VoidCallback onTap,
+      {VoidCallback? onClear, VoiceFieldKind? kind}) {
+    final touched = kind != null && cameFromVoice(kind);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -639,6 +744,13 @@ class _QuotationFormScreenState extends State<QuotationFormScreen> {
           suffixIcon: onClear != null
               ? IconButton(icon: const Icon(Icons.clear, size: 18), onPressed: onClear)
               : const Icon(Icons.calendar_today_outlined, size: 18),
+          filled: touched,
+          fillColor: touched
+              ? Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withValues(alpha: 0.45)
+              : null,
         ),
         child: Text(value == null ? 'Not set' : _dateFormat.format(value)),
       ),

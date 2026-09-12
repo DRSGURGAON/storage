@@ -9,7 +9,10 @@ import '../../../shared/widgets/state_autocomplete_field.dart';
 import '../../master/models/storage_location_model.dart';
 import '../../master/repositories/storage_location_repository.dart';
 import '../../voice_entry/models/voice_entry_draft.dart';
+import '../../voice_entry/models/voice_reading.dart';
+import '../../voice_entry/services/voice_entry_parser.dart';
 import '../../voice_entry/widgets/voice_entry_sheet.dart';
+import '../../voice_entry/widgets/voice_fill.dart';
 import '../models/booking_item_model.dart';
 import '../models/storage_booking_model.dart';
 import '../models/storage_status.dart';
@@ -26,7 +29,8 @@ class StorageBookingFormScreen extends StatefulWidget {
   State<StorageBookingFormScreen> createState() => _StorageBookingFormScreenState();
 }
 
-class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
+class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
+    with VoiceFill {
   static final _dateFormat = DateFormat('dd MMM yyyy');
 
   late StorageBookingModel _draft;
@@ -64,14 +68,6 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
   String _locationName = '';
   List<StorageLocationModel> _locations = const [];
   final List<BookingItemModel> _items = [];
-
-  /// Which boxes the voice entry filled, so they stay tinted until the
-  /// operator has looked at them. Nothing here is ever saved on its own.
-  final Set<VoiceFieldKind> _fromVoice = {};
-
-  /// The customer field seeds its autocomplete from the initial value,
-  /// so it needs a fresh key before it will show a name voice put there.
-  int _nameSeed = 0;
 
   bool get _isEdit => widget.editBookingId != null;
 
@@ -178,15 +174,22 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
   /// Only the rows they ticked are touched, the rest is left exactly as
   /// they typed it, and nothing is saved - Save is still their tap.
   Future<void> _fillByVoice() async {
-    final spoken = await VoiceEntrySheet.show(context, bookingId: _draft.id);
+    final spoken = await VoiceEntrySheet.show<VoiceEntryDraft>(
+      context,
+      recipe: VoiceRecipe(
+        example: 'Rajesh Kumar, 9876500001, aaj se, ek almari do palang '
+            'teen carton, mahine ka teen hazaar, paanch hazaar advance',
+        parse: (text) => VoiceEntryParser(bookingId: _draft.id).parse(text),
+      ),
+    );
     if (spoken == null || !mounted) return;
 
     setState(() {
-      _fromVoice.addAll(spoken.fields.map((f) => f.kind));
+      markVoice(spoken.fields);
       if (spoken.customerName != null) {
         _customerName.text = spoken.customerName!;
         _customerId = '';
-        _nameSeed++;
+        nameSeed++;
       }
       if (spoken.customerPhone != null) {
         _customerPhone.text = spoken.customerPhone!;
@@ -219,37 +222,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
       }
     });
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${spoken.fields.length} cheez bhar di. Dekh lijiye, phir Save.'),
-      ),
-    );
-  }
-
-  void _typedOver(VoiceFieldKind kind) {
-    if (!_fromVoice.contains(kind)) return;
-    setState(() => _fromVoice.remove(kind));
-  }
-
-  /// The label plus the tint that says "your voice put this here".
-  InputDecoration _voiceDecoration(
-    String label,
-    VoiceFieldKind kind, {
-    String? hintText,
-  }) {
-    final touched = _fromVoice.contains(kind);
-    return InputDecoration(
-      labelText: label,
-      hintText: hintText,
-      filled: touched,
-      fillColor: touched
-          ? Theme.of(context)
-              .colorScheme
-              .primaryContainer
-              .withValues(alpha: 0.45)
-          : null,
-    );
+    announceVoice(spoken.fields.length);
   }
 
   Future<void> _pickDate({
@@ -321,7 +294,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
 
     try {
       final saved = await StorageBookingRepository.instance.save(booking);
-      _fromVoice.clear();
+      voiceFilled.clear();
       if (!mounted) return;
       context.pop(saved.id);
     } catch (error) {
@@ -514,12 +487,12 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
 
                 _section('Customer'),
                 CustomerNameField(
-                  key: ValueKey('customer-name-$_nameSeed'),
+                  key: ValueKey('customer-name-$nameSeed'),
                   controller: _customerName,
                   label: 'Customer name *',
                   onSelected: _applySuggestion,
-                  highlight: _fromVoice.contains(VoiceFieldKind.customerName),
-                  onChanged: (_) => _typedOver(VoiceFieldKind.customerName),
+                  highlight: cameFromVoice(VoiceFieldKind.customerName),
+                  onChanged: (_) => typedOver(VoiceFieldKind.customerName),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -529,8 +502,8 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                         controller: _customerPhone,
                         keyboardType: TextInputType.phone,
                         onChanged: (_) =>
-                            _typedOver(VoiceFieldKind.customerPhone),
-                        decoration: _voiceDecoration(
+                            typedOver(VoiceFieldKind.customerPhone),
+                        decoration: voiceDecoration(
                             'Mobile', VoiceFieldKind.customerPhone),
                       ),
                     ),
@@ -559,8 +532,8 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                         controller: _customerCity,
                         textCapitalization: TextCapitalization.words,
                         onChanged: (_) =>
-                            _typedOver(VoiceFieldKind.customerCity),
-                        decoration: _voiceDecoration(
+                            typedOver(VoiceFieldKind.customerCity),
+                        decoration: voiceDecoration(
                             'City', VoiceFieldKind.customerCity),
                       ),
                     ),
@@ -570,8 +543,8 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                         controller: _customerPincode,
                         keyboardType: TextInputType.number,
                         onChanged: (_) =>
-                            _typedOver(VoiceFieldKind.customerPincode),
-                        decoration: _voiceDecoration(
+                            typedOver(VoiceFieldKind.customerPincode),
+                        decoration: voiceDecoration(
                             'Pincode', VoiceFieldKind.customerPincode),
                       ),
                     ),
@@ -644,8 +617,8 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                         controller: _declaredValue,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         onChanged: (_) =>
-                            _typedOver(VoiceFieldKind.declaredValue),
-                        decoration: _voiceDecoration('Declared value (₹)',
+                            typedOver(VoiceFieldKind.declaredValue),
+                        decoration: voiceDecoration('Declared value (₹)',
                             VoiceFieldKind.declaredValue),
                       ),
                     ),
@@ -680,8 +653,8 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                       child: TextField(
                         controller: _rentRate,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) => _typedOver(VoiceFieldKind.rent),
-                        decoration: _voiceDecoration(
+                        onChanged: (_) => typedOver(VoiceFieldKind.rent),
+                        decoration: voiceDecoration(
                           'Rent (₹ ${_rentBasis.label.toLowerCase()})',
                           VoiceFieldKind.rent,
                         ),
@@ -715,8 +688,8 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                         controller: _securityDeposit,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         onChanged: (_) =>
-                            _typedOver(VoiceFieldKind.securityDeposit),
-                        decoration: _voiceDecoration('Security deposit (₹)',
+                            typedOver(VoiceFieldKind.securityDeposit),
+                        decoration: voiceDecoration('Security deposit (₹)',
                             VoiceFieldKind.securityDeposit),
                       ),
                     ),
@@ -732,8 +705,8 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen> {
                         controller: _vehicleNumber,
                         textCapitalization: TextCapitalization.characters,
                         onChanged: (_) =>
-                            _typedOver(VoiceFieldKind.vehicleNumber),
-                        decoration: _voiceDecoration(
+                            typedOver(VoiceFieldKind.vehicleNumber),
+                        decoration: voiceDecoration(
                             'Vehicle no.', VoiceFieldKind.vehicleNumber),
                       ),
                     ),

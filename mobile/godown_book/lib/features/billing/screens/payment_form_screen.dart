@@ -4,6 +4,11 @@ import 'package:intl/intl.dart';
 
 import '../../../core/utils/id_generator.dart';
 import '../../../shared/widgets/customer_name_field.dart';
+import '../../voice_entry/models/voice_payment_draft.dart';
+import '../../voice_entry/models/voice_reading.dart';
+import '../../voice_entry/services/voice_payment_parser.dart';
+import '../../voice_entry/widgets/voice_entry_sheet.dart';
+import '../../voice_entry/widgets/voice_fill.dart';
 import '../models/bill_model.dart';
 import '../models/payment_model.dart';
 import '../repositories/billing_repository.dart';
@@ -23,7 +28,8 @@ class PaymentFormScreen extends StatefulWidget {
   State<PaymentFormScreen> createState() => _PaymentFormScreenState();
 }
 
-class _PaymentFormScreenState extends State<PaymentFormScreen> {
+class _PaymentFormScreenState extends State<PaymentFormScreen>
+    with VoiceFill {
   static final _dateFormat = DateFormat('dd MMM yyyy');
 
   BillModel? _bill;
@@ -77,6 +83,43 @@ class _PaymentFormScreenState extends State<PaymentFormScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
+  /// Puts what the operator accepted on the voice sheet into the form.
+  /// Only the rows they ticked are touched, and nothing is saved - Save
+  /// is still their tap.
+  Future<void> _fillByVoice() async {
+    final spoken = await VoiceEntrySheet.show<VoicePaymentDraft>(
+      context,
+      recipe: VoiceRecipe(
+        example: 'Rajesh Kumar se paanch hazaar cash mile aaj  /  '
+            'Suresh ne das hazaar UPI se diye, reference 445566',
+        parse: (text) => VoicePaymentParser().parse(text),
+      ),
+    );
+    if (spoken == null || !mounted) return;
+
+    setState(() {
+      markVoice(spoken.fields);
+      // On a payment against a bill the payer is already known and the
+      // name box is not editable, so voice leaves it alone.
+      if (spoken.payerName != null && _bill == null) {
+        _payerName.text = spoken.payerName!;
+        _customerId = '';
+        nameSeed++;
+      }
+      if (spoken.payerPhone != null) _payerPhone.text = spoken.payerPhone!;
+      if (spoken.amount != null) {
+        _amount.text = spoken.amount!.toStringAsFixed(
+            spoken.amount! == spoken.amount!.roundToDouble() ? 0 : 2);
+      }
+      if (spoken.mode != null) _mode = spoken.mode!;
+      if (spoken.type != null) _type = spoken.type!;
+      if (spoken.paymentDate != null) _paymentDate = spoken.paymentDate!;
+      if (spoken.reference != null) _reference.text = spoken.reference!;
+    });
+
+    announceVoice(spoken.fields.length);
+  }
+
   @override
   void dispose() {
     for (final c in [_payerName, _payerPhone, _amount, _reference, _against, _notes]) {
@@ -121,6 +164,7 @@ class _PaymentFormScreenState extends State<PaymentFormScreen> {
       ));
 
       if (!mounted) return;
+      voiceFilled.clear();
       context.pop(saved.id);
     } catch (error) {
       if (!mounted) return;
@@ -136,12 +180,28 @@ class _PaymentFormScreenState extends State<PaymentFormScreen> {
     final bill = _bill;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Receive Payment'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Receive Payment'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Bol kar bhariye',
+            icon: const Icon(Icons.mic_none),
+            onPressed: _loading ? null : _fillByVoice,
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                OutlinedButton.icon(
+                  onPressed: _fillByVoice,
+                  icon: const Icon(Icons.mic_none),
+                  label: const Text('Bol kar bhariye'),
+                ),
+                const SizedBox(height: 18),
                 if (bill != null)
                   Card(
                     color: Theme.of(context).colorScheme.primaryContainer,
@@ -165,8 +225,11 @@ class _PaymentFormScreenState extends State<PaymentFormScreen> {
 
                 if (bill == null) ...[
                   CustomerNameField(
+                    key: ValueKey('payer-name-$nameSeed'),
                     controller: _payerName,
                     label: 'Received from *',
+                    highlight: cameFromVoice(VoiceFieldKind.customerName),
+                    onChanged: (_) => typedOver(VoiceFieldKind.customerName),
                     onSelected: (s) => setState(() {
                       _customerId = s.customerId;
                       if (_payerPhone.text.trim().isEmpty) _payerPhone.text = s.phone;
@@ -183,15 +246,19 @@ class _PaymentFormScreenState extends State<PaymentFormScreen> {
                 TextField(
                   controller: _payerPhone,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Mobile'),
+                  onChanged: (_) => typedOver(VoiceFieldKind.customerPhone),
+                  decoration:
+                      voiceDecoration('Mobile', VoiceFieldKind.customerPhone),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _amount,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  decoration: const InputDecoration(
-                    labelText: 'Amount received (₹) *',
+                  onChanged: (_) => typedOver(VoiceFieldKind.amount),
+                  decoration: voiceDecoration(
+                    'Amount received (₹) *',
+                    VoiceFieldKind.amount,
                     prefixText: '₹ ',
                   ),
                 ),
@@ -246,9 +313,9 @@ class _PaymentFormScreenState extends State<PaymentFormScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _reference,
-                  decoration: const InputDecoration(
-                    labelText: 'Reference / UTR / cheque no.',
-                  ),
+                  onChanged: (_) => typedOver(VoiceFieldKind.reference),
+                  decoration: voiceDecoration(
+                      'Reference / UTR / cheque no.', VoiceFieldKind.reference),
                 ),
                 if (bill == null) ...[
                   const SizedBox(height: 12),
