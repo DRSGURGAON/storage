@@ -16,6 +16,7 @@ import '../company/models/company_model.dart';
 import '../company/repositories/company_repository.dart';
 import '../company/services/company_firestore_sync_service.dart';
 import '../company/services/drs_id_counter_service.dart';
+import '../promo/promo_banner.dart';
 import '../subscription/models/subscription_model.dart';
 import '../subscription/models/subscription_settings_model.dart';
 import '../subscription/repositories/subscription_repository.dart';
@@ -157,6 +158,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               _moneyTiles(stats),
               _todayTasks(stats),
             ],
+            // One remotely-published offer, or nothing at all (no gap).
+            PromoBanner(
+              subscriptionStatus: _subscription?.status,
+              subscriptionActive: _isSubscriptionActive,
+            ),
             _actionGrid(),
             if (_subscription != null) _subscriptionStrip(),
             if (_supportSettings != null) _supportCard(_supportSettings!),
