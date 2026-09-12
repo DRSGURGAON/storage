@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/tenant/tenant_provider.dart';
 import '../../../shared/widgets/state_autocomplete_field.dart';
+import '../../../shared/widgets/save_problem.dart';
 import '../controllers/company_controller.dart';
 import '../models/company_model.dart';
 import '../services/drs_id_counter_service.dart';
@@ -83,9 +84,7 @@ class _CompanyOnboardingScreenState
 
       setState(() => _saving = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not create the company: $error')),
-      );
+      showSaveProblem(context, error);
     }
   }
 

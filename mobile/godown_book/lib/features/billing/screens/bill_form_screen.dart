@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/utils/id_generator.dart';
 import '../../../shared/widgets/customer_name_field.dart';
+import '../../../shared/widgets/save_problem.dart';
 import '../../master/repositories/charge_head_repository.dart';
 import '../../storage_booking/models/storage_booking_model.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
@@ -424,9 +425,7 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save: $error')),
-      );
+      showSaveProblem(context, error);
     }
   }
 

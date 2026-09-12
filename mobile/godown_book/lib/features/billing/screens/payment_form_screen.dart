@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/utils/id_generator.dart';
 import '../../../shared/widgets/customer_name_field.dart';
+import '../../../shared/widgets/save_problem.dart';
 import '../../voice_entry/models/voice_payment_draft.dart';
 import '../../voice_entry/models/voice_reading.dart';
 import '../../voice_entry/services/voice_payment_parser.dart';
@@ -169,9 +170,7 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save: $error')),
-      );
+      showSaveProblem(context, error);
     }
   }
 

@@ -6,6 +6,7 @@ import '../../../core/customer/customer_lookup_service.dart';
 import '../../../core/utils/id_generator.dart';
 import '../../../shared/widgets/customer_name_field.dart';
 import '../../../shared/widgets/state_autocomplete_field.dart';
+import '../../../shared/widgets/save_problem.dart';
 import '../../master/models/storage_location_model.dart';
 import '../../master/repositories/storage_location_repository.dart';
 import '../../voice_entry/models/voice_entry_draft.dart';
@@ -23,7 +24,15 @@ import '../repositories/storage_booking_repository.dart';
 class StorageBookingFormScreen extends StatefulWidget {
   final String? editBookingId;
 
-  const StorageBookingFormScreen({super.key, this.editBookingId});
+  /// Open with the voice sheet already up - the dashboard's "Speak"
+  /// tab lands here.
+  final bool openVoice;
+
+  const StorageBookingFormScreen({
+    super.key,
+    this.editBookingId,
+    this.openVoice = false,
+  });
 
   @override
   State<StorageBookingFormScreen> createState() => _StorageBookingFormScreenState();
@@ -86,6 +95,10 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
     if (_isEdit) {
       _loadingExisting = true;
       _loadForEdit(widget.editBookingId!);
+    } else if (widget.openVoice) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _fillByVoice();
+      });
     }
   }
 
@@ -300,9 +313,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save: $error')),
-      );
+      showSaveProblem(context, error);
     }
   }
 

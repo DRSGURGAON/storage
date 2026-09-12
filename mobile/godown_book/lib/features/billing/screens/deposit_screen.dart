@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../shared/widgets/save_problem.dart';
 
 import '../../storage_booking/models/storage_booking_model.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
@@ -389,7 +390,7 @@ class _DepositScreenState extends State<DepositScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      _tell('Could not save: $error');
+      showSaveProblem(context, error);
     }
   }
 

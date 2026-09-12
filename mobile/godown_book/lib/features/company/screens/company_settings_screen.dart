@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/document_theme/document_theme.dart';
 import '../../../core/tenant/tenant_provider.dart';
+import '../../../shared/widgets/save_problem.dart';
 import '../controllers/company_controller.dart';
 import '../models/company_model.dart';
 import '../providers/company_provider.dart';
@@ -256,9 +257,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      showSaveProblem(context, e);
     } finally {
       if (mounted) {
         setState(() {

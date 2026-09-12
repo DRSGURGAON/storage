@@ -289,7 +289,9 @@ class AppRouter {
 
       GoRoute(
         path: '/storage-create',
-        builder: (context, state) => const StorageBookingFormScreen(),
+        builder: (context, state) => StorageBookingFormScreen(
+          openVoice: state.extra == 'voice',
+        ),
       ),
 
       GoRoute(

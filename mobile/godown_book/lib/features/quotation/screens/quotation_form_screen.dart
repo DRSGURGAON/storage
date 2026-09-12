@@ -6,6 +6,7 @@ import '../../../core/customer/customer_lookup_service.dart';
 import '../../../core/utils/id_generator.dart';
 import '../../../shared/widgets/customer_name_field.dart';
 import '../../../shared/widgets/state_autocomplete_field.dart';
+import '../../../shared/widgets/save_problem.dart';
 import '../../master/models/charge_head_model.dart';
 import '../../voice_entry/models/voice_quotation_draft.dart';
 import '../../voice_entry/models/voice_reading.dart';
@@ -199,9 +200,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save: $error')),
-      );
+      showSaveProblem(context, error);
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import '../../../shared/widgets/save_problem.dart';
 
 import '../../storage_booking/models/storage_booking_model.dart';
 import '../../storage_booking/models/storage_photo_model.dart';
@@ -471,7 +472,7 @@ class _IncidentFormScreenState extends State<IncidentFormScreen> {
       if (!mounted) return;
       context.pop(saved.id);
     } catch (error) {
-      if (mounted) _tell('Could not save: $error');
+      if (mounted) showSaveProblem(context, error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

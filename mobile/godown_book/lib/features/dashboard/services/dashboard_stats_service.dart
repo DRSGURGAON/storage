@@ -122,7 +122,35 @@ class DashboardStats {
   /// Quotations sent and not yet answered.
   List<QuotationModel> get quotationsAwaitingReply =>
       quotations.where((q) => q.status == QuotationStatus.sent).toList();
+
+  // ==========================
+  // The godown map
+  // ==========================
+
+  /// One entry per lot still in storage, in the colour the dashboard
+  /// paints it: red when a bill on it is overdue, amber when it is
+  /// waiting on a bill (unpaid, or rent not yet raised), green when it
+  /// is paid up. Worst first, so what needs a call is at the top.
+  List<SlotState> get slotStates {
+    final overdue = overdueBills.map((b) => b.bookingId).toSet();
+    final unpaid = unpaidBills.map((b) => b.bookingId).toSet();
+    final waiting = rentDue.map((b) => b.id).toSet();
+
+    final states = [
+      for (final b in bookings.where((b) => b.status.isOpen))
+        overdue.contains(b.id)
+            ? SlotState.overdue
+            : (unpaid.contains(b.id) || waiting.contains(b.id))
+                ? SlotState.billDue
+                : SlotState.paidUp,
+    ];
+    states.sort((a, b) => b.index.compareTo(a.index));
+    return states;
+  }
 }
+
+/// How one lot in the godown is doing, for the map on the dashboard.
+enum SlotState { paidUp, billDue, overdue }
 
 class DashboardStatsService {
   DashboardStatsService._();

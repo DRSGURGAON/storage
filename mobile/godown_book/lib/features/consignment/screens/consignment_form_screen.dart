@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/utils/id_generator.dart';
+import '../../../shared/widgets/save_problem.dart';
 import '../../storage_booking/models/storage_booking_model.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
 import '../models/consignment_model.dart';
@@ -580,7 +581,7 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      _tell('Could not save: $error');
+      showSaveProblem(context, error);
     }
   }
 

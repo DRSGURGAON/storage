@@ -3,13 +3,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
+import '../../app/theme/brand.dart';
 import '../../core/contact/contact_launcher.dart';
 import '../../core/subscription/subscription_access_service.dart';
 import '../../core/subscription/subscription_status.dart';
 import '../../core/tenant/tenant_provider.dart';
 import '../../core/tenant/tenant_scope.dart';
 import '../company/controllers/company_controller.dart';
+import '../company/models/company_model.dart';
 import '../company/repositories/company_repository.dart';
 import '../company/services/company_firestore_sync_service.dart';
 import '../company/services/drs_id_counter_service.dart';
@@ -19,9 +22,10 @@ import '../subscription/repositories/subscription_repository.dart';
 import '../subscription/repositories/subscription_settings_repository.dart';
 import 'services/dashboard_stats_service.dart';
 
-/// The home screen: what the operator can do, what happened today, and
-/// what needs attention. Every figure comes from DashboardStatsService,
-/// which only reads the existing, already-company-scoped repositories.
+/// The screen an operator opens twenty times a day. Top to bottom: who
+/// is in the godown and how each lot is doing, the money, what needs
+/// doing today, and the things they start most often. Every figure
+/// comes from DashboardStatsService.
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -30,10 +34,8 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  Color get _brandNavy => Theme.of(context).colorScheme.primary;
-  Color get _brandBlue => Theme.of(context).colorScheme.primaryContainer;
-  Color get _brandTealDark => Theme.of(context).colorScheme.secondary;
-  Color get _brandTealLight => Theme.of(context).colorScheme.tertiary;
+  static final _rupees = NumberFormat.decimalPattern('en_IN');
+  static final _dayFormat = DateFormat('EEEE, d MMM');
 
   DashboardStats? _stats;
   bool _loading = true;
@@ -110,228 +112,359 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
-  String _money(double value) {
-    if (value >= 100000) return '₹${(value / 100000).toStringAsFixed(1)}L';
-    return '₹${value.toStringAsFixed(0)}';
+  Future<void> _open(String route, {Object? extra}) async {
+    await context.push(route, extra: extra);
+    if (mounted) _load();
   }
+
+  String _money(double value) => '₹${_rupees.format(value.round())}';
 
   static String _qty(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 
-  String get _greeting {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
-  }
+  // ==========================================================================
+  // Build
+  // ==========================================================================
 
   @override
   Widget build(BuildContext context) {
     final company = ref.watch(currentCompanyProvider).value;
-    final needsSetup = company != null && !company.isConfigured;
-    final hasAppId = (company?.companyCode ?? '').isNotEmpty;
     final stats = _stats;
 
     return Scaffold(
-      backgroundColor: const Color(0xffF2F4F7),
-      appBar: AppBar(
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [_brandNavy, _brandBlue],
+      backgroundColor: Brand.paper,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        color: Brand.navy,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            _header(company, stats),
+            if (company != null && !company.isConfigured) _setupBanner(company),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 60),
+                child: Center(child: CircularProgressIndicator(color: Brand.navy)),
+              )
+            else if (stats != null) ...[
+              _moneyTiles(stats),
+              _todayTasks(stats),
+            ],
+            _actionGrid(),
+            if (_subscription != null) _subscriptionStrip(),
+            if (_supportSettings != null) _supportCard(_supportSettings!),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _bottomNav(),
+    );
+  }
+
+  // ==========================================================================
+  // Header: who we are, and the godown map
+  // ==========================================================================
+
+  Widget _header(CompanyModel? company, DashboardStats? stats) {
+    final top = MediaQuery.of(context).padding.top;
+    final name = (company?.companyName ?? '').trim();
+    final appId = (company?.companyCode ?? '').trim();
+    final city = (company?.city ?? '').trim();
+    final subtitle = [
+      if (city.isNotEmpty) city,
+      if (appId.isNotEmpty) 'ID $appId',
+    ].join('  ·  ');
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, top + 14, 20, 24),
+      decoration: const BoxDecoration(
+        color: Brand.navy,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _logoBadge(company),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.isEmpty ? 'Set up your company' : name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      subtitle.isEmpty ? _dayFormat.format(DateTime.now()) : subtitle,
+                      style: const TextStyle(
+                        color: Brand.inkOnNavyMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _headerIcon(Icons.folder_open_outlined, 'Documents',
+                  () => _open('/documents')),
+              const SizedBox(width: 8),
+              _headerIcon(Icons.settings_outlined, 'Settings',
+                  () => _open('/settings')),
+            ],
+          ),
+          const SizedBox(height: 22),
+          _godownMap(stats),
+        ],
+      ),
+    );
+  }
+
+  Widget _logoBadge(CompanyModel? company) {
+    final path = company?.logoPath ?? '';
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: path.isEmpty ? Brand.green : Colors.white,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      clipBehavior: Clip.antiAlias,
+      padding: EdgeInsets.all(path.isEmpty ? 0 : 4),
+      child: path.isEmpty
+          ? const Icon(Icons.warehouse_outlined, color: Brand.greenInk, size: 22)
+          : Image.file(
+              File(path),
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) =>
+                  const Icon(Icons.warehouse_outlined, color: Brand.navy, size: 22),
             ),
+    );
+  }
+
+  Widget _headerIcon(IconData icon, String tooltip, VoidCallback onTap) {
+    return Material(
+      color: Brand.navySoft,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(icon, color: Colors.white, size: 20, semanticLabel: tooltip),
+        ),
+      ),
+    );
+  }
+
+  /// One square per lot in storage, coloured by how it is doing. The
+  /// picture a godown owner has in their head, drawn.
+  Widget _godownMap(DashboardStats? stats) {
+    final states = stats?.slotStates ?? const <SlotState>[];
+    final lots = states.length;
+    final overdue = states.where((s) => s == SlotState.overdue).length;
+    final due = states.where((s) => s == SlotState.billDue).length;
+
+    if (stats != null && lots == 0) {
+      return InkWell(
+        onTap: () => _open('/storage-create'),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Brand.navySoft,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.add_box_outlined, color: Brand.green),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'The godown is empty. Add the first storage entry.',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Brand.inkOnNavyMuted),
+            ],
           ),
         ),
-        elevation: 2,
-        centerTitle: false,
-        title: const Text(
-          'StorageBill Pro',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.folder_open_outlined, color: Colors.white),
-            tooltip: 'Documents',
-            onPressed: () => context.push('/documents'),
+      );
+    }
+
+    const shown = 80;
+    return InkWell(
+      onTap: () => _open('/storage'),
+      borderRadius: BorderRadius.circular(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                stats == null ? '—' : '$lots',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 30,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  lots == 1 ? 'lot in storage' : 'lots in storage',
+                  style: const TextStyle(
+                    color: Brand.inkOnNavyMuted,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (stats != null)
+                Text(
+                  '${_qty(stats.itemsInStorage)} items',
+                  style: const TextStyle(
+                    color: Brand.green,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Colors.white),
-            tooltip: 'Settings',
-            onPressed: () => context.push('/settings'),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              for (final state in states.take(shown))
+                Container(
+                  width: 14,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: switch (state) {
+                      SlotState.overdue => Brand.coral,
+                      SlotState.billDue => Brand.amber,
+                      SlotState.paidUp => Brand.green,
+                    },
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              if (lots > shown)
+                Text(
+                  '+${lots - shown}',
+                  style: const TextStyle(
+                    color: Brand.inkOnNavyMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              if (stats == null)
+                for (var i = 0; i < 20; i++)
+                  Container(
+                    width: 14,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: Brand.navyLine,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 14,
+            runSpacing: 4,
+            children: [
+              _legend(Brand.green, 'Paid up'),
+              _legend(Brand.amber, due == 0 ? 'Bill due' : 'Bill due · $due'),
+              _legend(Brand.coral, overdue == 0 ? 'Overdue' : 'Overdue · $overdue'),
+            ],
           ),
         ],
       ),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _load,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Widget _legend(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Brand.inkOnNavyMuted,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _setupBanner(CompanyModel company) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Material(
+        color: Brand.amberSoft,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _open('/company-settings'),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
               children: [
-                if (needsSetup)
-                  Card(
-                    color: const Color(0xffFFF4E5),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    child: ListTile(
-                      leading: const Icon(Icons.warning_amber_rounded),
-                      title: const Text('Company profile incomplete'),
-                      subtitle: Text(
-                        'Your documents need: ${company.missingFields.join(', ')}',
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => context.push('/company-settings'),
-                    ),
-                  ),
-
-                if (company != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [_brandNavy, _brandTealDark],
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 46,
-                                height: 46,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  shape: BoxShape.circle,
-                                ),
-                                clipBehavior: Clip.antiAlias,
-                                padding: const EdgeInsets.all(4),
-                                child: company.logoPath.isNotEmpty
-                                    ? Image.file(
-                                        File(company.logoPath),
-                                        fit: BoxFit.contain,
-                                        errorBuilder: (context, error, stackTrace) =>
-                                            const Icon(Icons.warehouse_outlined,
-                                                color: Colors.white, size: 24),
-                                      )
-                                    : const Icon(Icons.warehouse_outlined,
-                                        color: Colors.white, size: 24),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '$_greeting 👋',
-                                      style: const TextStyle(fontSize: 12, color: Colors.white70),
-                                    ),
-                                    Text(
-                                      company.companyName.isEmpty
-                                          ? 'Set up your company'
-                                          : company.companyName,
-                                      style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    if (hasAppId) ...[
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'My App ID: ${company.companyCode}',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.white70,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              if (hasAppId &&
-                                  _supportSettings != null &&
-                                  (_supportSettings!.whatsappNumber.isNotEmpty ||
-                                      _supportSettings!.supportPhoneNumber.isNotEmpty))
-                                InkWell(
-                                  borderRadius: BorderRadius.circular(20),
-                                  onTap: () {
-                                    final number = _supportSettings!.whatsappNumber.isNotEmpty
-                                        ? _supportSettings!.whatsappNumber
-                                        : _supportSettings!.supportPhoneNumber;
-
-                                    ContactLauncher.openWhatsAppWithChoice(
-                                      context,
-                                      number,
-                                      message: 'Hello StorageBill Pro,\n\n'
-                                          'I need some help getting started.\n\n'
-                                          'My App ID: ${company.companyCode}',
-                                    );
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.chat_bubble_outline,
-                                            color: Colors.white, size: 16),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          'Help',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
+                const Icon(Icons.business_outlined, color: Brand.amberInk),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Finish your company profile',
+                        style: TextStyle(
+                          color: Brand.amberInk,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
                         ),
-                        if (_subscription != null) _subscriptionStatusStrip(context),
-                      ],
-                    ),
+                      ),
+                      Text(
+                        'Documents still need: ${company.missingFields.join(', ')}',
+                        style: const TextStyle(
+                          color: Brand.amberInk,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-
-                const SizedBox(height: 20),
-
-                _sectionTitle('Quick Actions'),
-                _quickActions(context),
-
-                if (_loading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 40),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (stats != null) ...[
-                  _sectionTitle("Today"),
-                  _todaySection(stats),
-
-                  _sectionTitle('Needs Attention'),
-                  _attentionSection(stats, context),
-
-                  if (_supportSettings != null) _supportContactRow(_supportSettings!),
-                  if (_subscription != null) _subscriptionIconsRow(context),
-                ],
+                ),
+                const Icon(Icons.chevron_right, color: Brand.amberInk),
               ],
             ),
           ),
@@ -340,443 +473,506 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _sectionTitle(String text) {
+  // ==========================================================================
+  // Money
+  // ==========================================================================
+
+  Widget _moneyTiles(DashboardStats stats) {
+    final outstanding = stats.totalOutstanding;
+    final unpaid = stats.unpaidBills.length;
+    final toRaise = stats.rentDue.length;
+    final clear = unpaid == 0;
+
     return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 12),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      child: Column(
         children: [
-          Container(
-            width: 4,
-            height: 18,
-            decoration: BoxDecoration(
-              color: _brandTealLight,
-              borderRadius: BorderRadius.circular(4),
+          _tile(
+            color: clear ? Brand.mintSoft : Brand.coralSoft,
+            onTap: () => _open('/bills'),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _tileLabel(clear ? 'Outstanding' : 'To collect',
+                          clear ? Brand.mintInk : Brand.coralDeep),
+                      const SizedBox(height: 2),
+                      Text(
+                        _money(outstanding),
+                        style: TextStyle(
+                          color: clear ? Brand.mintInk : Brand.coralInk,
+                          fontSize: 30,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _tileButton(
+                  clear ? 'All paid up' : '$unpaid bill${unpaid == 1 ? '' : 's'}',
+                  clear ? Brand.mintInk : Brand.coralDeep,
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            text,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _brandNavy),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// The subscription line, as the bottom strip of the welcome banner.
-  Widget _subscriptionStatusStrip(BuildContext context) {
-    final subscription = _subscription;
-    if (subscription == null) return const SizedBox.shrink();
-
-    final status = subscription.status;
-    final showExpiryWarning = _isExpiringSoon && _daysUntilExpiry != null;
-    final isHealthy = status == SubscriptionStatus.active && !showExpiryWarning;
-
-    String statusMessage;
-    if (status == SubscriptionStatus.expired) {
-      statusMessage = 'Your subscription has expired - please renew it.';
-    } else if (status == SubscriptionStatus.limited) {
-      statusMessage = 'Subscribe to make unlimited documents.';
-    } else if (showExpiryWarning) {
-      final days = _daysUntilExpiry!;
-      statusMessage = days <= 0
-          ? 'Your subscription expires today - renew now.'
-          : 'Expires in $days day${days == 1 ? '' : 's'} - renew soon.';
-    } else if (isHealthy) {
-      statusMessage = 'Your subscription is active.';
-    } else {
-      statusMessage = 'Limited access - subscribe for unlimited documents.';
-    }
-
-    return InkWell(
-      onTap: () => context.push('/subscription'),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        color: isHealthy ? _brandTealLight : const Color(0xffE53935),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                statusMessage,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                isHealthy ? 'View Details' : 'See Plans',
-                style: TextStyle(
-                  color: isHealthy ? _brandTealLight : const Color(0xffE53935),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _tile(
+                  color: Brand.mintSoft,
+                  onTap: () => _open('/payments'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _tileLabel('Received today', Brand.mintInk),
+                      const SizedBox(height: 2),
+                      Text(
+                        _money(stats.collectedToday),
+                        style: const TextStyle(
+                          color: Brand.mintInk,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _quickActions(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 3.0,
-        children: [
-          _actionButton(context, Icons.person_add_alt_1_outlined, 'New Customer',
-              '/customer-create', color: _brandTealDark),
-          _actionButton(context, Icons.request_quote_outlined, 'New Quotation',
-              '/quotation-create', color: _brandNavy),
-          _actionButton(context, Icons.inventory_2_outlined, 'New Storage',
-              '/storage-create', color: _brandBlue),
-          _actionButton(context, Icons.receipt_long_outlined, 'Create Bill',
-              '/bill-create', color: _brandTealLight),
-          _actionButton(context, Icons.payments_outlined, 'Receive Payment',
-              '/payment-create', color: _brandTealDark),
-          _actionButton(context, Icons.outbox_outlined, 'Release Goods',
-              '/release-create', color: _brandNavy),
-          _actionButton(context, Icons.fire_truck_outlined, 'New Bilty',
-              '/bilty-create', color: _brandNavy),
-          _actionButton(context, Icons.mail_outline, 'Send Notice',
-              '/notices', color: _brandBlue),
-          _actionButton(context, Icons.report_gmailerrorred_outlined,
-              'Damage Report', '/incidents', color: _brandTealLight),
-        ],
-      ),
-    );
-  }
-
-  Widget _actionButton(
-    BuildContext context,
-    IconData icon,
-    String title,
-    String route, {
-    Color? color,
-  }) {
-    final effectiveColor = color ?? _brandTealDark;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () async {
-        await context.push(route);
-        _load();
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: effectiveColor.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
+              const SizedBox(width: 12),
+              Expanded(
+                child: _tile(
+                  color: Brand.amberSoft,
+                  onTap: toRaise == 0
+                      ? () => _open('/bills')
+                      : () => _open('/bill-create', extra: stats.rentDue.first.id),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _tileLabel('Bills to raise', Brand.amberInk),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$toRaise',
+                        style: const TextStyle(
+                          color: Brand.amberInk,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              child: Icon(icon, size: 16, color: effectiveColor),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                title,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _todaySection(DashboardStats stats) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 1.6,
-        children: [
-          _statTile('Customers Storing', '${stats.customersStoring}',
-              onTap: () => context.push('/customers')),
-          _statTile('Items In Storage', _qty(stats.itemsInStorage),
-              onTap: () => context.push('/storage')),
-          _statTile(
-            'Bills Due',
-            '${stats.unpaidBills.length}',
-            color: stats.unpaidBills.isEmpty ? null : Colors.red,
-            onTap: () => context.push('/bills'),
-          ),
-          _statTile(
-            'Received Today',
-            _money(stats.collectedToday),
-            color: Colors.green,
-            onTap: () => context.push('/payments'),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _statTile(String label, String value, {Color? color, VoidCallback? onTap}) {
-    final accent = color ?? _brandTealDark;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
-        decoration: BoxDecoration(
-          color: accent.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: accent.withValues(alpha: 0.18)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: 4,
-              margin: const EdgeInsets.symmetric(vertical: 2),
-              decoration: BoxDecoration(
-                color: accent,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold, color: accent),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+  Widget _tile({required Color color, required VoidCallback onTap, required Widget child}) {
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 14), child: child),
       ),
     );
   }
 
-  /// Only what genuinely needs doing - nothing is listed when the desk
-  /// is clear.
-  Widget _attentionSection(DashboardStats stats, BuildContext context) {
+  Widget _tileLabel(String text, Color color) => Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.6,
+        ),
+      );
+
+  Widget _tileButton(String text, Color color) => Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
+        alignment: Alignment.center,
+        child: Text(
+          text,
+          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800),
+        ),
+      );
+
+  // ==========================================================================
+  // Today's work
+  // ==========================================================================
+
+  /// Only what genuinely needs doing, each with the one tap that does
+  /// it. Nothing is listed when the desk is clear.
+  Widget _todayTasks(DashboardStats stats) {
     final rows = <Widget>[];
 
     if (stats.rentDue.isNotEmpty) {
-      rows.add(_attentionRow(
-        Icons.receipt_long_outlined,
-        Colors.deepOrange,
-        '${stats.rentDue.length} storage bill${stats.rentDue.length == 1 ? '' : 's'} to raise',
-        stats.rentDue.take(3).map((b) => b.customerName).join(', '),
-        () async {
-          await context.push('/bill-create', extra: stats.rentDue.first.id);
-          _load();
-        },
+      final n = stats.rentDue.length;
+      rows.add(_task(
+        icon: Icons.receipt_long_outlined,
+        tint: Brand.amberSoft,
+        ink: Brand.amberInk,
+        title: '$n bill${n == 1 ? '' : 's'} to raise',
+        subtitle: stats.rentDue.take(3).map((b) => b.customerName).join(', '),
+        action: 'Raise',
+        primary: true,
+        onTap: () => _open('/bill-create', extra: stats.rentDue.first.id),
       ));
     }
 
     if (stats.unpaidBills.isNotEmpty) {
-      rows.add(_attentionRow(
-        Icons.currency_rupee,
-        Colors.red,
-        '${_money(stats.totalOutstanding)} outstanding',
-        '${stats.unpaidBills.length} bill${stats.unpaidBills.length == 1 ? '' : 's'} unpaid'
-        '${stats.overdueBills.isEmpty ? '' : ', ${stats.overdueBills.length} overdue'}',
-        () async {
-          await context.push('/bills');
-          _load();
-        },
+      final overdue = stats.overdueBills.length;
+      rows.add(_task(
+        icon: Icons.currency_rupee,
+        tint: Brand.coralSoft,
+        ink: Brand.coralDeep,
+        title: '${_money(stats.totalOutstanding)} to collect',
+        subtitle: '${stats.unpaidBills.length} unpaid'
+            '${overdue == 0 ? '' : ' · $overdue overdue'}',
+        action: overdue == 0 ? 'Bills' : 'Remind',
+        onTap: () => _open(overdue == 0 ? '/bills' : '/notices'),
       ));
     }
 
     if (stats.pastExpectedEnd.isNotEmpty) {
-      rows.add(_attentionRow(
-        Icons.event_busy_outlined,
-        Colors.indigo,
-        '${stats.pastExpectedEnd.length} past the expected end date',
-        stats.pastExpectedEnd.take(3).map((b) => b.customerName).join(', '),
-        () async {
-          await context.push('/storage');
-          _load();
-        },
+      final n = stats.pastExpectedEnd.length;
+      rows.add(_task(
+        icon: Icons.event_busy_outlined,
+        tint: Brand.skySoft,
+        ink: Brand.skyInk,
+        title: '$n past the expected end date',
+        subtitle: stats.pastExpectedEnd.take(3).map((b) => b.customerName).join(', '),
+        action: 'Open',
+        onTap: () => _open('/storage'),
       ));
     }
 
     if (stats.quotationsAwaitingReply.isNotEmpty) {
-      rows.add(_attentionRow(
-        Icons.mark_email_unread_outlined,
-        _brandBlue,
-        '${stats.quotationsAwaitingReply.length} quotation${stats.quotationsAwaitingReply.length == 1 ? '' : 's'} awaiting reply',
-        stats.quotationsAwaitingReply.take(3).map((q) => q.customerName).join(', '),
-        () async {
-          await context.push('/quotations');
-          _load();
-        },
+      final n = stats.quotationsAwaitingReply.length;
+      rows.add(_task(
+        icon: Icons.mark_email_unread_outlined,
+        tint: Brand.skySoft,
+        ink: Brand.skyInk,
+        title: '$n quotation${n == 1 ? '' : 's'} awaiting reply',
+        subtitle: stats.quotationsAwaitingReply.take(3).map((q) => q.customerName).join(', '),
+        action: 'Open',
+        onTap: () => _open('/quotations'),
       ));
     }
 
-    if (rows.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.only(bottom: 16),
-        child: Card(
-          child: ListTile(
-            leading: Icon(Icons.check_circle_outline, color: Color(0xff2E7D32)),
-            title: Text('Nothing pending'),
-            subtitle: Text('Bills are raised, payments are in, nothing is overdue.'),
-          ),
-        ),
-      );
-    }
-
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Card(child: Column(children: rows)),
-    );
-  }
-
-  Widget _attentionRow(
-    IconData icon,
-    Color color,
-    String title,
-    String subtitle,
-    VoidCallback onTap,
-  ) {
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: color.withValues(alpha: 0.12),
-        foregroundColor: color,
-        child: Icon(icon, size: 18),
-      ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: subtitle.isEmpty ? null : Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: onTap,
-    );
-  }
-
-  Widget _subscriptionIconsRow(BuildContext context) {
-    final isActive = _isSubscriptionActive ?? false;
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.grey.shade200),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Subscription',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const Divider(height: 20),
-              Row(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionTitle("Today's work", trailing: rows.isEmpty ? null : '${rows.length}'),
+          const SizedBox(height: 10),
+          if (rows.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Brand.card,
+                border: Border.all(color: Brand.line),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Row(
                 children: [
+                  Icon(Icons.check_circle_outline, color: Brand.mintInk),
+                  SizedBox(width: 12),
                   Expanded(
-                    child: _supportOption(
-                      icon: isActive ? Icons.verified : Icons.add_circle_outline,
-                      iconColor:
-                          isActive ? const Color(0xff2E7D32) : const Color(0xff1F3864),
-                      label: isActive ? 'Subscribed' : 'Subscribe Now',
-                      onTap: () => context.push('/subscription'),
-                    ),
-                  ),
-                  Expanded(
-                    child: _supportOption(
-                      icon: Icons.history,
-                      iconColor: const Color(0xff1F3864),
-                      label: 'Subscription History',
-                      onTap: () => context.push('/subscription-history'),
+                    child: Text(
+                      'All clear. Bills are raised, payments are in, nothing is overdue.',
+                      style: TextStyle(fontWeight: FontWeight.w600, color: Brand.ink),
                     ),
                   ),
                 ],
               ),
+            )
+          else
+            for (var i = 0; i < rows.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              rows[i],
             ],
-          ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _contactTile({
-    required Widget iconWidget,
+  Widget _task({
+    required IconData icon,
     required Color tint,
+    required Color ink,
     required String title,
     required String subtitle,
+    required String action,
     required VoidCallback onTap,
+    bool primary = false,
   }) {
     return Material(
-      color: tint.withValues(alpha: 0.06),
-      borderRadius: BorderRadius.circular(12),
+      color: Brand.card,
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+          decoration: BoxDecoration(
+            border: Border.all(color: Brand.line),
+            borderRadius: BorderRadius.circular(18),
+          ),
           child: Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: tint.withValues(alpha: 0.25)),
-                ),
-                alignment: Alignment.center,
-                child: iconWidget,
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(14)),
+                child: Icon(icon, color: ink, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                    Text(subtitle,
-                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Brand.ink,
+                      ),
+                    ),
+                    if (subtitle.isNotEmpty)
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Brand.inkMuted,
+                        ),
+                      ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: tint),
+              const SizedBox(width: 8),
+              Container(
+                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: primary ? Brand.green : Brand.chip,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  action,
+                  style: TextStyle(
+                    color: primary ? Brand.greenInk : Brand.navy,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // What do you want to do?
+  // ==========================================================================
+
+  Widget _actionGrid() {
+    final actions = <_Action>[
+      _Action('Storage', Icons.inventory_2_outlined, Brand.navy, Brand.green,
+          () => _open('/storage-create')),
+      _Action('Bill', Icons.receipt_long_outlined, Brand.amberSoft, Brand.amberInk,
+          () => _open('/bill-create')),
+      _Action('Payment', Icons.payments_outlined, Brand.mintSoft, Brand.mintInk,
+          () => _open('/payment-create')),
+      _Action('Quotation', Icons.request_quote_outlined, Brand.skySoft, Brand.skyInk,
+          () => _open('/quotation-create')),
+      _Action('Bilty', Icons.local_shipping_outlined, Brand.chip, Brand.navy,
+          () => _open('/bilty-create')),
+      _Action('Release', Icons.outbox_outlined, Brand.chip, Brand.navy,
+          () => _open('/release-create')),
+      _Action('Customer', Icons.person_add_alt_1_outlined, Brand.chip, Brand.navy,
+          () => _open('/customer-create')),
+      _Action('More', Icons.more_horiz, Brand.chip, Brand.navy, _showMore),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionTitle('What do you want to do?'),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 4,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 14,
+            crossAxisSpacing: 10,
+            childAspectRatio: 0.78,
+            children: [for (final a in actions) _actionButton(a)],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionButton(_Action action) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: action.onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: action.fill,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(action.icon, color: action.ink, size: 26),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            action.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: Brand.ink,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showMore() async {
+    final route = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final (label, icon, route) in const [
+              ('Storage records', Icons.inventory_2_outlined, '/storage'),
+              ('Customers', Icons.people_outline, '/customers'),
+              ('Bills', Icons.receipt_long_outlined, '/bills'),
+              ('Payments', Icons.payments_outlined, '/payments'),
+              ('Quotations', Icons.request_quote_outlined, '/quotations'),
+              ('Bilty / Lorry Receipts', Icons.local_shipping_outlined, '/bilties'),
+              ('Send a notice', Icons.mail_outline, '/notices'),
+              ('Damage report', Icons.report_gmailerrorred_outlined, '/incidents'),
+              ('Release records', Icons.outbox_outlined, '/releases'),
+              ('All documents', Icons.folder_open_outlined, '/documents'),
+            ])
+              ListTile(
+                leading: Icon(icon, color: Brand.navy),
+                title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+                onTap: () => Navigator.pop(sheetContext, route),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (route != null && mounted) _open(route);
+  }
+
+  // ==========================================================================
+  // Subscription and support
+  // ==========================================================================
+
+  Widget _subscriptionStrip() {
+    final subscription = _subscription!;
+    final status = subscription.status;
+    final showExpiryWarning = _isExpiringSoon && _daysUntilExpiry != null;
+    final healthy = status == SubscriptionStatus.active && !showExpiryWarning;
+
+    String message;
+    if (status == SubscriptionStatus.expired) {
+      message = 'Your subscription has expired - renew it to keep printing.';
+    } else if (status == SubscriptionStatus.limited) {
+      message = 'Subscribe to make unlimited documents.';
+    } else if (showExpiryWarning) {
+      final days = _daysUntilExpiry!;
+      message = days <= 0
+          ? 'Your subscription expires today - renew now.'
+          : 'Expires in $days day${days == 1 ? '' : 's'} - renew soon.';
+    } else if (healthy) {
+      message = 'Subscription active.';
+    } else {
+      message = 'Limited access - subscribe for unlimited documents.';
+    }
+
+    final active = _isSubscriptionActive ?? false;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+      child: Material(
+        color: healthy ? Brand.card : Brand.coralSoft,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => _open('/subscription'),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: healthy ? Brand.line : Colors.transparent),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  active ? Icons.verified_outlined : Icons.workspace_premium_outlined,
+                  color: healthy ? Brand.mintInk : Brand.coralDeep,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: TextStyle(
+                      color: healthy ? Brand.ink : Brand.coralInk,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  healthy ? 'Details' : 'See plans',
+                  style: TextStyle(
+                    color: healthy ? Brand.navy : Brand.coralDeep,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Icon(Icons.chevron_right,
+                    size: 18, color: healthy ? Brand.navy : Brand.coralDeep),
+              ],
+            ),
           ),
         ),
       ),
@@ -785,80 +981,72 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   /// The app owner's support contact, from the Super Admin's own
   /// settings - never a per-company number, never invented.
-  Widget _supportContactRow(SubscriptionSettingsModel settings) {
-    final whatsappNumber = settings.whatsappNumber.isNotEmpty
+  Widget _supportCard(SubscriptionSettingsModel settings) {
+    final whatsapp = settings.whatsappNumber.isNotEmpty
         ? settings.whatsappNumber
         : settings.supportPhoneNumber;
-    final callNumber = settings.supportPhoneNumber;
+    final call = settings.supportPhoneNumber;
+    if (whatsapp.isEmpty && call.isEmpty) return const SizedBox.shrink();
 
-    if (whatsappNumber.isEmpty && callNumber.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    final company = ref.read(currentCompanyProvider).value;
+    final appId = company?.companyCode ?? '';
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.grey.shade200),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: _brandNavy.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.support_agent, size: 19, color: _brandNavy),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Need help?',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                        Text('Our support team is here for you',
-                            style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      ],
-                    ),
-                  ),
-                ],
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      child: Row(
+        children: [
+          if (call.isNotEmpty)
+            Expanded(
+              child: _supportButton(
+                icon: const Icon(Icons.call_outlined, color: Brand.navy, size: 20),
+                label: 'Call support',
+                onTap: () => ContactLauncher.call(call),
               ),
-              const SizedBox(height: 14),
-              if (callNumber.isNotEmpty)
-                _contactTile(
-                  iconWidget: Icon(Icons.call, size: 20, color: _brandBlue),
-                  tint: _brandBlue,
-                  title: 'Call Us',
-                  subtitle: callNumber,
-                  onTap: () => ContactLauncher.call(callNumber),
+            ),
+          if (call.isNotEmpty && whatsapp.isNotEmpty) const SizedBox(width: 10),
+          if (whatsapp.isNotEmpty)
+            Expanded(
+              child: _supportButton(
+                icon: Image.asset('assets/images/whatsapp_icon.png', width: 20, height: 20),
+                label: 'WhatsApp',
+                onTap: () => ContactLauncher.openWhatsAppWithChoice(
+                  context,
+                  whatsapp,
+                  message: 'Hello StorageBill Pro,\n\nI need some help.'
+                      '${appId.isEmpty ? '' : '\n\nMy App ID: $appId'}',
                 ),
-              if (callNumber.isNotEmpty && whatsappNumber.isNotEmpty)
-                const SizedBox(height: 10),
-              if (whatsappNumber.isNotEmpty)
-                _contactTile(
-                  iconWidget: Image.asset(
-                    'assets/images/whatsapp_icon.png',
-                    width: 22,
-                    height: 22,
-                  ),
-                  tint: const Color(0xff25D366),
-                  title: 'WhatsApp',
-                  subtitle: 'Chat with us  •  choose your app',
-                  onTap: () => ContactLauncher.openWhatsAppWithChoice(
-                    context,
-                    whatsappNumber,
-                  ),
-                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _supportButton({
+    required Widget icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Brand.card,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          height: 48,
+          decoration: BoxDecoration(
+            border: Border.all(color: Brand.line),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              icon,
+              const SizedBox(width: 8),
+              Text(label,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 13, color: Brand.ink)),
             ],
           ),
         ),
@@ -866,37 +1054,93 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _supportOption({
-    required IconData icon,
-    required Color iconColor,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+  // ==========================================================================
+  // Bottom navigation
+  // ==========================================================================
+
+  Widget _bottomNav() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Brand.card,
+        border: Border(top: BorderSide(color: Brand.line)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 66,
+          child: Row(
+            children: [
+              _navItem(Icons.home_rounded, 'Home', selected: true, onTap: () {}),
+              _navItem(Icons.people_outline, 'Customers', onTap: () => _open('/customers')),
+              _navItem(Icons.folder_open_outlined, 'Documents',
+                  onTap: () => _open('/documents')),
+              _navItem(Icons.mic_none, 'Speak',
+                  onTap: () => _open('/storage-create', extra: 'voice')),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem(IconData icon, String label,
+      {bool selected = false, required VoidCallback onTap}) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 56,
-              height: 56,
+              height: 30,
+              padding: EdgeInsets.symmetric(horizontal: selected ? 16 : 0),
               decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+                color: selected ? Brand.navy : Colors.transparent,
+                borderRadius: BorderRadius.circular(15),
               ),
-              child: Icon(icon, color: iconColor, size: 26),
+              child: Icon(icon, size: 21, color: selected ? Brand.green : Brand.inkMuted),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 3),
             Text(
               label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+                color: selected ? Brand.navy : Brand.inkMuted,
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
+  Widget _sectionTitle(String text, {String? trailing}) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Brand.navy),
+          ),
+        ),
+        if (trailing != null)
+          Text(
+            trailing,
+            style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w800, color: Brand.inkMuted),
+          ),
+      ],
+    );
+  }
+}
+
+class _Action {
+  final String label;
+  final IconData icon;
+  final Color fill;
+  final Color ink;
+  final VoidCallback onTap;
+
+  const _Action(this.label, this.icon, this.fill, this.ink, this.onTap);
 }

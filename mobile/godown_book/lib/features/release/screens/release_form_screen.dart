@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../shared/widgets/save_problem.dart';
 
 import '../../billing/repositories/billing_repository.dart';
 import '../../storage_booking/models/storage_booking_model.dart';
@@ -188,9 +189,7 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save: $error')),
-      );
+      showSaveProblem(context, error);
     }
   }
 

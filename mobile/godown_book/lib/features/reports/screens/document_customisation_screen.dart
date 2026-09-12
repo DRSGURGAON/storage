@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/document_terms/document_terms_repository.dart';
 import '../../company/repositories/company_repository.dart';
 import '../../../core/constants/default_terms.dart';
+import '../../../shared/widgets/save_problem.dart';
 
 /// Reports -> Customise Documents (also reachable from Settings):
 /// per-document Terms & Conditions and the footer lines printed on
@@ -208,9 +209,7 @@ class _DocumentCustomisationScreenState
 
       setState(() => _saving = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save: $e')),
-      );
+      showSaveProblem(context, e);
     }
   }
 

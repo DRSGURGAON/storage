@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/widgets/state_autocomplete_field.dart';
+import '../../../shared/widgets/save_problem.dart';
 import '../models/customer_model.dart';
 import '../repositories/customer_repository.dart';
 
@@ -132,9 +133,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save customer: $error')),
-      );
+      showSaveProblem(context, error);
     }
   }
 

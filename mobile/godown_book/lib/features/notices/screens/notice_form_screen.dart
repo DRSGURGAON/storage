@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../shared/widgets/save_problem.dart';
 
 import '../../billing/repositories/billing_repository.dart';
 import '../../customers/models/customer_model.dart';
@@ -279,7 +280,7 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      _tell('Could not save: $error');
+      showSaveProblem(context, error);
     }
   }
 
