@@ -305,7 +305,9 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
       expectedEndDate: _expectedEnd?.toIso8601String() ?? '',
       rentBasis: _rentBasis,
       rentRate: _parse(_rentRate),
-      rentUnitLabel: _rentUnitLabel.text.trim(),
+      rentUnitLabel: double.tryParse(_rentUnitLabel.text.trim()) == null
+          ? _rentUnitLabel.text.trim()
+          : '',
       areaSqft: _parse(_areaSqft),
       securityDeposit: _parse(_securityDeposit),
       totalPackages: packagesTyped > 0 ? packagesTyped : packagesFromItems,
@@ -673,30 +675,14 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                   ],
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _rentRate,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) => typedOver(VoiceFieldKind.rent),
-                        decoration: voiceDecoration(
-                          'Rent (₹ ${_rentBasis.label.toLowerCase()})',
-                          VoiceFieldKind.rent,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: _rentUnitLabel,
-                        decoration: const InputDecoration(
-                          labelText: 'Rate label',
-                          hintText: 'per month / per sq.ft',
-                        ),
-                      ),
-                    ),
-                  ],
+                TextField(
+                  controller: _rentRate,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => typedOver(VoiceFieldKind.rent),
+                  decoration: voiceDecoration(
+                    'Rent (₹ ${_rentBasis.rateHint})',
+                    VoiceFieldKind.rent,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(

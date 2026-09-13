@@ -146,7 +146,7 @@ class ReportBuilder {
         since: b.storageStartDate,
         basis: b.rentBasis,
         rate: b.rentRate,
-        rateUnit: b.rentUnitLabel.isEmpty ? b.rentBasis.rateHint : b.rentUnitLabel,
+        rateUnit: b.rentUnit,
         packagesLeft: packages,
         billedUpto: b.rentBilledUpto,
         monthlyRent: _monthlyRent(b, packages),

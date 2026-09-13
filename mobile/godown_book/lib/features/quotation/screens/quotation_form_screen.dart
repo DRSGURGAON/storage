@@ -35,7 +35,12 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
     with VoiceFill {
   static final _dateFormat = DateFormat('dd MMM yyyy');
 
-  late QuotationModel _draft;
+  QuotationModel _draft = QuotationModel(
+    id: '',
+    quotationDate: '',
+    customerName: '',
+    createdAt: '',
+  );
   bool _loading = true;
   bool _saving = false;
 
@@ -71,6 +76,16 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
   }
 
   Future<void> _load() async {
+    try {
+      await _loadOrThrow();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      showSaveProblem(context, error);
+    }
+  }
+
+  Future<void> _loadOrThrow() async {
     final now = DateTime.now();
     if (_isEdit) {
       final existing = await QuotationRepository.instance.getById(widget.editQuotationId!);
@@ -407,9 +422,8 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
 
   @override
   Widget build(BuildContext context) {
-    // NOT `_compose()` unguarded: _draft is late-initialised by _load(),
-    // so composing on the first frame threw LateInitializationError and
-    // the whole screen - app bar, back button and all - failed to build.
+    // Nothing is composed until _load has run: the draft is only an empty
+    // quotation before that, and a build that throws is an empty screen.
     final preview = _loading ? null : _compose();
 
     return Scaffold(

@@ -27,6 +27,25 @@ import 'firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // A screen that fails to build is, in a release build, an empty grey
+  // area with nothing to tap - and nothing to report. Put the reason on
+  // the screen instead, where it can be read out or copied.
+  ErrorWidget.builder = (details) => Material(
+        color: const Color(0xFFFDECEC),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                'This part of the screen could not be drawn.\n\n'
+                '${details.exceptionAsString()}',
+                style: const TextStyle(fontSize: 13, color: Color(0xFF8E2626)),
+              ),
+            ),
+          ),
+        ),
+      );
+
   try {
     await _startFirebase();
   } catch (error, stackTrace) {

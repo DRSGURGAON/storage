@@ -369,7 +369,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
           SignatureDetail(
             'Storage charge',
             b.rentRate > 0
-                ? '₹${_qty(b.rentRate)} ${b.rentUnitLabel.isEmpty ? b.rentBasis.rateHint : b.rentUnitLabel}'
+                ? '₹${_qty(b.rentRate)} ${b.rentUnit}'
                 : 'As agreed',
           ),
           if (b.securityDeposit > 0)
@@ -553,7 +553,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
 
   Widget _rentCard(StorageBookingModel b) {
     final rate = b.rentRate > 0
-        ? '₹${_qty(b.rentRate)} ${b.rentUnitLabel.isEmpty ? b.rentBasis.label.toLowerCase() : b.rentUnitLabel}'
+        ? '₹${_qty(b.rentRate)} ${b.rentUnit}'
         : 'Not set';
     return Card(
       child: Padding(

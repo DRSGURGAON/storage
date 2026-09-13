@@ -65,32 +65,51 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
 
+      // Buttons are tall, but never force a width: a button inside a Row
+      // (the save bar under a bill) cannot be laid out at infinite width,
+      // and the whole screen goes blank when one is asked to. A button
+      // that is a list's child is stretched by the list anyway.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(double.infinity, 52),
+          minimumSize: const Size(64, 52),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          minimumSize: const Size(double.infinity, 52),
+          minimumSize: const Size(64, 52),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(double.infinity, 48),
+          minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           side: const BorderSide(color: Brand.line),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
 
+      // A chip label needs its colour spelled out: left to the default it
+      // paints white, which on a white chip is no label at all.
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         side: const BorderSide(color: Brand.line),
-        labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+        backgroundColor: Brand.card,
+        selectedColor: Brand.navy,
+        checkmarkColor: Colors.white,
+        labelStyle: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: WidgetStateColor.resolveWith((states) =>
+              states.contains(WidgetState.selected) ? Colors.white : Brand.ink),
+        ),
+        secondaryLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: Colors.white,
+        ),
       ),
 
       floatingActionButtonTheme: const FloatingActionButtonThemeData(

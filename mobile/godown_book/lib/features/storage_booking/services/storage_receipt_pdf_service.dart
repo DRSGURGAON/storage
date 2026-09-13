@@ -233,7 +233,7 @@ class StorageReceiptPdfService {
 
   pw.Widget _rentBlock(StorageBookingModel b) {
     final rate = b.rentRate > 0
-        ? '${PdfPageKit.money(b.rentRate)} ${b.rentUnitLabel.trim().isEmpty ? b.rentBasis.label.toLowerCase() : b.rentUnitLabel.trim()}'
+        ? '${PdfPageKit.money(b.rentRate)} ${b.rentUnit}'
         : 'As agreed';
 
     return PdfBoxRow.equal(gap: 4, [

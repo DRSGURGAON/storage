@@ -100,6 +100,15 @@ class StorageBookingModel {
   });
 
   /// Packages still in the godown, summed over the items.
+  /// The words after the rent figure - "per month", "per box per
+  /// month". A label typed on the record wins; a blank one, or a number
+  /// typed there by mistake, falls back to what the rent basis means.
+  String get rentUnit {
+    final label = rentUnitLabel.trim();
+    if (label.isEmpty || double.tryParse(label) != null) return rentBasis.rateHint;
+    return label;
+  }
+
   double get remainingQuantity =>
       items.fold(0.0, (sum, item) => sum + item.remainingQty);
 

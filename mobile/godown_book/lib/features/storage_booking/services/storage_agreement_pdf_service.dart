@@ -139,7 +139,7 @@ class StorageAgreementPdfService {
 
   pw.Widget _schedule(StorageBookingModel b) {
     final rent = b.rentRate > 0
-        ? '${PdfPageKit.money(b.rentRate)} ${b.rentUnitLabel.trim().isEmpty ? b.rentBasis.label.toLowerCase() : b.rentUnitLabel.trim()}'
+        ? '${PdfPageKit.money(b.rentRate)} ${b.rentUnit}'
             ' (${AmountInWords.convert(b.rentRate)})'
         : 'As mutually agreed';
 

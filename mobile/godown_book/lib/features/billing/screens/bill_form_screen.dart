@@ -68,6 +68,16 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
   }
 
   Future<void> _load() async {
+    try {
+      await _loadOrThrow();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      showSaveProblem(context, error);
+    }
+  }
+
+  Future<void> _loadOrThrow() async {
     _openBookings = await StorageBookingRepository.instance.getOpen();
 
     if (_isEdit) {
