@@ -407,7 +407,10 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
 
   @override
   Widget build(BuildContext context) {
-    final preview = _compose();
+    // NOT `_compose()` unguarded: _draft is late-initialised by _load(),
+    // so composing on the first frame threw LateInitializationError and
+    // the whole screen - app bar, back button and all - failed to build.
+    final preview = _loading ? null : _compose();
 
     return Scaffold(
       appBar: AppBar(
@@ -421,7 +424,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
           ),
         ],
       ),
-      bottomNavigationBar: _loading
+      bottomNavigationBar: preview == null
           ? null
           : SafeArea(
               child: Container(
@@ -456,7 +459,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                 ),
               ),
             ),
-      body: _loading
+      body: preview == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.all(16),

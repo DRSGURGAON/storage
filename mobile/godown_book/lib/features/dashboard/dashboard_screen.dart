@@ -164,6 +164,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               subscriptionActive: _isSubscriptionActive,
             ),
             _actionGrid(),
+            _documentGrid(),
             if (_subscription != null) _subscriptionStrip(),
             if (_supportSettings != null) _supportCard(_supportSettings!),
             const SizedBox(height: 24),
@@ -826,15 +827,53 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           () => _open('/release-create')),
       _Action('Customer', Icons.person_add_alt_1_outlined, Brand.chip, Brand.navy,
           () => _open('/customer-create')),
-      _Action('More', Icons.more_horiz, Brand.chip, Brand.navy, _showMore),
+      _Action('Notice', Icons.mail_outline, Brand.chip, Brand.navy,
+          () => _open('/notice-create')),
     ];
 
+    return _grid('What do you want to do?', actions);
+  }
+
+  /// Every register the app keeps, on the dashboard itself. These used
+  /// to sit behind a "More" sheet - an owner looking for last month's
+  /// bills should not have to know that.
+  Widget _documentGrid() {
+    final documents = <_Action>[
+      _Action('Storage records', Icons.inventory_2_outlined, Brand.mintSoft,
+          Brand.mintInk, () => _open('/storage')),
+      _Action('Customers', Icons.people_outline, Brand.skySoft, Brand.skyInk,
+          () => _open('/customers')),
+      _Action('Bills', Icons.receipt_long_outlined, Brand.amberSoft, Brand.amberInk,
+          () => _open('/bills')),
+      _Action('Payments', Icons.payments_outlined, Brand.mintSoft, Brand.mintInk,
+          () => _open('/payments')),
+      _Action('Quotations', Icons.request_quote_outlined, Brand.skySoft, Brand.skyInk,
+          () => _open('/quotations')),
+      _Action('Bilty / LR', Icons.local_shipping_outlined, Brand.chip, Brand.navy,
+          () => _open('/bilties')),
+      _Action('Notices', Icons.mail_outline, Brand.coralSoft, Brand.coralInk,
+          () => _open('/notices')),
+      _Action('Damage reports', Icons.report_gmailerrorred_outlined, Brand.coralSoft,
+          Brand.coralInk, () => _open('/incidents')),
+      _Action('Releases', Icons.outbox_outlined, Brand.chip, Brand.navy,
+          () => _open('/releases')),
+      _Action('Reports', Icons.bar_chart_outlined, Brand.chip, Brand.navy,
+          () => _open('/reports')),
+      _Action('All documents', Icons.folder_open_outlined, Brand.chip, Brand.navy,
+          () => _open('/documents')),
+    ];
+
+    // Roomier tiles: these labels are two words, and two lines.
+    return _grid('All documents', documents, aspect: 0.70);
+  }
+
+  Widget _grid(String title, List<_Action> actions, {double aspect = 0.78}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle('What do you want to do?'),
+          _sectionTitle(title),
           const SizedBox(height: 12),
           GridView.count(
             crossAxisCount: 4,
@@ -842,7 +881,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 14,
             crossAxisSpacing: 10,
-            childAspectRatio: 0.78,
+            childAspectRatio: aspect,
             children: [for (final a in actions) _actionButton(a)],
           ),
         ],
@@ -869,50 +908,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           const SizedBox(height: 7),
           Text(
             action.label,
-            maxLines: 1,
+            maxLines: 2,
+            textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontSize: 11.5,
               fontWeight: FontWeight.w800,
               color: Brand.ink,
+              height: 1.15,
             ),
           ),
         ],
       ),
     );
-  }
-
-  Future<void> _showMore() async {
-    final route = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            for (final (label, icon, route) in const [
-              ('Storage records', Icons.inventory_2_outlined, '/storage'),
-              ('Customers', Icons.people_outline, '/customers'),
-              ('Bills', Icons.receipt_long_outlined, '/bills'),
-              ('Payments', Icons.payments_outlined, '/payments'),
-              ('Quotations', Icons.request_quote_outlined, '/quotations'),
-              ('Bilty / Lorry Receipts', Icons.local_shipping_outlined, '/bilties'),
-              ('Send a notice', Icons.mail_outline, '/notices'),
-              ('Damage report', Icons.report_gmailerrorred_outlined, '/incidents'),
-              ('Release records', Icons.outbox_outlined, '/releases'),
-              ('Reports', Icons.bar_chart_outlined, '/reports'),
-              ('All documents', Icons.folder_open_outlined, '/documents'),
-            ])
-              ListTile(
-                leading: Icon(icon, color: Brand.navy),
-                title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-                onTap: () => Navigator.pop(sheetContext, route),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (route != null && mounted) _open(route);
   }
 
   // ==========================================================================

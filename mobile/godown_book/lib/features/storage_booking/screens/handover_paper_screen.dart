@@ -12,6 +12,8 @@ import '../../company/models/company_model.dart';
 import '../models/storage_booking_model.dart';
 import '../repositories/storage_booking_repository.dart';
 import '../services/authority_letter_pdf_service.dart';
+import '../../../core/constants/id_proof_types.dart';
+import '../../../shared/widgets/id_proof_field.dart';
 
 /// The authority letter and the indemnity bond - the two papers a
 /// godown needs before handing goods to somebody who is not the
@@ -31,7 +33,12 @@ class HandoverPaperScreen extends StatefulWidget {
 class _HandoverPaperScreenState extends State<HandoverPaperScreen> {
   final _name = TextEditingController();
   final _phone = TextEditingController();
-  final _idProof = TextEditingController();
+  final _idProofNumber = TextEditingController();
+
+  /// The document shown, chosen from [IdProofTypes.values]; the paper
+  /// prints type and number as one line.
+  String _idProofType = '';
+  final _idProofCustom = TextEditingController();
   final _relation = TextEditingController();
   final _reason = TextEditingController();
 
@@ -52,7 +59,8 @@ class _HandoverPaperScreenState extends State<HandoverPaperScreen> {
   void dispose() {
     _name.dispose();
     _phone.dispose();
-    _idProof.dispose();
+    _idProofNumber.dispose();
+    _idProofCustom.dispose();
     _relation.dispose();
     _reason.dispose();
     super.dispose();
@@ -72,7 +80,11 @@ class _HandoverPaperScreenState extends State<HandoverPaperScreen> {
   HandoverDetails get _details => HandoverDetails(
         personName: _name.text.trim(),
         personPhone: _phone.text.trim(),
-        personIdProof: _idProof.text.trim(),
+        personIdProof: IdProof(
+          type: _idProofType,
+          customType: _idProofCustom.text.trim(),
+          number: _idProofNumber.text.trim(),
+        ).combined,
         relation: _relation.text.trim(),
         reason: _reason.text.trim(),
       );
@@ -229,13 +241,13 @@ class _HandoverPaperScreenState extends State<HandoverPaperScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                TextField(
-                  controller: _idProof,
-                  decoration: const InputDecoration(
-                    labelText: 'ID proof shown',
-                    hintText: 'Aadhaar / DL / Voter ID and number',
-                    border: OutlineInputBorder(),
-                  ),
+                IdProofField(
+                  type: _idProofType,
+                  onTypeChanged: (value) => setState(() => _idProofType = value),
+                  numberController: _idProofNumber,
+                  customTypeController: _idProofCustom,
+                  typeLabel: 'ID proof shown',
+                  outlined: true,
                 ),
                 const SizedBox(height: 14),
                 TextField(

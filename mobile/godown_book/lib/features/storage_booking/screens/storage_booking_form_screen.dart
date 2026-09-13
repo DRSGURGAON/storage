@@ -18,6 +18,8 @@ import '../models/booking_item_model.dart';
 import '../models/storage_booking_model.dart';
 import '../models/storage_status.dart';
 import '../repositories/storage_booking_repository.dart';
+import '../../../core/constants/id_proof_types.dart';
+import '../../../shared/widgets/id_proof_field.dart';
 
 /// Record or edit one customer's goods in storage. Pops with the saved
 /// record's id (a String) after a successful save.
@@ -53,7 +55,12 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
   final _customerCity = TextEditingController();
   final _customerState = TextEditingController();
   final _customerPincode = TextEditingController();
-  final _customerIdProof = TextEditingController();
+  final _customerIdProofNumber = TextEditingController();
+
+  /// The document they showed, chosen from [IdProofTypes.values]; the
+  /// booking itself stores type and number as one string.
+  String _customerIdProofType = '';
+  final _customerIdProofCustom = TextEditingController();
   final _rentRate = TextEditingController();
   final _rentUnitLabel = TextEditingController();
   final _areaSqft = TextEditingController();
@@ -130,7 +137,10 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
     _customerCity.text = d.customerCity;
     _customerState.text = d.customerState;
     _customerPincode.text = d.customerPincode;
-    _customerIdProof.text = d.customerIdProof;
+    final idProof = IdProofTypes.parse(d.customerIdProof);
+    _customerIdProofType = idProof.type;
+    _customerIdProofCustom.text = idProof.customType;
+    _customerIdProofNumber.text = idProof.number;
     _bookingDate = DateTime.tryParse(d.bookingDate) ?? DateTime.now();
     _storageStart = DateTime.tryParse(d.storageStartDate) ?? _bookingDate;
     _expectedEnd = DateTime.tryParse(d.expectedEndDate);
@@ -162,7 +172,8 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
   void dispose() {
     for (final c in [
       _customerName, _customerPhone, _customerGst, _customerAddress, _customerCity,
-      _customerState, _customerPincode, _customerIdProof, _rentRate, _rentUnitLabel,
+      _customerState, _customerPincode, _customerIdProofNumber,
+      _customerIdProofCustom, _rentRate, _rentUnitLabel,
       _areaSqft, _securityDeposit, _totalPackages, _goodsDescription, _declaredValue,
       _insuranceNote, _vehicleNumber, _driverName, _receivedBy, _notes, _terms,
     ]) {
@@ -283,7 +294,11 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
       customerCity: _customerCity.text.trim(),
       customerState: _customerState.text.trim(),
       customerPincode: _customerPincode.text.trim(),
-      customerIdProof: _customerIdProof.text.trim(),
+      customerIdProof: IdProof(
+        type: _customerIdProofType,
+        customType: _customerIdProofCustom.text.trim(),
+        number: _customerIdProofNumber.text.trim(),
+      ).combined,
       locationId: _locationId,
       locationName: _locationName,
       storageStartDate: _storageStart.toIso8601String(),
@@ -564,12 +579,12 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                 const SizedBox(height: 12),
                 StateAutocompleteField(controller: _customerState, label: 'State'),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _customerIdProof,
-                  decoration: const InputDecoration(
-                    labelText: 'ID proof',
-                    hintText: 'Aadhaar 1234-5678-9012',
-                  ),
+                IdProofField(
+                  type: _customerIdProofType,
+                  onTypeChanged: (value) =>
+                      setState(() => _customerIdProofType = value),
+                  numberController: _customerIdProofNumber,
+                  customTypeController: _customerIdProofCustom,
                 ),
                 const SizedBox(height: 20),
 

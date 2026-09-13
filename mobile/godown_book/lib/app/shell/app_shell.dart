@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/brand.dart';
@@ -7,13 +8,69 @@ import '../theme/brand.dart';
 /// Home, Customers and Documents are tabs that keep their own place;
 /// Speak is an action - it opens a new storage entry with the voice
 /// sheet already up, on top of whatever tab is showing.
-class AppShell extends StatelessWidget {
+///
+/// It also owns what the phone's Back button does once every pushed
+/// screen has been popped: from Customers or Documents it returns to
+/// Home, and only a second press on Home - within two seconds, and only
+/// after a message saying so - actually closes the app. Before this, one
+/// stray back press shut the app outright, halfway through a day's
+/// entries.
+class AppShell extends StatefulWidget {
   final StatefulNavigationShell navigationShell;
 
   const AppShell({super.key, required this.navigationShell});
 
   @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> {
+  static const Duration _exitWindow = Duration(seconds: 2);
+
+  /// The "press back again" message while it is on screen. Its own
+  /// lifetime IS the window: the app closes on a second press only
+  /// while the operator can still see what that press will do.
+  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _exitPrompt;
+
+  void _handleBack() {
+    // On another tab, Back means "back to Home", not "quit".
+    if (widget.navigationShell.currentIndex != 0) {
+      _goBranch(0);
+      return;
+    }
+
+    if (_exitPrompt != null) {
+      SystemNavigator.pop();
+      return;
+    }
+
+    final prompt = ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Press back again to exit'),
+        duration: _exitWindow,
+      ),
+    );
+    _exitPrompt = prompt;
+    prompt.closed.then((_) {
+      if (identical(_exitPrompt, prompt)) _exitPrompt = null;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBack();
+      },
+      child: _scaffold(),
+    );
+  }
+
+  Widget _scaffold() {
+    final navigationShell = widget.navigationShell;
+
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: Container(
@@ -61,9 +118,9 @@ class AppShell extends StatelessWidget {
 
   void _goBranch(int index) {
     // Tapping the tab you are on takes you back to its first screen.
-    navigationShell.goBranch(
+    widget.navigationShell.goBranch(
       index,
-      initialLocation: index == navigationShell.currentIndex,
+      initialLocation: index == widget.navigationShell.currentIndex,
     );
   }
 }

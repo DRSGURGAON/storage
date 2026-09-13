@@ -5,6 +5,8 @@ import '../../../shared/widgets/state_autocomplete_field.dart';
 import '../../../shared/widgets/save_problem.dart';
 import '../models/customer_model.dart';
 import '../repositories/customer_repository.dart';
+import '../../../core/constants/id_proof_types.dart';
+import '../../../shared/widgets/id_proof_field.dart';
 
 /// Add / edit one customer. Pops with `true` after a successful save so
 /// the list refreshes.
@@ -30,8 +32,12 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
   final _city = TextEditingController();
   final _state = TextEditingController();
   final _pincode = TextEditingController();
-  final _idProofType = TextEditingController();
   final _idProofNumber = TextEditingController();
+
+  /// The document they showed, chosen from [IdProofTypes.values].
+  /// [_idProofCustomType] names it when that choice is "Other".
+  String _idProofType = '';
+  final _idProofCustomType = TextEditingController();
   final _notes = TextEditingController();
 
   CustomerModel? _existing;
@@ -63,7 +69,9 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
       _city.text = customer.city;
       _state.text = customer.state;
       _pincode.text = customer.pincode;
-      _idProofType.text = customer.idProofType;
+      final idProof = IdProofTypes.parse(customer.idProofType);
+      _idProofType = idProof.type;
+      _idProofCustomType.text = idProof.customType;
       _idProofNumber.text = customer.idProofNumber;
       _notes.text = customer.notes;
     }
@@ -74,7 +82,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
   void dispose() {
     for (final c in [
       _name, _mobile, _altMobile, _email, _gst, _pan, _address, _city,
-      _state, _pincode, _idProofType, _idProofNumber, _notes,
+      _state, _pincode, _idProofCustomType, _idProofNumber, _notes,
     ]) {
       c.dispose();
     }
@@ -99,7 +107,10 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
         city: _city.text,
         state: _state.text,
         pincode: _pincode.text,
-        idProofType: _idProofType.text,
+        idProofType: IdProof(
+          type: _idProofType,
+          customType: _idProofCustomType.text.trim(),
+        ).effectiveType,
         idProofNumber: _idProofNumber.text,
         notes: _notes.text,
         isActive: _existing?.isActive ?? true,
@@ -219,26 +230,13 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                     decoration: const InputDecoration(labelText: 'PAN'),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _idProofType,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            labelText: 'ID proof type',
-                            hintText: 'Aadhaar / DL / Voter ID',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _idProofNumber,
-                          decoration: const InputDecoration(labelText: 'ID proof number'),
-                        ),
-                      ),
-                    ],
+                  IdProofField(
+                    type: _idProofType,
+                    onTypeChanged: (value) => setState(() => _idProofType = value),
+                    numberController: _idProofNumber,
+                    customTypeController: _idProofCustomType,
+                    typeLabel: 'ID proof type',
+                    numberLabel: 'ID proof number',
                   ),
                   const SizedBox(height: 20),
                   _section('Notes'),
