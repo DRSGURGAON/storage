@@ -106,7 +106,7 @@ jobs:
       - name: Verify the release configuration
         run: |
           python3 - <<'PY'
-          import json, pathlib, sys
+          import json, pathlib, re, sys
 
           PROJECT = 'storagebill-pro'
           PACKAGE = 'com.drs.godownbook'
@@ -129,11 +129,26 @@ jobs:
               problems.append(
                   f'google-services.json has no client for {PACKAGE}; it has {packages}')
 
+          # Only the android block ships here: CI builds an app bundle
+          # and an APK, never the web app, and a flutterfire run for
+          # android alone leaves the web block as the placeholder. That
+          # is not a reason to refuse a Play build, so it is said and
+          # not failed on.
           options = pathlib.Path('lib/firebase_options.dart').read_text()
+          android = re.search(
+              r'android\s*=\s*FirebaseOptions\((.*?)\);', options, re.S)
+          if android is None:
+              problems.append('firebase_options.dart has no android FirebaseOptions block')
+          else:
+              block = android.group(1)
+              if 'REPLACE_WITH_FLUTTERFIRE_CONFIGURE' in block:
+                  problems.append('the android block of firebase_options.dart is still the placeholder')
+              elif PROJECT not in block:
+                  problems.append(
+                      f'the android block of firebase_options.dart does not name {PROJECT!r}')
           if 'REPLACE_WITH_FLUTTERFIRE_CONFIGURE' in options:
-              problems.append('firebase_options.dart is still the placeholder')
-          if PROJECT not in options:
-              problems.append(f'firebase_options.dart does not name {PROJECT!r}')
+              print('::warning::firebase_options.dart still has a placeholder outside the '
+                    'android block (the web app). Nothing published here uses it.')
 
           if not pathlib.Path('android/key.properties').exists():
               problems.append('android/key.properties is missing; the build would not be release-signed')
