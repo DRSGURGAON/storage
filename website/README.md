@@ -23,23 +23,26 @@ Every page carries the same placeholders. Nothing else needs editing.
 
 | Placeholder | Put in |
 | --- | --- |
-| `{{COMPANY_NAME}}` | the registered name of the business publishing the app |
-| `{{COMPANY_ADDRESS}}` | its postal address |
+| `{{COMPANY_ADDRESS}}` | the postal address of DRS Softech |
 | `{{SUPPORT_EMAIL}}` | the address you will answer support on |
-| `{{COMPANY_JURISDICTION}}` | the city whose courts govern the terms, e.g. Gurugram |
 
-The support phone is already in: +91 70428 89134, as a `tel:` link with a
-WhatsApp link beside it, on every page that shows contact details.
+Already filled in: the publisher is **DRS Softech**, the terms are governed
+by the courts at **Gurugram**, and the support number is
+**+91 70428 89134** as a `tel:` link with a WhatsApp link beside it.
+
+The publisher name must match the entity that actually exists - the
+proprietorship, LLP or company that the Play developer account and the
+bank account belong to. If DRS Softech is a trading name over a
+proprietorship, say so in the address line, e.g. "DRS Softech, a
+proprietorship of <name>, <address>".
 
 From the repository root:
 
 ```bash
 cd website
 sed -i \
-  -e 's/{{COMPANY_NAME}}/DRS Enterprises/g' \
   -e 's/{{COMPANY_ADDRESS}}/Plot 1, Sector 1, Gurugram, Haryana 122001/g' \
   -e 's/{{SUPPORT_EMAIL}}/support@example.com/g' \
-  -e 's/{{COMPANY_JURISDICTION}}/Gurugram/g' \
   *.html
 grep -rn '{{' *.html || echo "nothing left to fill in"
 ```
