@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:godown_book/core/constants/default_terms.dart';
 import 'package:godown_book/core/constants/id_proof_types.dart';
 import 'package:godown_book/core/constants/sac_codes.dart';
+import 'package:godown_book/core/document_theme/pdf_page_kit.dart';
 import 'package:godown_book/features/billing/models/bill_model.dart';
 import 'package:godown_book/features/billing/models/payment_model.dart';
 import 'package:godown_book/features/billing/services/bill_pdf_service.dart';
@@ -134,6 +135,20 @@ void main() {
       expect(lr, contains("owner's risk"));
       expect(DefaultStorageTerms.lorryReceiptTerms(ownersRisk: false).join(' '),
           contains("carrier's risk"));
+    });
+  });
+
+  group('scan-to-pay on the bill', () {
+    test('the QR carries the amount due and the bill number', () {
+      final company = registered.copyWith(upiId1: 'testmovers@upi');
+      expect(
+        PdfPageKit.upiLink(company, amount: 4720, reference: 'Bill INV/2026/0001'),
+        'upi://pay?pa=testmovers@upi&pn=Test%20Movers&cu=INR&am=4720.00'
+        '&tn=Bill%20INV%2F2026%2F0001',
+      );
+      // A paid bill carries no amount, and a company without UPI no link.
+      expect(PdfPageKit.upiLink(company, amount: 0), isNot(contains('am=')));
+      expect(PdfPageKit.upiLink(registered), isNull);
     });
   });
 

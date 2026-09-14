@@ -77,7 +77,12 @@ class BillPdfService {
           pw.SizedBox(height: 6),
           _declaration(hasGst),
           pw.SizedBox(height: 6),
-          PdfPageKit.bankDetails(company, _style),
+          PdfPageKit.bankDetails(
+            company,
+            _style,
+            amount: bill.balanceDue,
+            reference: 'Bill ${bill.billNo}',
+          ),
           pw.SizedBox(height: 12),
           PdfPageKit.signatures(company, signature, _style, otherParties: const []),
         ],

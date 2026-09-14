@@ -323,7 +323,41 @@ class PdfPageKit {
 
   /// Bank/UPI details with a scannable UPI QR. Renders nothing when the
   /// company has configured neither.
-  static pw.Widget bankDetails(CompanyModel? company, DocumentThemeStyle style) {
+  /// The UPI deep link a payment app opens from the QR. With [amount]
+  /// the app comes up with the figure already filled in, and with
+  /// [reference] the bill number rides along as the transaction note,
+  /// so the money that arrives says which bill it is for.
+  static String? upiLink(
+    CompanyModel company, {
+    double? amount,
+    String reference = '',
+  }) {
+    final payee = company.upiId1.isNotEmpty
+        ? company.upiId1
+        : (company.googlePayNumber.isNotEmpty ? company.googlePayNumber : null);
+    if (payee == null) return null;
+
+    final name = Uri.encodeComponent(
+        company.companyName.isEmpty ? 'Payment' : company.companyName);
+    final buffer = StringBuffer('upi://pay?pa=$payee&pn=$name&cu=INR');
+    if (amount != null && amount > 0.004) {
+      buffer.write('&am=${amount.toStringAsFixed(2)}');
+    }
+    if (reference.trim().isNotEmpty) {
+      buffer.write('&tn=${Uri.encodeComponent(reference.trim())}');
+    }
+    return buffer.toString();
+  }
+
+  /// Bank and UPI details with a scan-to-pay QR. On a bill, pass the
+  /// balance due and the bill number: the QR then opens the customer's
+  /// payment app with the amount and the reference filled in.
+  static pw.Widget bankDetails(
+    CompanyModel? company,
+    DocumentThemeStyle style, {
+    double? amount,
+    String reference = '',
+  }) {
     if (company == null) return pw.SizedBox.shrink();
 
     final lines = <String>[
@@ -337,14 +371,10 @@ class PdfPageKit {
       if (company.phonePeNumber.isNotEmpty) 'PhonePe: ${company.phonePeNumber}',
     ];
 
-    final payee = company.upiId1.isNotEmpty
-        ? company.upiId1
-        : (company.googlePayNumber.isNotEmpty ? company.googlePayNumber : null);
-    final upiLink = payee == null
-        ? null
-        : 'upi://pay?pa=$payee&pn=${Uri.encodeComponent(company.companyName.isEmpty ? 'Payment' : company.companyName)}&cu=INR';
+    final link = upiLink(company, amount: amount, reference: reference);
+    final withAmount = amount != null && amount > 0.004;
 
-    if (lines.isEmpty && upiLink == null) return pw.SizedBox.shrink();
+    if (lines.isEmpty && link == null) return pw.SizedBox.shrink();
 
     final textColumn = pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -365,7 +395,7 @@ class PdfPageKit {
     return pw.Container(
       decoration: pw.BoxDecoration(border: pw.Border.all(color: black, width: 0.5)),
       padding: const pw.EdgeInsets.all(6),
-      child: upiLink == null
+      child: link == null
           ? textColumn
           : pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -375,14 +405,27 @@ class PdfPageKit {
                 pw.Column(
                   children: [
                     pw.BarcodeWidget(
-                      data: upiLink,
+                      data: link,
                       barcode: pw.Barcode.qrCode(),
-                      width: 46,
-                      height: 46,
+                      width: withAmount ? 64 : 46,
+                      height: withAmount ? 64 : 46,
                       drawText: false,
                     ),
                     pw.SizedBox(height: 2),
-                    pw.Text('Scan to Pay', style: const pw.TextStyle(fontSize: 6)),
+                    pw.Text(
+                      withAmount
+                          ? 'Scan to pay ${money(amount)}'
+                          : 'Scan to Pay',
+                      style: pw.TextStyle(
+                        fontSize: withAmount ? 7 : 6,
+                        fontWeight: withAmount ? pw.FontWeight.bold : null,
+                      ),
+                    ),
+                    if (withAmount)
+                      pw.Text(
+                        'Any UPI app - amount and bill no. fill in',
+                        style: const pw.TextStyle(fontSize: 5.5),
+                      ),
                   ],
                 ),
               ],
