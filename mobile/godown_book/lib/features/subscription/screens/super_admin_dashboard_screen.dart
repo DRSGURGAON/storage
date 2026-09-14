@@ -119,20 +119,26 @@ class _SuperAdminDashboardScreenState
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  // These figures come from getAllAcrossCompanies(),
+                  // which reads every company's subscription document
+                  // out of Firestore. The banner that used to sit here
+                  // said the opposite - that there was no cloud sync
+                  // and the numbers were this install's own - which
+                  // stopped being true when that method moved to
+                  // Firestore, and read as a fault on a screen that was
+                  // working correctly.
                   Card(
                     color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     child: const Padding(
                       padding: EdgeInsets.all(12),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline, size: 18),
+                          Icon(Icons.cloud_done_outlined, size: 18),
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'This device install has no cloud sync yet, '
-                              'so figures below reflect only this '
-                              'company. A future backend can connect '
-                              'multiple companies to this same view.',
+                              'Live figures for every company, read from '
+                              'the cloud. Pull down to refresh.',
                               style: TextStyle(fontSize: 12),
                             ),
                           ),
