@@ -7,3 +7,20 @@ coverage/
 .DS_Store
 apps/api/storage/
 *.tsbuildinfo
+
+# Credentials. Nothing matching these ever belongs in the repository:
+# signing keystores, Firebase service-account keys, and the per-machine
+# files that point at them. Keep the real files outside the checkout.
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+key.properties
+google-services.json
+GoogleService-Info.plist
+service-account*.json
+*-service-account.json
+serviceAccountKey*.json
+firebase-adminsdk*.json

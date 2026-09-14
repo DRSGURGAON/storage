@@ -53,38 +53,32 @@ jobs:
       - name: Test
         run: flutter test
 
-      # Firebase configuration. Both secrets are optional: without them
-      # the build still produces an installable artifact, but Phone
-      # sign-in will not work in it, which the step says plainly rather
-      # than failing later at runtime with no explanation.
+      # Production Firebase configuration. Required, not optional: a
+      # build without it installs and then cannot sign anybody in, and
+      # every artifact here is published as a release, so failing now is
+      # better than shipping one that looks fine and is not.
       - name: Write google-services.json
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GODOWN_BOOK_GOOGLE_SERVICES_JSON }}
         run: |
-          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
-            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
-            echo "google-services.json written."
-          else
-            echo "::warning::No GODOWN_BOOK_GOOGLE_SERVICES_JSON secret - building without Firebase; phone sign-in will not work in this build."
-            # A minimal placeholder so the Google Services plugin does
-            # not fail the build outright.
-            printf '%s' '{"project_info":{"project_number":"000000000000","project_id":"placeholder","storage_bucket":"placeholder.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:000000000000:android:0000000000000000","android_client_info":{"package_name":"com.drs.godownbook"}},"oauth_client":[],"api_key":[{"current_key":"placeholder"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}],"configuration_version":"1"}' > android/app/google-services.json
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::error::GODOWN_BOOK_GOOGLE_SERVICES_JSON is not set. See README, Firebase."
+            exit 1
           fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
 
       - name: Write firebase_options.dart
         env:
           FIREBASE_OPTIONS_DART: ${{ secrets.GODOWN_BOOK_FIREBASE_OPTIONS_DART }}
         run: |
-          if [ -n "$FIREBASE_OPTIONS_DART" ]; then
-            printf '%s' "$FIREBASE_OPTIONS_DART" > lib/firebase_options.dart
-            echo "firebase_options.dart written."
-          else
-            echo "::warning::No GODOWN_BOOK_FIREBASE_OPTIONS_DART secret - keeping the placeholder; the app will show its 'Could not connect' screen."
+          if [ -z "$FIREBASE_OPTIONS_DART" ]; then
+            echo "::error::GODOWN_BOOK_FIREBASE_OPTIONS_DART is not set; lib/firebase_options.dart would stay the placeholder."
+            exit 1
           fi
+          printf '%s' "$FIREBASE_OPTIONS_DART" > lib/firebase_options.dart
 
-      # Release signing. Without the keystore secrets the build falls
-      # back to debug signing (see android/app/build.gradle.kts) - fine
-      # for testing, not uploadable to Play.
+      # Release signing. The Play upload key lives only in the secrets;
+      # there is no key in the repository to fall back to.
       - name: Write the release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.GODOWN_BOOK_KEYSTORE_BASE64 }}
@@ -92,18 +86,69 @@ jobs:
           KEY_ALIAS: ${{ secrets.GODOWN_BOOK_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.GODOWN_BOOK_KEY_PASSWORD }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/godown-book.jks
-            {
-              echo "storeFile=godown-book.jks"
-              echo "storePassword=$KEYSTORE_PASSWORD"
-              echo "keyAlias=$KEY_ALIAS"
-              echo "keyPassword=$KEY_PASSWORD"
-            } > android/key.properties
-            echo "Release keystore written."
-          else
-            echo "::warning::No GODOWN_BOOK_KEYSTORE_BASE64 secret - this build is debug-signed and cannot be uploaded to Play."
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::GODOWN_BOOK_KEYSTORE_BASE64 is not set; the build would not be release-signed."
+            exit 1
           fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/godown-book.jks
+          {
+            echo "storeFile=godown-book.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > android/key.properties
+
+      # What the secrets actually contain is checked here rather than
+      # trusted: the wrong Firebase project, a leftover placeholder or a
+      # missing key all produce an artifact that looks releasable. Only
+      # the project id and package name are printed; neither is secret,
+      # both are readable in any published APK.
+      - name: Verify the release configuration
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, sys
+
+          PROJECT = 'storagebill-pro'
+          PACKAGE = 'com.drs.godownbook'
+          problems = []
+
+          services = json.loads(
+              pathlib.Path('android/app/google-services.json').read_text())
+          project = services.get('project_info', {}).get('project_id', '')
+          if project != PROJECT:
+              problems.append(
+                  f'google-services.json names project {project!r}, expected {PROJECT!r}')
+
+          packages = sorted({
+              client.get('client_info', {})
+                    .get('android_client_info', {})
+                    .get('package_name', '')
+              for client in services.get('client', [])
+          })
+          if PACKAGE not in packages:
+              problems.append(
+                  f'google-services.json has no client for {PACKAGE}; it has {packages}')
+
+          options = pathlib.Path('lib/firebase_options.dart').read_text()
+          if 'REPLACE_WITH_FLUTTERFIRE_CONFIGURE' in options:
+              problems.append('firebase_options.dart is still the placeholder')
+          if PROJECT not in options:
+              problems.append(f'firebase_options.dart does not name {PROJECT!r}')
+
+          if not pathlib.Path('android/key.properties').exists():
+              problems.append('android/key.properties is missing; the build would not be release-signed')
+          if pathlib.Path('android/dev-signing.jks').exists():
+              problems.append('android/dev-signing.jks is back; a published build must not use a test key')
+
+          for problem in problems:
+              print(f'::error::{problem}')
+          if problems:
+              sys.exit(1)
+
+          print(f'Firebase project: {project}')
+          print(f'Android package:  {PACKAGE}')
+          print('Signing:          release key from secrets')
+          PY
 
       # Every build gets a version code higher than the last one (the
       # workflow run number), so a phone takes each new APK as an update
@@ -133,7 +178,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: godown-book-appbundle
+          name: storagebill-pro-aab-build-${{ github.run_number }}
           path: mobile/godown_book/build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
 
@@ -218,11 +263,17 @@ jobs:
           PROJECT_ID: ${{ secrets.GODOWN_BOOK_FIREBASE_PROJECT_ID }}
         run: |
           if [ -z "$SERVICE_ACCOUNT" ] || [ -z "$PROJECT_ID" ]; then
-            echo "::warning::No GODOWN_BOOK_FIREBASE_SERVICE_ACCOUNT / GODOWN_BOOK_FIREBASE_PROJECT_ID secrets - firestore.rules not deployed. See README, Firebase."
-            exit 0
+            echo "::error::GODOWN_BOOK_FIREBASE_SERVICE_ACCOUNT / GODOWN_BOOK_FIREBASE_PROJECT_ID are not set; firestore.rules would stay as they are and the app's data would be unprotected."
+            exit 1
           fi
+          if [ "$PROJECT_ID" != "storagebill-pro" ]; then
+            echo "::error::GODOWN_BOOK_FIREBASE_PROJECT_ID is not storagebill-pro; refusing to deploy these rules to another project."
+            exit 1
+          fi
+          # The key is written outside the workspace, so it is never a
+          # build input and can never reach an artifact.
+          trap 'rm -f "$RUNNER_TEMP/firebase-sa.json"' EXIT
           printf '%s' "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
           npx --yes firebase-tools@15 deploy --only firestore:rules --project "$PROJECT_ID" --non-interactive
-          rm -f "$RUNNER_TEMP/firebase-sa.json"
           echo "firestore.rules deployed to $PROJECT_ID."

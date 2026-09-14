@@ -199,10 +199,10 @@ numbers and their codes live only in the console, never in the code.
 - Authentication, Settings, User actions: sign-up enabled, or a new
   number cannot create its account.
 - Project settings, Android app `com.drs.godownbook`: the SHA-1 and
-  SHA-256 of every key that signs a build you install - the CI test key
-  (`android/dev-signing.jks`), your own machine's key, and the Play App
-  Signing key once you publish. Without them Play Integrity cannot
-  vouch for the app and Firebase falls back to a browser reCAPTCHA.
+  SHA-256 of every key that signs a build you install - the release key
+  CI signs with, your own machine's debug key, and the Play App Signing
+  key once you publish. Without them Play Integrity cannot vouch for
+  the app and Firebase falls back to a browser reCAPTCHA.
 - `google-services.json` from that same app, in the
   `GODOWN_BOOK_GOOGLE_SERVICES_JSON` secret (never committed).
 
@@ -236,13 +236,13 @@ emulator.
 
 ### Installing a new build over the old one
 
-Every CI build is signed with the same test key (`android/dev-signing.jks`,
-checked in on purpose - it is not the Play key) and carries the workflow
-run number as its version code. So a new APK installs over the last one
-as an update: open it, tap Update, done - no uninstall, and the data on
-the phone stays. Settings shows which build is installed. The one
-exception is the first time: a build from before this key existed has to
-be uninstalled once.
+Every CI build is signed with the release key from the repository
+secrets and carries the workflow run number as its version code. So a
+new APK installs over the last one as an update: open it, tap Update,
+done - no uninstall, and the data on the phone stays. Settings shows
+which build is installed. The one exception is a change of signing key:
+a build made before the release key existed has to be uninstalled once,
+because Android refuses to replace an app with one signed differently.
 
 ### Signing a release build
 
@@ -264,8 +264,12 @@ keyAlias=godown
 keyPassword=<key password>
 ```
 
-Both files are gitignored. Without them the release build falls back to
-debug signing, which runs on a phone but cannot be uploaded to Play.
+Both files are gitignored, and so is every `*.jks`, `*.keystore` and
+service-account JSON anywhere in the repository. Keep the real keystore
+outside the checkout. Without `key.properties` a local release build
+falls back to debug signing, which runs on a phone but cannot be
+uploaded to Play; CI always has the real key, so every published build
+is release-signed.
 
 ```bash
 flutter build appbundle --release
@@ -275,17 +279,25 @@ flutter build appbundle --release
 
 `.github/workflows/godown-book-android.yml` analyses, tests and builds
 the app bundle and an APK on every push that touches the app, and on
-demand with a version name and code. It reads four optional secrets:
+demand with a version name and code. Every build is published as a
+release, so all of these secrets are required and the build fails
+without them rather than publishing an artifact nobody can sign in to:
 
 | Secret | What it is |
 | --- | --- |
 | `GODOWN_BOOK_GOOGLE_SERVICES_JSON` | Contents of `android/app/google-services.json` |
 | `GODOWN_BOOK_FIREBASE_OPTIONS_DART` | Contents of `lib/firebase_options.dart` |
-| `GODOWN_BOOK_KEYSTORE_BASE64` | The keystore, base64 encoded |
+| `GODOWN_BOOK_KEYSTORE_BASE64` | The release keystore, base64 encoded |
 | `GODOWN_BOOK_KEYSTORE_PASSWORD`, `GODOWN_BOOK_KEY_ALIAS`, `GODOWN_BOOK_KEY_PASSWORD` | Its passwords and alias |
+| `GODOWN_BOOK_FIREBASE_PROJECT_ID` | `storagebill-pro` |
+| `GODOWN_BOOK_FIREBASE_SERVICE_ACCOUNT` | The whole JSON of a service-account key, used only to deploy the rules |
 
-Without them the build still runs and still produces an artifact, and
-says plainly in the log what that artifact cannot do.
+What the secrets contain is checked before the build runs: the Firebase
+project must be `storagebill-pro`, the package must be
+`com.drs.godownbook`, `firebase_options.dart` must not still be the
+placeholder, and the release key must be present. The service-account
+key is written outside the workspace and deleted when the job ends, so
+it is never a build input and cannot reach an artifact.
 
 ## How it is put together
 
