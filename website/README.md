@@ -17,43 +17,33 @@ landing page people arrive on and the terms.
 `style.css` holds the whole design and uses the app's own palette, so the
 site and the phone look like one product. `icon.png` is the Play icon.
 
-## Before you publish: fill in five details
+## The contact details on the pages
 
-Every page carries the same placeholders. Nothing else needs editing.
+Filled in and live:
 
-| Placeholder | Put in |
+| Detail | Value |
 | --- | --- |
-| `{{COMPANY_ADDRESS}}` | the postal address of DRS Softech |
-| `{{SUPPORT_EMAIL}}` | the address you will answer support on |
+| Publisher | DRS Softech |
+| Support email | drssoftech.support@gmail.com |
+| Phone / WhatsApp | +91 70428 89134 (`tel:` link, WhatsApp link beside it) |
+| Governing law | the courts at Gurugram |
 
-Already filled in: the publisher is **DRS Softech**, the terms are governed
-by the courts at **Gurugram**, and the support number is
-**+91 70428 89134** as a `tel:` link with a WhatsApp link beside it.
+There is **no postal address on the pages yet**. Play does not require
+one, and email plus phone satisfies the contact requirement, so the site
+publishes without it. Add it when you have it: put a line back into the
+`contact-block` on `privacy.html`, `terms.html` and `delete-account.html`,
+and a `Post:` line in `support.html`.
 
 The publisher name must match the entity that actually exists - the
-proprietorship, LLP or company that the Play developer account and the
-bank account belong to. If DRS Softech is a trading name over a
-proprietorship, say so in the address line, e.g. "DRS Softech, a
-proprietorship of <name>, <address>".
+proprietorship, LLP or company the Play developer account and the bank
+account belong to. If DRS Softech is a trading name over a
+proprietorship, write it that way when you add the address: "DRS Softech,
+a proprietorship of <name>, <address>".
 
-From the repository root:
-
-```bash
-cd website
-sed -i \
-  -e 's/{{COMPANY_ADDRESS}}/Plot 1, Sector 1, Gurugram, Haryana 122001/g' \
-  -e 's/{{SUPPORT_EMAIL}}/support@example.com/g' \
-  *.html
-grep -rn '{{' *.html || echo "nothing left to fill in"
-```
-
-On Windows, open each file and use Replace All instead. The last line is
-the check: it should print `nothing left to fill in`.
-
-Read the pages once after replacing. The privacy policy describes what the
-app actually does today - phone sign-in, records on the device, a cloud
-backup, no advertising, no data sold - so it only needs changing when the
-app changes.
+Read the pages once before submitting them to Play. The privacy policy
+describes what the app actually does today - phone sign-in, records on
+the device, a cloud backup, no advertising, no data sold - so it only
+needs changing when the app changes.
 
 ## Publishing it
 
