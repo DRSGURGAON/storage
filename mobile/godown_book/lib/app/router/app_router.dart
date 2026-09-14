@@ -317,6 +317,13 @@ class AppRouter {
       ),
 
       GoRoute(
+        path: '/agreements',
+        builder: (context, state) => const StorageBookingListScreen(
+          paper: BookingDocumentKind.agreement,
+        ),
+      ),
+
+      GoRoute(
         path: '/storage-create',
         builder: (context, state) => StorageBookingFormScreen(
           openVoice: state.extra == 'voice',

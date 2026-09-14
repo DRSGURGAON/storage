@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../../core/constants/id_proof_types.dart';
 import '../../../core/document_theme/document_theme.dart';
 import '../../../core/document_theme/pdf_page_kit.dart';
 import '../../company/models/company_model.dart';
@@ -233,7 +234,7 @@ class AuthorityLetterPdfService {
         children: [
           line('Name', details.personName),
           line('Mobile', details.personPhone),
-          line('ID proof shown', details.personIdProof),
+          line('ID proof shown', IdProofTypes.masked(details.personIdProof)),
           line('Relation to me', details.relation),
           line('Goods', _goodsLine(b)),
         ],

@@ -206,6 +206,15 @@ class QuotationPdfService {
               pw.SizedBox(height: 6),
               pw.Text(q.notes.trim(), style: const pw.TextStyle(fontSize: 7.5)),
             ],
+            pw.SizedBox(height: 6),
+            pw.Text(
+              q.gstAmount > 0
+                  ? 'This is a quotation, not a tax invoice. GST is shown '
+                      'separately above; the tax invoice follows the work.'
+                  : 'This is a quotation, not a tax invoice. GST at the '
+                      'applicable rate is extra unless shown as included.',
+              style: const pw.TextStyle(fontSize: 6.5),
+            ),
           ],
         ),
       ),

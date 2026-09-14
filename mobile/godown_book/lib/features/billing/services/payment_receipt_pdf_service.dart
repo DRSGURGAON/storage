@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../../core/constants/default_terms.dart';
 import '../../../core/document_terms/document_terms_repository.dart';
 import '../../../core/document_theme/document_theme.dart';
 import '../../../core/document_theme/pdf_box_row.dart';
@@ -59,10 +60,18 @@ class PaymentReceiptPdfService {
           pw.SizedBox(height: 8),
           _amountBand(payment),
           pw.SizedBox(height: 8),
-          _detailBox(payment, bill, balanceAfter),
-          if (_customTerms.isNotEmpty) ...[
-            pw.SizedBox(height: 6),
-            PdfPageKit.terms('Note :-', _customTerms, _style),
+          _detailBox(payment, bill, balanceAfter, company),
+          pw.SizedBox(height: 6),
+          PdfPageKit.terms(
+            'Note :-',
+            _customTerms.isNotEmpty
+                ? _customTerms
+                : DefaultStorageTerms.receiptTerms.join('\n'),
+            _style,
+          ),
+          if (payment.needsRevenueStamp) ...[
+            pw.SizedBox(height: 8),
+            _revenueStamp(),
           ],
           pw.SizedBox(height: 16),
           PdfPageKit.signatures(
@@ -107,11 +116,13 @@ class PaymentReceiptPdfService {
   String _meaning(PaymentModel payment, BillModel? bill) =>
       switch (payment.paymentType) {
         PaymentType.advance =>
-          'Advance received against storage charges. It will be adjusted '
-              'in the bill raised for the storage period. This voucher is '
-              'not a tax invoice.',
+          'Advance received against storage charges (SAC 996729). It will '
+              'be adjusted in the tax invoice raised for the storage period. '
+              'Issued as a receipt voucher under Rule 50 of the CGST Rules, '
+              '2017; this voucher is not a tax invoice.',
         PaymentType.creditNote => bill != null
-            ? 'This credit note reduces the amount payable against Bill '
+            ? 'This credit note is issued under section 34 of the CGST Act, '
+                '2017 and reduces the amount payable against Invoice '
                 '${bill.billNo}. No money has changed hands.'
             : 'This credit note reduces the amount payable on the '
                 'customer\'s account. No money has changed hands.',
@@ -202,14 +213,67 @@ class PaymentReceiptPdfService {
     );
   }
 
-  pw.Widget _detailBox(PaymentModel payment, BillModel? bill, double? balanceAfter) {
+  /// A receipt for cash above Rs. 5,000 needs a one-rupee revenue stamp
+  /// (Indian Stamp Act, 1899, Schedule I, Article 53) - a box on the
+  /// paper for it, so it is not forgotten.
+  pw.Widget _revenueStamp() {
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.end,
+      children: [
+        pw.Container(
+          width: 80,
+          height: 48,
+          alignment: pw.Alignment.center,
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfPageKit.black, width: 0.5),
+          ),
+          child: pw.Text(
+            'Affix Re. 1\nRevenue Stamp\n(cash above Rs. 5,000)',
+            textAlign: pw.TextAlign.center,
+            style: const pw.TextStyle(fontSize: 6),
+          ),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _detailBox(
+    PaymentModel payment,
+    BillModel? bill,
+    double? balanceAfter,
+    CompanyModel? company,
+  ) {
     final meaning = _meaning(payment, bill);
     final noteLabel = payment.isCreditNote ? 'Reason' : 'Note';
+    final hasGst = (company?.gstNumber ?? '').trim().isNotEmpty;
+
+    // A credit note against a taxed invoice credits tax as well as
+    // value, and Rule 53 wants both shown, with the invoice it reduces.
+    final gstOnNote = payment.isCreditNote && bill != null && bill.gstPercent > 0
+        ? payment.amount - payment.amount / (1 + bill.gstPercent / 100)
+        : 0.0;
 
     return pw.Container(
       decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfPageKit.black, width: 0.7)),
       child: pw.Column(
         children: [
+          if (payment.isCreditNote && bill != null) ...[
+            PdfPageKit.gridRow('Against Invoice',
+                '${bill.billNo} dated ${PdfPageKit.date(bill.billDate)}', _style),
+            if (gstOnNote > 0.004) ...[
+              PdfPageKit.gridRow('Taxable Value Credited',
+                  PdfPageKit.money(payment.amount - gstOnNote), _style),
+              PdfPageKit.gridRow(
+                  'GST Credited (${bill.gstPercent.toStringAsFixed(2)}%)',
+                  PdfPageKit.money(gstOnNote),
+                  _style),
+            ],
+          ],
+          if (payment.paymentType == PaymentType.advance && hasGst) ...[
+            PdfPageKit.gridRow('Place of Supply', (company?.state ?? '').trim().isEmpty
+                ? '-' : company!.state.trim(), _style),
+            PdfPageKit.gridRow('Reverse Charge', 'No', _style),
+          ],
           if (bill != null) ...[
             PdfPageKit.gridRow('Bill Total', PdfPageKit.money(bill.grandTotal), _style),
             PdfPageKit.gridRow('Received / Credited Against This Bill',

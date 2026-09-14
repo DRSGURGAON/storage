@@ -90,6 +90,37 @@ class IdProofTypes {
     return IdProof(type: other, customType: s);
   }
 
+  /// The stored form with the number masked for printing - only the
+  /// last four characters stay readable: "Aadhaar Card XXXX XXXX 1234".
+  ///
+  /// A full Aadhaar number must not be printed or displayed by anyone
+  /// who collects it (Aadhaar (Sharing of Information) Regulations,
+  /// 2016, reg. 6), and no customer wants their PAN on a paper that is
+  /// handed around a godown. The record keeps the full number; every
+  /// paper shows the masked one.
+  static String masked(String stored) {
+    final proof = parse(stored);
+    return IdProofTypes.combine(proof.effectiveType, maskNumber(proof.number));
+  }
+
+  /// Keeps the last four letters or digits, replaces every earlier one
+  /// with X, and leaves spaces and dashes where they were.
+  static String maskNumber(String number) {
+    final n = number.trim();
+    final chars = n.split('');
+    var keep = 4;
+    for (var i = chars.length - 1; i >= 0; i--) {
+      final isAlnum = RegExp('[A-Za-z0-9]').hasMatch(chars[i]);
+      if (!isAlnum) continue;
+      if (keep > 0) {
+        keep--;
+      } else {
+        chars[i] = 'X';
+      }
+    }
+    return chars.join();
+  }
+
   /// Writes the single-string form back. Empty when nothing was given.
   static String combine(String type, String number) {
     final t = type.trim();

@@ -171,6 +171,13 @@ class PaymentModel {
 
   bool get isCreditNote => paymentType == PaymentType.creditNote;
 
+  /// A receipt for cash of more than Rs. 5,000 has to carry a one-rupee
+  /// revenue stamp (Indian Stamp Act, 1899, Schedule I, Article 53).
+  /// Money that came by bank, UPI, card or cheque needs none, and a
+  /// credit note or a refund is not a receipt.
+  bool get needsRevenueStamp =>
+      mode == PaymentMode.cash && amount > 5000 && paymentType.isCashIn;
+
   PaymentModel copyWith({
     String? id,
     String? receiptNo,

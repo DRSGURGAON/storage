@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../../core/constants/id_proof_types.dart';
 import '../../../core/constants/default_terms.dart';
 import '../../../core/document_terms/document_terms_repository.dart';
 import '../../../core/document_theme/document_theme.dart';
@@ -127,7 +128,7 @@ class StorageReceiptPdfService {
             PdfPageKit.kv('Mobile', b.customerPhone, _style),
             PdfPageKit.kv('GST No.', b.customerGst.isEmpty ? 'N/A' : b.customerGst, _style),
             PdfPageKit.kv('Address', b.customerFullAddress, _style),
-            PdfPageKit.kv('ID Proof', b.customerIdProof, _style),
+            PdfPageKit.kv('ID Proof', IdProofTypes.masked(b.customerIdProof), _style),
           ],
         ),
       ),
@@ -279,7 +280,7 @@ class StorageReceiptPdfService {
             ? _customTerms
             : (company?.defaultTerms.trim().isNotEmpty ?? false)
                 ? company!.defaultTerms.trim()
-                : DefaultStorageTerms.terms.join('\n');
+                : DefaultStorageTerms.storageReceiptTerms.join('\n');
     return PdfPageKit.terms('Terms & Conditions :-', terms, _style);
   }
 

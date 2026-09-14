@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../../core/constants/id_proof_types.dart';
 import '../../../core/constants/default_terms.dart';
 import '../../../core/document_terms/document_terms_repository.dart';
 import '../../../core/document_theme/document_theme.dart';
@@ -121,7 +122,7 @@ class StorageAgreementPdfService {
                   if (b.customerFullAddress.isNotEmpty) ', ${b.customerFullAddress}',
                   if (b.customerPhone.isNotEmpty) ', Mobile ${b.customerPhone}',
                   if (b.customerGst.isNotEmpty) ', GSTIN ${b.customerGst}',
-                  if (b.customerIdProof.isNotEmpty) ', ID ${b.customerIdProof}',
+                  if (b.customerIdProof.isNotEmpty) ', ID ${IdProofTypes.masked(b.customerIdProof)}',
                 ].join(),
               ),
               const pw.TextSpan(

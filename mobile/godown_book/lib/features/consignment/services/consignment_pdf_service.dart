@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../../core/constants/default_terms.dart';
 import '../../../core/document_theme/document_theme.dart';
 import '../../../core/document_theme/pdf_box_row.dart';
 import '../../../core/document_theme/pdf_page_kit.dart';
@@ -418,19 +419,9 @@ class ConsignmentPdfService {
   pw.Widget _lrTerms(ConsignmentModel c) {
     final terms = c.terms.trim().isNotEmpty
         ? c.terms.trim()
-        : [
-            'Goods are accepted on the basis of the count and description '
-                'declared by the consignor; the contents of packed items have '
-                'not been checked.',
-            'Goods travel at ${c.riskBasis == RiskBasis.carrier ? "the carrier's risk as agreed" : "the owner's risk"} '
-                'and are not insured by the carrier unless stated above.',
-            'Delivery will be given to the consignee named above, or to a '
-                'person authorised by them in writing, after freight and other '
-                'charges are paid.',
-            'Any claim for loss or damage must be made in writing, and the '
-                'consignee should note any shortage or damage on this receipt '
-                'at the time of delivery.',
-          ].join('\n');
+        : DefaultStorageTerms.lorryReceiptTerms(
+            ownersRisk: c.riskBasis != RiskBasis.carrier,
+          ).join('\n');
 
     return PdfPageKit.terms('Terms :-', terms, _style);
   }

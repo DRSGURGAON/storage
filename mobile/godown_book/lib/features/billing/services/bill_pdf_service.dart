@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../../core/constants/default_terms.dart';
+import '../../../core/constants/sac_codes.dart';
 import '../../../core/document_terms/document_terms_repository.dart';
 import '../../../core/document_theme/document_theme.dart';
 import '../../../core/document_theme/pdf_box_row.dart';
@@ -12,6 +14,14 @@ import '../models/bill_model.dart';
 
 /// The storage bill - what the customer owes for a period, and what is
 /// still outstanding after whatever they have already paid.
+///
+/// When the company is registered under GST the same paper is its tax
+/// invoice, and carries every particular Rule 46 of the CGST Rules,
+/// 2017 asks for: the GSTINs, a serial number, the date, the SAC of
+/// each service, the taxable value, the rate and amount of each tax,
+/// the place of supply, whether tax is on reverse charge, and the
+/// signature. A registered supplier with no tax on the bill issues a
+/// bill of supply instead, and the title says which it is.
 class BillPdfService {
   BillPdfService._();
 
@@ -40,7 +50,11 @@ class BillPdfService {
     final signature = await PdfPageKit.loadImage(company?.signaturePath ?? '');
 
     final hasGst = (company?.gstNumber ?? '').trim().isNotEmpty;
-    final title = hasGst && bill.gstAmount > 0 ? 'TAX INVOICE' : 'STORAGE BILL';
+    final title = !hasGst
+        ? 'STORAGE BILL'
+        : bill.gstAmount > 0
+            ? 'TAX INVOICE'
+            : 'BILL OF SUPPLY';
 
     document.addPage(
       pw.MultiPage(
@@ -53,16 +67,16 @@ class BillPdfService {
         footer: (context) => PdfPageKit.footer(context, company, leftLabel: 'Storage Bill'),
         build: (context) => [
           ...PdfPageKit.top(company, logo, _style, title),
-          _infoRow(bill),
+          _infoRow(bill, company, hasGst),
           pw.SizedBox(height: 6),
-          _linesTable(bill),
+          _linesTable(bill, hasGst),
           pw.SizedBox(height: 6),
           _totalsRow(bill, previousBalance),
           pw.SizedBox(height: 6),
-          if (_termsText(bill, company).isNotEmpty) ...[
-            PdfPageKit.terms('Terms & Conditions :-', _termsText(bill, company), _style),
-            pw.SizedBox(height: 6),
-          ],
+          PdfPageKit.terms('Terms & Conditions :-', _termsText(bill, company), _style),
+          pw.SizedBox(height: 6),
+          _declaration(hasGst),
+          pw.SizedBox(height: 6),
           PdfPageKit.bankDetails(company, _style),
           pw.SizedBox(height: 12),
           PdfPageKit.signatures(company, signature, _style, otherParties: const []),
@@ -75,24 +89,56 @@ class BillPdfService {
 
   String _termsText(BillModel bill, CompanyModel? company) {
     if (_customTerms.isNotEmpty) return _customTerms;
-    return (company?.defaultTerms ?? '').trim();
+    final own = (company?.defaultTerms ?? '').trim();
+    return own.isNotEmpty ? own : DefaultStorageTerms.billTerms.join('\n');
   }
 
-  pw.Widget _infoRow(BillModel bill) {
+  /// Where the service is supplied - the customer's state, with its GST
+  /// state code when the customer's GSTIN gives one; else the godown's
+  /// own state, because the goods sit there.
+  String _placeOfSupply(BillModel bill, CompanyModel? company) {
+    final state = bill.customerState.trim().isNotEmpty
+        ? bill.customerState.trim()
+        : (company?.state ?? '').trim();
+    final code = SacCodes.stateCodeOf(bill.customerGst).isNotEmpty
+        ? SacCodes.stateCodeOf(bill.customerGst)
+        : SacCodes.stateCodeOf(company?.gstNumber ?? '');
+    if (state.isEmpty) return '-';
+    return code.isEmpty ? state : '$state ($code)';
+  }
+
+  pw.Widget _declaration(bool hasGst) {
+    return pw.Text(
+      hasGst
+          ? 'Declaration: We declare that this invoice shows the actual price '
+              'of the services described and that all particulars are true and '
+              'correct. Original for Recipient. E. & O. E.'
+          : 'Declaration: This bill shows the actual charges for the services '
+              'described and all particulars are true and correct. E. & O. E.',
+      style: const pw.TextStyle(fontSize: 6.5),
+    );
+  }
+
+  pw.Widget _infoRow(BillModel bill, CompanyModel? company, bool hasGst) {
     return PdfBoxRow.equal(gap: 4, [
       pw.Container(
         decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfPageKit.black, width: 0.7)),
         child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            PdfPageKit.boxHead('BILL', _style),
-            PdfPageKit.gridRow('Bill No.', bill.billNo, _style, bold: true),
-            PdfPageKit.gridRow('Bill Date', PdfPageKit.date(bill.billDate), _style, bold: true),
+            PdfPageKit.boxHead(hasGst ? 'INVOICE' : 'BILL', _style),
+            PdfPageKit.gridRow(hasGst ? 'Invoice No.' : 'Bill No.', bill.billNo, _style, bold: true),
+            PdfPageKit.gridRow(hasGst ? 'Invoice Date' : 'Bill Date',
+                PdfPageKit.date(bill.billDate), _style, bold: true),
             PdfPageKit.gridRow(
               'Due Date',
               bill.dueDate.isEmpty ? 'On receipt' : PdfPageKit.date(bill.dueDate),
               _style,
             ),
+            if (hasGst) ...[
+              PdfPageKit.gridRow('Place of Supply', _placeOfSupply(bill, company), _style),
+              PdfPageKit.gridRow('Reverse Charge', 'No', _style),
+            ],
             PdfPageKit.gridRow('Status', bill.derivedStatus.label, _style, isLast: true),
           ],
         ),
@@ -105,8 +151,11 @@ class BillPdfService {
           children: [
             PdfPageKit.kv('Name', bill.customerName, _style),
             PdfPageKit.kv('Mobile', bill.customerPhone, _style),
-            if (bill.customerGst.trim().isNotEmpty)
-              PdfPageKit.kv('GST No.', bill.customerGst, _style),
+            PdfPageKit.kv(
+              'GSTIN',
+              bill.customerGst.trim().isEmpty ? 'Unregistered' : bill.customerGst,
+              _style,
+            ),
             PdfPageKit.kv('Address', bill.customerFullAddress, _style),
           ],
         ),
@@ -140,7 +189,7 @@ class BillPdfService {
     ]);
   }
 
-  pw.Widget _linesTable(BillModel bill) {
+  pw.Widget _linesTable(BillModel bill, bool hasGst) {
     final rows = <List<String>>[];
     for (var i = 0; i < bill.lines.length; i++) {
       final line = bill.lines[i];
@@ -148,6 +197,7 @@ class BillPdfService {
         '${i + 1}',
         line.chargeName,
         line.description,
+        if (hasGst) SacCodes.forCharge(line.chargeName),
         PdfPageKit.qty(line.quantity),
         line.rate.toStringAsFixed(2),
         line.amount.toStringAsFixed(2),
@@ -155,26 +205,40 @@ class BillPdfService {
     }
 
     return PdfPageKit.table(
-      const ['Sr.', 'Charge', 'Details', 'Qty', 'Rate', 'Amount'],
+      ['Sr.', 'Charge', 'Details', if (hasGst) 'SAC', 'Qty', 'Rate', 'Amount'],
       rows,
       _style,
-      columnWidths: const {
-        0: pw.FixedColumnWidth(22),
-        1: pw.FlexColumnWidth(2),
-        2: pw.FlexColumnWidth(3.4),
-        3: pw.FixedColumnWidth(38),
-        4: pw.FixedColumnWidth(52),
-        5: pw.FixedColumnWidth(62),
-      },
-      aligns: const [
+      columnWidths: hasGst
+          ? const {
+              0: pw.FixedColumnWidth(22),
+              1: pw.FlexColumnWidth(2),
+              2: pw.FlexColumnWidth(3),
+              3: pw.FixedColumnWidth(40),
+              4: pw.FixedColumnWidth(34),
+              5: pw.FixedColumnWidth(52),
+              6: pw.FixedColumnWidth(62),
+            }
+          : const {
+              0: pw.FixedColumnWidth(22),
+              1: pw.FlexColumnWidth(2),
+              2: pw.FlexColumnWidth(3.4),
+              3: pw.FixedColumnWidth(38),
+              4: pw.FixedColumnWidth(52),
+              5: pw.FixedColumnWidth(62),
+            },
+      aligns: [
         pw.TextAlign.center,
         pw.TextAlign.left,
         pw.TextAlign.left,
+        if (hasGst) pw.TextAlign.center,
         pw.TextAlign.right,
         pw.TextAlign.right,
         pw.TextAlign.right,
       ],
-      totals: ['', 'Subtotal', '', '', '', bill.subtotal.toStringAsFixed(2)],
+      totals: [
+        '', 'Subtotal', '', if (hasGst) '', '', '',
+        bill.subtotal.toStringAsFixed(2),
+      ],
     );
   }
 
@@ -221,6 +285,8 @@ class BillPdfService {
             PdfPageKit.gridRow('Subtotal', PdfPageKit.money(bill.subtotal), _style),
             if (bill.discountValue > 0)
               PdfPageKit.gridRow('Discount', '- ${PdfPageKit.money(bill.discountValue)}', _style),
+            if (bill.gstAmount > 0)
+              PdfPageKit.gridRow('Taxable Value', PdfPageKit.money(bill.taxableBase), _style),
             if (bill.cgstAmount > 0) ...[
               PdfPageKit.gridRow('CGST (${(bill.gstPercent / 2).toStringAsFixed(2)}%)',
                   PdfPageKit.money(bill.cgstAmount), _style),

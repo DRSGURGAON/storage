@@ -11,7 +11,12 @@ import '../repositories/storage_booking_repository.dart';
 import 'storage_booking_pdf_screen.dart';
 
 class StorageBookingListScreen extends ConsumerStatefulWidget {
-  const StorageBookingListScreen({super.key});
+  /// When set, the list is a register of that paper: tapping a record
+  /// opens the paper itself, and there is no "New Storage" button. The
+  /// dashboard's Agreements tile is this list with the agreement.
+  final BookingDocumentKind? paper;
+
+  const StorageBookingListScreen({super.key, this.paper});
 
   @override
   ConsumerState<StorageBookingListScreen> createState() =>
@@ -52,7 +57,7 @@ class _StorageBookingListScreenState
           onPressed: () =>
               context.canPop() ? context.pop() : context.go('/dashboard'),
         ),
-        title: const Text('Storage'),
+        title: Text(widget.paper == null ? 'Storage' : '${widget.paper!.title}s'),
         centerTitle: true,
         actions: [
           IconButton(
@@ -62,14 +67,16 @@ class _StorageBookingListScreenState
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await context.push('/storage-create');
-          ref.invalidate(storageBookingListProvider);
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('New Storage'),
-      ),
+      floatingActionButton: widget.paper != null
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () async {
+                await context.push('/storage-create');
+                ref.invalidate(storageBookingListProvider);
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('New Storage'),
+            ),
       body: Column(
         children: [
           Padding(
@@ -117,10 +124,13 @@ class _StorageBookingListScreenState
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 96),
                     itemCount: list.length,
-                    itemBuilder: (context, index) =>
-                        _BookingTile(booking: list[index], onChanged: () {
-                      ref.invalidate(storageBookingListProvider);
-                    }),
+                    itemBuilder: (context, index) => _BookingTile(
+                      booking: list[index],
+                      paper: widget.paper,
+                      onChanged: () {
+                        ref.invalidate(storageBookingListProvider);
+                      },
+                    ),
                   ),
                 );
               },
@@ -134,9 +144,14 @@ class _StorageBookingListScreenState
 
 class _BookingTile extends StatelessWidget {
   final StorageBookingModel booking;
+  final BookingDocumentKind? paper;
   final VoidCallback onChanged;
 
-  const _BookingTile({required this.booking, required this.onChanged});
+  const _BookingTile({
+    required this.booking,
+    required this.onChanged,
+    this.paper,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -171,7 +186,11 @@ class _BookingTile extends StatelessWidget {
           ],
         ),
         onTap: () async {
-          await context.push('/storage-detail', extra: b.id);
+          if (paper != null) {
+            await context.push('/storage-pdf', extra: {'id': b.id, 'kind': paper!.name});
+          } else {
+            await context.push('/storage-detail', extra: b.id);
+          }
           onChanged();
         },
       ),

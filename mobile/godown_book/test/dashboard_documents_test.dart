@@ -59,6 +59,7 @@ void main() {
     expect(find.text('All documents'), findsNWidgets(2), reason: 'the section and its tile');
     for (final label in [
       'Storage records',
+      'Agreements',
       'Bills',
       'Payments',
       'Quotations',

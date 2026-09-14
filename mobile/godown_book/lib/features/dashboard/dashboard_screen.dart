@@ -841,6 +841,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final documents = <_Action>[
       _Action('Storage records', Icons.inventory_2_outlined, Brand.mintSoft,
           Brand.mintInk, () => _open('/storage')),
+      _Action('Agreements', Icons.handshake_outlined, Brand.mintSoft,
+          Brand.mintInk, () => _open('/agreements')),
       _Action('Customers', Icons.people_outline, Brand.skySoft, Brand.skyInk,
           () => _open('/customers')),
       _Action('Bills', Icons.receipt_long_outlined, Brand.amberSoft, Brand.amberInk,

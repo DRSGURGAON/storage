@@ -47,7 +47,9 @@ left alone on purpose.
 | Would rather talk than type | Speaks a storage entry, a bill, a payment or a quotation in Hindi or English; the form fills itself and waits to be checked |
 
 Used personal and household effects need no e-way bill, and the bilty
-and the challan say so on the paper.
+and the challan say so on the paper. What each paper has to carry by
+law, and where the app prints it, is in
+[docs/legal-compliance.md](docs/legal-compliance.md).
 
 ### Filling the form by speaking
 

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../../core/constants/id_proof_types.dart';
 import '../../../core/document_terms/document_terms_repository.dart';
 import '../../../core/document_theme/document_theme.dart';
 import '../../../core/document_theme/pdf_box_row.dart';
@@ -122,7 +123,7 @@ class ReleasePdfService {
             PdfPageKit.kv('Mobile', r.customerPhone, _style),
             PdfPageKit.kv('Collected By', r.collectedByName, _style),
             PdfPageKit.kv('Collector Mobile', r.collectedByPhone, _style),
-            PdfPageKit.kv('ID Shown', r.collectedByIdProof, _style),
+            PdfPageKit.kv('ID Shown', IdProofTypes.masked(r.collectedByIdProof), _style),
           ],
         ),
       ),

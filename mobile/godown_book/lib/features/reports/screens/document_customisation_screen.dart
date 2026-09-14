@@ -83,10 +83,19 @@ class _DocumentCustomisationScreenState
         // What this document currently prints - same resolution order
         // as the PDF services themselves.
         var effective = custom.isNotEmpty ? custom : companyDefault;
-        if (effective.isEmpty &&
-            (code == DocumentTermsType.storageReceipt ||
-                code == DocumentTermsType.storageAgreement)) {
-          effective = DefaultStorageTerms.terms.join('\n');
+        if (effective.isEmpty) {
+          effective = switch (code) {
+            DocumentTermsType.storageReceipt =>
+              DefaultStorageTerms.storageReceiptTerms.join('\n'),
+            DocumentTermsType.storageAgreement =>
+              DefaultStorageTerms.terms.join('\n'),
+            DocumentTermsType.quotation =>
+              DefaultStorageTerms.quotationTerms.join('\n'),
+            DocumentTermsType.bill => DefaultStorageTerms.billTerms.join('\n'),
+            DocumentTermsType.moneyReceipt =>
+              DefaultStorageTerms.receiptTerms.join('\n'),
+            _ => '',
+          };
         }
 
         _initialJoined[code] = _joinPoints(_splitPoints(effective));
