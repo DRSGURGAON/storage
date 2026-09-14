@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/permissions/permission_service.dart';
+import '../../auth/phone_number_input.dart';
 import '../models/role_model.dart';
 import '../models/user_model.dart';
 import '../repositories/role_repository.dart';
@@ -146,17 +147,31 @@ class _UsersRolesScreenState extends State<UsersRolesScreen> {
       ),
     );
 
-    if (confirmed != true ||
-        nameController.text.trim().isEmpty ||
-        mobileController.text.trim().isEmpty ||
-        selectedRole == null) {
+    final name = nameController.text.trim();
+    final typedMobile = mobileController.text.trim();
+    nameController.dispose();
+    mobileController.dispose();
+
+    if (confirmed != true || name.isEmpty || selectedRole == null) return;
+
+    // Sign-in is by mobile number, so a wrong digit here means that
+    // person can never be recognised on this phone and nothing would
+    // ever explain why. Same rule as the login screen.
+    final mobile = PhoneNumberInput.normalise(typedMobile);
+    if (mobile == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a valid 10-digit mobile number.'),
+        ),
+      );
       return;
     }
 
     try {
       await UserRepository.instance.createUser(
-        name: nameController.text.trim(),
-        mobileNumber: mobileController.text.trim(),
+        name: name,
+        mobileNumber: mobile,
         roleId: selectedRole!.id,
       );
       if (!mounted) return;
@@ -193,6 +208,8 @@ class _UsersRolesScreenState extends State<UsersRolesScreen> {
         ],
       ),
     );
+
+    controller.dispose();
 
     if (name == null || name.trim().isEmpty) return;
 
@@ -275,6 +292,34 @@ class _UsersRolesScreenState extends State<UsersRolesScreen> {
                       ),
                     ),
                   ),
+
+                const SizedBox(height: 12),
+
+                // Users and roles are not part of the cloud backup and
+                // are resolved from the number signed in on THIS phone
+                // (PermissionService). Someone signing in on their own
+                // phone gets their own empty company, so say that here
+                // rather than let an owner assume otherwise.
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Icon(Icons.phone_android_outlined, size: 18),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'These roles apply to people using this phone. '
+                            'Someone signing in on their own phone starts a '
+                            'separate, empty company - they do not see this '
+                            'godown\'s records.',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
 
                 const SizedBox(height: 12),
 

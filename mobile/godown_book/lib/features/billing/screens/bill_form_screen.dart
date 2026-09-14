@@ -142,6 +142,14 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
   static String _num(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
 
+  /// Never DateTime.parse on a stored string: one unreadable date must
+  /// not stop the storage picker from opening.
+  String _billedUptoLabel(String raw) {
+    final date = DateTime.tryParse(raw);
+    if (date == null) return '';
+    return '  •  billed to ${_dateFormat.format(date)}';
+  }
+
   @override
   void dispose() {
     for (final c in [_customerName, _customerPhone, _customerGst, _discount, _gstPercent, _notes]) {
@@ -402,7 +410,7 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
                 subtitle: Text(
                   booking.rentRate > 0
                       ? '₹${_num(booking.rentRate)} ${booking.rentBasis.rateHint}'
-                          '${booking.rentBilledUpto.isEmpty ? '' : '  •  billed to ${_dateFormat.format(DateTime.parse(booking.rentBilledUpto))}'}'
+                          '${_billedUptoLabel(booking.rentBilledUpto)}'
                       : 'No rate set',
                 ),
                 onTap: () => Navigator.pop(sheetContext, booking),
@@ -607,6 +615,29 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
     if (_lines.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Add at least one charge.')),
+      );
+      return;
+    }
+
+    // 180 is a plausible double-tap of 18 and would be applied
+    // verbatim; a discount above the subtotal silently clamps the bill
+    // to zero (BillModel) with nothing on screen to explain it.
+    final gst = _parse(_gstPercent);
+    if (gst < 0 || gst > 100) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('GST % must be between 0 and 100.')),
+      );
+      return;
+    }
+
+    final draftBill = _compose();
+    if (draftBill.discountValue > draftBill.subtotal) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'The discount is more than the bill - the total would be zero.',
+          ),
+        ),
       );
       return;
     }

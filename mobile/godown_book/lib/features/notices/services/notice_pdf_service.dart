@@ -110,7 +110,7 @@ class NoticePdfService {
   pw.Widget _subject(NoticeModel n) {
     final about = n.bookingNo.trim().isEmpty
         ? 'storage charges outstanding'
-        : 'storage charges outstanding on Storage Receipt ${n.bookingNo}';
+        : 'storage charges outstanding - Storage Receipt ${n.bookingNo}';
 
     return pw.Text(
       'Subject: ${n.kind.label} - $about',
@@ -133,11 +133,14 @@ class NoticePdfService {
     final paragraphs = <String>[];
 
     paragraphs.add(
+      // The figure is the balance on the customer's whole account, not
+      // on one storage receipt, so the sentence must not pin it to the
+      // receipt number it names.
       'Your goods are lying in our godown'
       '${n.bookingNo.trim().isEmpty ? '' : ' against Storage Receipt ${n.bookingNo}'}'
       '. As on $asOn, an amount of $amount '
       '(${AmountInWords.convert(n.amountDue)}) is outstanding towards storage '
-      'charges.',
+      'charges on your account with us.',
     );
 
     switch (n.kind) {

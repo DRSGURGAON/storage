@@ -96,7 +96,9 @@ class RentRollPdfService {
             PdfPageKit.date(roll.rows[i].since),
             '${roll.rows[i].daysInside(roll.asOn)}',
             roll.rows[i].rate > 0
-                ? '${PdfPageKit.qty(roll.rows[i].rate)} ${roll.rows[i].rateUnit}'
+                // A rate is money, so it prints like money - qty() drops
+                // the rupee sign and the paise.
+                ? '${PdfPageKit.money(roll.rows[i].rate)} ${roll.rows[i].rateUnit}'
                 : 'As agreed',
             PdfPageKit.qty(roll.rows[i].packagesLeft),
             roll.rows[i].billedUpto.isEmpty ? 'Not yet' : PdfPageKit.date(roll.rows[i].billedUpto),

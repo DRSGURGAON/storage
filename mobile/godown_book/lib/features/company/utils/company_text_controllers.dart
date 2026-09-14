@@ -21,6 +21,7 @@ class CompanyTextControllers {
 
   final whatsapp = TextEditingController();
   final landline = TextEditingController();
+  final tollFree = TextEditingController();
 
   final email = TextEditingController();
   final website = TextEditingController();
@@ -90,6 +91,7 @@ class CompanyTextControllers {
 
     whatsapp.dispose();
     landline.dispose();
+    tollFree.dispose();
 
     email.dispose();
     website.dispose();

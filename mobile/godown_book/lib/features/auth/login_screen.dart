@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../app/widgets/primary_button.dart';
 import '../../core/auth/auth_session.dart';
 import '../../core/constants/app_build.dart';
+import '../../core/constants/platform_defaults.dart';
 import 'phone_number_input.dart';
 import 'services/otp_auth_service.dart';
 
@@ -43,10 +44,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  static const _privacyPolicyUrl = 'https://godownbook.netlify.app/#legal';
-
   Future<void> _openPrivacyPolicy(BuildContext context) async {
-    final uri = Uri.parse(_privacyPolicyUrl);
+    final uri = Uri.parse(PlatformDefaults.privacyPolicyUrl);
     try {
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened && context.mounted) _say('Could not open Privacy Policy.');

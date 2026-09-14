@@ -149,7 +149,16 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
     _rentUnitLabel.text = d.rentUnitLabel;
     _areaSqft.text = d.areaSqft == 0 ? '' : _num(d.areaSqft);
     _securityDeposit.text = d.securityDeposit == 0 ? '' : _num(d.securityDeposit);
-    _totalPackages.text = d.totalPackages == 0 ? '' : '${d.totalPackages}';
+    // The box is an override, not a store of the derived count. If the
+    // saved figure is simply the sum of the items, leave it empty so it
+    // keeps following the items - otherwise adding an item to a saved
+    // record would still print the old package count.
+    final packagesFromItems =
+        d.items.fold(0.0, (sum, i) => sum + i.quantity).round();
+    _totalPackages.text =
+        (d.totalPackages == 0 || d.totalPackages == packagesFromItems)
+            ? ''
+            : '${d.totalPackages}';
     _goodsDescription.text = d.goodsDescription;
     _declaredValue.text = d.declaredValue == 0 ? '' : _num(d.declaredValue);
     _insuranceNote.text = d.insuranceNote;
@@ -697,6 +706,18 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                   decoration: voiceDecoration(
                     'Rent (₹ ${_rentBasis.rateHint})',
                     VoiceFieldKind.rent,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // What the receipt prints after the rent figure. Blank
+                // falls back to what the rent basis means, which is
+                // what StorageBookingModel.rentUnit does.
+                TextField(
+                  textInputAction: TextInputAction.next,
+                  controller: _rentUnitLabel,
+                  decoration: InputDecoration(
+                    labelText: 'Rent wording (optional)',
+                    hintText: _rentBasis.rateHint,
                   ),
                 ),
                 const SizedBox(height: 12),

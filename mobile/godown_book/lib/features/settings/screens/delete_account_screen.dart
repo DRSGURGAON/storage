@@ -250,6 +250,10 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
           'Remove your cloud-synced company profile and cloud document '
           'backup',
         ),
+        const _Bullet(
+          'Remove the identity documents you uploaded for verification '
+          '(PAN and the second ID)',
+        ),
         const SizedBox(height: 12),
         const Text(
           'What stays on this device:',

@@ -92,6 +92,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
 
     c.whatsapp.text = company.whatsappNumber;
     c.landline.text = company.landline;
+    c.tollFree.text = company.tollFree;
 
     c.email.text = company.email;
     c.website.text = company.website;
@@ -163,12 +164,15 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
 
       whatsappNumber: c.whatsapp.text.trim(),
       landline: c.landline.text.trim(),
+      tollFree: c.tollFree.text.trim(),
 
       email: c.email.text.trim(),
       website: c.website.text.trim(),
 
-      gstNumber: c.gst.text.trim(),
-      panNumber: c.pan.text.trim(),
+      // Stored upper-case, the way CompanyValidation checks them and
+      // the way they must read on an invoice.
+      gstNumber: c.gst.text.trim().toUpperCase(),
+      panNumber: c.pan.text.trim().toUpperCase(),
       msmeNumber: c.msme.text.trim(),
       isoCertificate: c.iso.text.trim(),
 
@@ -202,8 +206,12 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
       // Not edited on this screen (Reports -> Customise Documents owns
       // it) - carried forward so saving here doesn't wipe it.
       footerText2: _existingCompany?.footerText2 ?? '',
-
-      createdAt: DateTime.now().toIso8601String(),
+      // The company was created once; saving settings must not restamp
+      // that date (it is mirrored to Firestore as the profile's own
+      // createdAt).
+      createdAt: _existingCompany?.createdAt.isNotEmpty == true
+          ? _existingCompany!.createdAt
+          : DateTime.now().toIso8601String(),
       updatedAt: DateTime.now().toIso8601String(),
     );
   }
@@ -223,6 +231,19 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
     // These fields are printed verbatim on every Warehouse Receipt/Bill/
     // Letterhead - CompanyValidation already defines the correct format
     // checks for each, they just weren't being called before a save.
+    // Address and Mobile 1 are what CompanyModel.isConfigured tests, so
+    // without them every PDF is blocked later with no hint as to why -
+    // catch them here, where the user can still fix it.
+    final missingRequired =
+        CompanyValidation.requiredField(c.address.text, 'the company address') ??
+            CompanyValidation.mobile(c.mobile1.text.trim());
+    if (missingRequired != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(missingRequired)),
+      );
+      return;
+    }
+
     final formatError = CompanyValidation.email(c.email.text.trim()) ??
         CompanyValidation.gst(c.gst.text.trim()) ??
         CompanyValidation.pan(c.pan.text.trim()) ??
@@ -422,6 +443,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
                 mobile4Controller: c.mobile4,
                 whatsappController: c.whatsapp,
                 landlineController: c.landline,
+                tollFreeController: c.tollFree,
                 emailController: c.email,
               ),
 
@@ -505,9 +527,6 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
                       const SizedBox(height: 4),
                       Text(
                         "Controls the look of every generated document - "
-                        "Warehouse Receipt, Inventory List, Storage Agreement, "
-                        "Delivery Order, Gate Pass, Rent Bill, Money Receipt, "
-                        "Statement, Letter Head and Company Card - "
                         "not the data or totals on any of them.",
                         style: Theme.of(
                           context,
@@ -593,14 +612,29 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
 
               const SizedBox(height: 16),
 
-              LivePreviewCard(
-                companyName: c.companyName.text,
-                address: c.address.text,
-                mobile: c.mobile1.text,
-                email: c.email.text,
-                website: c.website.text,
-                gst: c.gst.text,
-                logoPath: logoPath,
+              // Rebuilt on every keystroke in any field it shows -
+              // without the listener it only refreshed when something
+              // else happened to call setState, so "Live" was a lie.
+              ListenableBuilder(
+                listenable: Listenable.merge([
+                  c.companyName,
+                  c.address,
+                  c.mobile1,
+                  c.email,
+                  c.website,
+                  c.gst,
+                  c.tagLine,
+                ]),
+                builder: (context, _) => LivePreviewCard(
+                  companyName: c.companyName.text,
+                  address: c.address.text,
+                  mobile: c.mobile1.text,
+                  email: c.email.text,
+                  website: c.website.text,
+                  gst: c.gst.text,
+                  tagLine: c.tagLine.text,
+                  logoPath: logoPath,
+                ),
               ),
 
               const SizedBox(height: 24),

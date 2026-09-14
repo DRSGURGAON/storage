@@ -263,7 +263,10 @@ class StorageReceiptPdfService {
         padding: const pw.EdgeInsets.symmetric(vertical: 12, horizontal: 6),
         child: pw.Text(
           b.securityDeposit > 0
-              ? 'Deposit received: ${AmountInWords.convert(b.securityDeposit)}'
+              // securityDeposit is the AGREED figure on the storage
+              // record, not money banked - a deposit receipt is a
+              // separate document, and may not exist yet.
+              ? 'Security deposit agreed: ${AmountInWords.convert(b.securityDeposit)}'
               : 'Rent is billed ${b.rentBasis == RentBasis.daily ? 'per day' : 'monthly'} from ${PdfPageKit.date(b.storageStartDate)}',
           textAlign: pw.TextAlign.center,
           style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: _style.primary),

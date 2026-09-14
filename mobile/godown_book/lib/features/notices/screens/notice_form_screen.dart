@@ -106,7 +106,14 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
         _payBy = DateTime.tryParse(existing.payByDate) ?? _payBy;
         _note.text = existing.bodyNote;
       } else {
-        _amount.text = due > 0.004 ? due.toStringAsFixed(0) : '';
+        // A notice is a demand: rounding 12,345.67 up to 12,346 asks
+        // for more than the ledger says is owed. Same formatting as
+        // the edit path above.
+        _amount.text = due > 0.004
+            ? (due == due.roundToDouble()
+                ? due.toStringAsFixed(0)
+                : due.toStringAsFixed(2))
+            : '';
       }
       _loading = false;
     });
@@ -252,11 +259,15 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
               icon: const Icon(Icons.event_outlined, size: 18),
               label: Text('Pay by ${_dateFormat.format(_payBy)}'),
               onPressed: () async {
+                // Editing a notice whose pay-by date has already passed
+                // must still open the picker: showDatePicker asserts
+                // when initialDate is before firstDate.
+                final now = DateTime.now();
                 final picked = await showDatePicker(
                   context: context,
                   initialDate: _payBy,
-                  firstDate: DateTime.now(),
-                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                  firstDate: _payBy.isBefore(now) ? _payBy : now,
+                  lastDate: now.add(const Duration(days: 365)),
                 );
                 if (picked != null) setState(() => _payBy = picked);
               },

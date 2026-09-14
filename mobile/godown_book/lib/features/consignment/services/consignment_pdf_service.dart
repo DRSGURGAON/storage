@@ -307,8 +307,12 @@ class ConsignmentPdfService {
       ],
       totals: [
         '',
-        'Total packages',
-        '${c.totalPackages}',
+        'Total',
+        // The totals row sits under the Qty column, so it has to be
+        // that column's own sum. The declared package count is printed
+        // in the LOAD box, where it belongs - the two can differ, and a
+        // checkpost counts this one.
+        PdfPageKit.qty(c.items.fold(0.0, (sum, i) => sum + i.quantity)),
         '',
         '',
       ],
@@ -333,14 +337,26 @@ class ConsignmentPdfService {
               line('Other charges', PdfPageKit.money(c.otherCharges)),
             if (c.advancePaid > 0.004)
               line('Advance paid', PdfPageKit.money(c.advancePaid)),
-            PdfPageKit.gridRow(
-              c.freightBasis == FreightBasis.paid ? 'Paid' : 'Balance to pay',
-              PdfPageKit.money(
-                  c.freightBasis == FreightBasis.paid ? c.freightTotal : c.freightBalance),
-              _style,
-              bold: true,
-              isLast: true,
-            ),
+            // With "to be billed" there is nothing for the consignee to
+            // pay on delivery - printing a balance here would invite him
+            // to pay freight that is also going on the storage bill.
+            if (c.freightBasis == FreightBasis.toBeBilled)
+              PdfPageKit.gridRow(
+                'To pay on delivery',
+                'To be billed',
+                _style,
+                bold: true,
+                isLast: true,
+              )
+            else
+              PdfPageKit.gridRow(
+                c.freightBasis == FreightBasis.paid ? 'Paid' : 'Balance to pay',
+                PdfPageKit.money(
+                    c.freightBasis == FreightBasis.paid ? c.freightTotal : c.freightBalance),
+                _style,
+                bold: true,
+                isLast: true,
+              ),
           ],
         ),
       ),

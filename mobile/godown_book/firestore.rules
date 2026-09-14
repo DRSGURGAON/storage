@@ -249,7 +249,13 @@ service cloud.firestore {
             && unchanged('companyId')
             && incoming().status == 'PENDING');
 
-      allow delete: if isSuperAdmin();
+      // A Super Admin may clear any submission; the owner may delete
+      // their own, which is what makes "Delete Account" honest - the
+      // PAN and second ID uploaded here are the most sensitive thing
+      // the app stores in the cloud, and account deletion has to take
+      // them with it.
+      allow delete: if isSuperAdmin()
+        || (signedIn() && existing().ownerUid == request.auth.uid);
     }
 
     // ==========================

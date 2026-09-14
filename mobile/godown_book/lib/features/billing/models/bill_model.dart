@@ -236,13 +236,21 @@ class BillModel {
   }
 
   BillModel recalculated({required bool interState}) {
-    final tax = taxableBase * gstPercent / 100;
+    // Round once, here. Every figure on the invoice is printed to two
+    // decimals independently, so an unrounded half-split can put the
+    // printed CGST + SGST a paisa away from the printed total.
+    final tax = _paise(taxableBase * gstPercent / 100);
+    final half = _paise(tax / 2);
     return copyWith(
-      cgstAmount: interState ? 0 : tax / 2,
-      sgstAmount: interState ? 0 : tax / 2,
+      cgstAmount: interState ? 0 : half,
+      // The odd paisa goes on SGST rather than being lost, so the two
+      // halves always add back to the tax on the bill.
+      sgstAmount: interState ? 0 : _paise(tax - half),
       igstAmount: interState ? tax : 0,
     );
   }
+
+  static double _paise(double value) => (value * 100).roundToDouble() / 100;
 
   BillModel copyWith({
     String? id,

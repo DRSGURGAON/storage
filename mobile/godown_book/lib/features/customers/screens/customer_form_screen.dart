@@ -7,6 +7,7 @@ import '../models/customer_model.dart';
 import '../repositories/customer_repository.dart';
 import '../../../core/constants/id_proof_types.dart';
 import '../../../shared/widgets/id_proof_field.dart';
+import '../../company/utils/company_validation.dart';
 
 /// Add / edit one customer. Pops with `true` after a successful save so
 /// the list refreshes.
@@ -87,6 +88,15 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
       c.dispose();
     }
     super.dispose();
+  }
+
+  /// A customer may genuinely have no number on file, but a number
+  /// that IS typed has to be a real one - it is what the WhatsApp
+  /// share and every reminder go to.
+  String? _optionalMobile(String? value) {
+    final typed = (value ?? '').trim();
+    if (typed.isEmpty) return null;
+    return CompanyValidation.mobile(typed);
   }
 
   Future<void> _save() async {
@@ -175,6 +185,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                     controller: _mobile,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(labelText: 'Mobile number'),
+                    validator: _optionalMobile,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -182,6 +193,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                     controller: _altMobile,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(labelText: 'Alternate mobile'),
+                    validator: _optionalMobile,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -189,6 +201,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(labelText: 'Email'),
+                    validator: CompanyValidation.email,
                   ),
                   const SizedBox(height: 20),
                   _section('Address'),
@@ -216,6 +229,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                           controller: _pincode,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(labelText: 'Pincode'),
+                          validator: CompanyValidation.pincode,
                         ),
                       ),
                     ],
@@ -229,6 +243,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                     controller: _gst,
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(labelText: 'GST number'),
+                    validator: CompanyValidation.gst,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -236,6 +251,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                     controller: _pan,
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(labelText: 'PAN'),
+                    validator: CompanyValidation.pan,
                   ),
                   const SizedBox(height: 12),
                   IdProofField(

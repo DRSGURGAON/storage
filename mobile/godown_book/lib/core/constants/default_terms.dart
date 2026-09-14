@@ -89,9 +89,8 @@ class DefaultStorageTerms {
         'document of title, and cannot be pledged or transferred by '
         'endorsement.',
     'A copy of the depositor\'s ID proof is kept only to verify identity '
-        'at release, is not shared with anyone else, and is deleted when '
-        'the record is closed, except where the law requires it to be '
-        'kept.',
+        'at release and is not shared with anyone else. It is retained '
+        'with this storage record for as long as the record is kept.',
     'Notices will be sent to the address, mobile number and email given '
         'by the depositor on this document, and will be treated as '
         'received. Any change must be informed in writing.',

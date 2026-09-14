@@ -137,8 +137,12 @@ class NoDuesPdfService {
         if (balance.credited > 0.004)
           'credit notes of ${PdfPageKit.money(balance.credited)}',
       ];
+      // balance.* is the customer's whole account, not this storage
+      // receipt alone (balanceForCustomer), so the sentence says so
+      // rather than pinning the figure to "this period".
       paragraphs.add(
-        'All storage charges and other charges for this period, totalling '
+        'All storage charges and other charges on the customer\'s account '
+        'with us, totalling '
         '${PdfPageKit.money(balance.billed)} '
         '(${AmountInWords.convert(balance.billed)}), have been settled in '
         'full${settledBy.isEmpty ? '' : ' by ${settledBy.join(' and ')}'}. '
@@ -195,7 +199,7 @@ class NoDuesPdfService {
       ),
       child: pw.Column(
         children: [
-          PdfPageKit.boxHead('ACCOUNT SUMMARY', _style),
+          PdfPageKit.boxHead('ACCOUNT SUMMARY (WHOLE ACCOUNT)', _style),
           PdfPageKit.gridRow('Total Billed', PdfPageKit.money(balance.billed), _style),
           PdfPageKit.gridRow('Total Received', PdfPageKit.money(balance.received), _style),
           if (balance.credited > 0.004)

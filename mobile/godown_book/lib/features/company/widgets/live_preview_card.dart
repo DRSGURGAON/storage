@@ -11,6 +11,7 @@ class LivePreviewCard extends StatelessWidget {
     required this.email,
     required this.website,
     required this.gst,
+    required this.tagLine,
     required this.logoPath,
   });
 
@@ -20,6 +21,7 @@ class LivePreviewCard extends StatelessWidget {
   final String email;
   final String website;
   final String gst;
+  final String tagLine;
   final String? logoPath;
 
   @override
@@ -105,9 +107,18 @@ class LivePreviewCard extends StatelessWidget {
 
                   const Divider(height: 30),
 
-                  const Text(
-                    "Premium Packers & Movers Services",
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                  // The real letterhead prints company.tagLine here
+                  // (DocumentHeader), so the preview shows that and not
+                  // a fixed line the user's paper would never carry.
+                  Text(
+                    tagLine.trim().isEmpty
+                        ? "Your tagline (optional)"
+                        : tagLine.trim(),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: tagLine.trim().isEmpty ? Colors.grey : null,
+                    ),
                   ),
 
                   const SizedBox(height: 6),

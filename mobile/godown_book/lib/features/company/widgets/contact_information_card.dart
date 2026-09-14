@@ -9,6 +9,7 @@ class ContactInformationCard extends StatelessWidget {
     required this.mobile4Controller,
     required this.whatsappController,
     required this.landlineController,
+    required this.tollFreeController,
     required this.emailController,
   });
 
@@ -18,6 +19,7 @@ class ContactInformationCard extends StatelessWidget {
   final TextEditingController mobile4Controller;
   final TextEditingController whatsappController;
   final TextEditingController landlineController;
+  final TextEditingController tollFreeController;
   final TextEditingController emailController;
 
   @override
@@ -117,6 +119,21 @@ class ContactInformationCard extends StatelessWidget {
                 labelText: "Landline",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.call),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Printed in the document header beside the mobile numbers
+            // (DocumentHeader), so it needs somewhere to be typed.
+            TextField(
+              textInputAction: TextInputAction.next,
+              controller: tollFreeController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: "Toll Free Number",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.support_agent),
               ),
             ),
 

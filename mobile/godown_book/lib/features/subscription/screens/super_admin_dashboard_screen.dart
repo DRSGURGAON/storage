@@ -10,17 +10,11 @@ import '../repositories/subscription_repository.dart';
 
 /// Section 14's Super Admin Dashboard.
 ///
-/// IMPORTANT ARCHITECTURAL LIMITATION (Option 3, explicitly confirmed):
-/// this app has no backend/cloud-sync layer - each device install has
-/// its own local SQLite database, and CompanyDao's own single-row
-/// pattern means exactly one company's data can ever exist in it. So
-/// "TOTAL COMPANIES" below is always the current install's own single
-/// company (0 or 1), not a genuinely cross-company count - the
-/// repository calls underneath this screen are written the way a real
-/// multi-company query would be (see SubscriptionRepository.
-/// getAllAcrossCompanies()'s own doc comment), ready for a future
-/// central backend without needing this screen to change, but that
-/// backend does not exist yet.
+/// WHERE THE FIGURES COME FROM: the company tiles are genuinely
+/// cross-company, read from Firestore through SubscriptionRepository.
+/// getAllAcrossCompanies(). "Pending Payments" is the exception - it
+/// reads payment_transactions from THIS device's local SQLite, so it
+/// counts only in-app submissions made on this phone.
 ///
 /// SECURITY NOTE: the router's own redirect guard (AppRouter's
 /// _superAdminRoutes) is the primary protection against a normal user
@@ -137,8 +131,10 @@ class _SuperAdminDashboardScreenState
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Live figures for every company, read from '
-                              'the cloud. Pull down to refresh.',
+                              'Company figures are live for every company, '
+                              'read from the cloud. Pull down to refresh. '
+                              'Pending Payments counts only submissions made '
+                              'on this device.',
                               style: TextStyle(fontSize: 12),
                             ),
                           ),

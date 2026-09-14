@@ -204,6 +204,16 @@ class AuthSessionNotifier extends StateNotifier<AuthSessionState> {
             .doc(user.uid)
             .delete()
             .timeout(const Duration(seconds: 8));
+
+        // The KYC submission holds the uploaded PAN and second ID -
+        // the most sensitive thing this app ever puts in the cloud -
+        // and lives outside companies/{uid}, so it needs its own
+        // delete or it would survive the account it belongs to.
+        await FirebaseFirestore.instance
+            .collection('kycSubmissions')
+            .doc(companyId)
+            .delete()
+            .timeout(const Duration(seconds: 8));
       } catch (error) {
         // A failed cloud-doc delete must not block the user from
         // genuinely deleting their own Auth account - the Firestore

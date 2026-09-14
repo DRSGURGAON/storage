@@ -368,8 +368,20 @@ class BillingRepository {
       }
     }
 
-    final priced =
-        bill.copyWith(customerId: customerId).recalculated(interState: interState);
+    // A supplier with no GSTIN cannot collect GST. The bill form offers
+    // the GST % field regardless, so drop the rate here rather than
+    // printing CGST/SGST on a paper that carries no GSTIN in its
+    // letterhead. Only once a profile exists: before the company is
+    // set up there is nothing to judge, and no PDF can be printed
+    // either (CompanyModel.isConfigured).
+    final registered =
+        company == null || company.gstNumber.trim().isNotEmpty;
+    final priced = bill
+        .copyWith(
+          customerId: customerId,
+          gstPercent: registered ? bill.gstPercent : 0,
+        )
+        .recalculated(interState: interState);
 
     final existing = await _dao.getBillById(bill.id);
     if (existing != null) {
@@ -762,9 +774,7 @@ class BillingRepository {
         entry: StatementEntry(
           date: bill.billDate,
           reference: bill.billNo,
-          particulars: bill.periodFrom.isEmpty
-              ? 'Storage bill'
-              : 'Storage bill for ${_short(bill.periodFrom)} to ${_short(bill.periodTo)}',
+          particulars: _billParticulars(bill),
           debit: bill.grandTotal,
         ),
       ));
@@ -808,7 +818,11 @@ class BillingRepository {
         balance += row.entry.debit - row.entry.credit;
         continue;
       }
-      if (to != null && date != null && date.isAfter(to)) continue;
+      // The picker hands us midnight, while bills and receipts are
+      // stored with the time of day they were made - so the window has
+      // to run to the END of the "to" date or everything dated on it
+      // falls out of the statement and out of its closing balance.
+      if (to != null && date != null && date.isAfter(_endOfDay(to))) continue;
 
       balance += row.entry.debit - row.entry.credit;
       entries.add(StatementEntry(
@@ -840,6 +854,20 @@ class BillingRepository {
       if (date != null && date.isBefore(from)) balance -= payment.amount;
     }
     return balance;
+  }
+
+  /// The last instant of the given day, so a date-only window keeps
+  /// everything recorded on its closing date.
+  static DateTime _endOfDay(DateTime day) =>
+      DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
+
+  /// "Storage bill for 01 Sep 2026 to " is what a one-sided period
+  /// used to print - name the period only when both ends are there.
+  static String _billParticulars(BillModel bill) {
+    final from = DateTime.tryParse(bill.periodFrom);
+    final to = DateTime.tryParse(bill.periodTo);
+    if (from == null || to == null) return 'Storage bill';
+    return 'Storage bill for ${_short(bill.periodFrom)} to ${_short(bill.periodTo)}';
   }
 
   static String _short(String iso) {

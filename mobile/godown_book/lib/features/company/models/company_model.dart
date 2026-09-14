@@ -132,11 +132,18 @@ class CompanyModel {
       address.trim().isNotEmpty &&
       mobile1.trim().isNotEmpty;
 
-  /// Fields still to be filled, shown to the user so they know what to fix.
+  /// The blocking fields only - exactly what [isConfigured] tests, so
+  /// the list a user is shown is the list that actually unblocks the
+  /// PDF. Anything else that improves a document but does not stop it
+  /// printing belongs in [recommendedFields].
   List<String> get missingFields => [
     if (companyName.trim().isEmpty) 'Company name',
     if (address.trim().isEmpty) 'Address',
     if (mobile1.trim().isEmpty) 'Mobile number',
+  ];
+
+  /// Worth filling in, but documents print without them.
+  List<String> get recommendedFields => [
     if (gstNumber.trim().isEmpty) 'GST number',
     if (logoPath.trim().isEmpty) 'Logo',
     if (beneficiaryName.trim().isEmpty) 'Bank details',

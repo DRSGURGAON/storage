@@ -180,12 +180,12 @@ class _CloudBackupScreenState extends State<CloudBackupScreen> {
                   Expanded(
                     child: Text(
                       'Backup runs automatically every few minutes while '
-                      'the app is open. All your documents - Warehouse '
-                      'Receipt, Delivery Order, Rent Bill, Money Receipt, '
-                      'customers, locations and '
-                      'Cards and customised Terms - are saved to your '
+                      'the app is open. Your storage receipts, delivery '
+                      'orders, rent bills, money receipts, quotations, '
+                      'notices, damage reports, bilties, customers, '
+                      'locations and customised terms are saved to your '
                       'account in the cloud. On a new phone, sign in with '
-                      'the same mobile number and everything comes back.',
+                      'the same mobile number and they come back.',
                       style: TextStyle(fontSize: 12),
                     ),
                   ),
@@ -240,9 +240,10 @@ class _CloudBackupScreenState extends State<CloudBackupScreen> {
           const SizedBox(height: 16),
 
           Text(
-            'Note: photos (survey photos, employee card photos, company '
-            'logo/signature/stamp images) stay on this device and are '
-            'not part of the cloud backup yet.',
+            'Not in the backup: goods photos, customer signature images, '
+            'your company logo/signature/stamp, charge heads, and users '
+            'and roles. They stay on this device and have to be set up '
+            'again on a new phone.',
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.outline),
           ),

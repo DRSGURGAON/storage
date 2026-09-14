@@ -32,9 +32,8 @@ class CompanyNotConfigured extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'The document letterhead, GST number, bank details and '
-              'signature all come from Company Settings. Right now the PDF '
-              'would print blank.',
+              'The document letterhead comes from Company Settings. Until '
+              'the details below are filled in, the PDF would print blank.',
             ),
             if (missing.isNotEmpty) ...[
               const SizedBox(height: 16),

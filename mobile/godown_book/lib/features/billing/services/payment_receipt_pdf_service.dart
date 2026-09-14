@@ -79,11 +79,7 @@ class PaymentReceiptPdfService {
             company,
             signature,
             _style,
-            otherParties: [
-              payment.isCreditNote
-                  ? 'Customer (Acknowledged)'
-                  : 'Received From (Signature)',
-            ],
+            otherParties: [_signatureParty(payment)],
           ),
         ],
       ),
@@ -91,6 +87,25 @@ class PaymentReceiptPdfService {
 
     return document.save();
   }
+
+  /// The band across the top says which way the money went. A refund
+  /// printed as "AMOUNT RECEIVED" has the customer signing for money he
+  /// was paid, which is the opposite of what happened.
+  String _bandLabel(PaymentModel payment) => switch (payment.paymentType) {
+        PaymentType.creditNote => 'AMOUNT CREDITED',
+        PaymentType.depositRefund => 'AMOUNT REFUNDED',
+        PaymentType.depositAdjusted => 'AMOUNT ADJUSTED',
+        _ => 'AMOUNT RECEIVED',
+      };
+
+  /// Who signs, and for what. On a refund the godown is the one paying
+  /// out, so the customer acknowledges receipt of the money.
+  String _signatureParty(PaymentModel payment) => switch (payment.paymentType) {
+        PaymentType.creditNote => 'Customer (Acknowledged)',
+        PaymentType.depositAdjusted => 'Customer (Acknowledged)',
+        PaymentType.depositRefund => 'Received By (Signature)',
+        _ => 'Received From (Signature)',
+      };
 
   /// A deposit is not a payment and money going back is not a receipt -
   /// the paper has to say which one it is.
@@ -192,7 +207,7 @@ class PaymentReceiptPdfService {
             padding: const pw.EdgeInsets.symmetric(vertical: 8),
             alignment: pw.Alignment.center,
             child: pw.Text(
-              '${payment.isCreditNote ? 'AMOUNT CREDITED' : 'AMOUNT RECEIVED'}  '
+              '${_bandLabel(payment)}  '
               '${PdfPageKit.money(payment.amount)}',
               style: pw.TextStyle(
                 fontSize: 14,

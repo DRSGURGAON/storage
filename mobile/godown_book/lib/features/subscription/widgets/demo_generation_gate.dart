@@ -31,8 +31,8 @@ class DemoGenerationGate extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'You have $remaining free copy'
-              '${remaining == 1 ? '' : 'ies'} left of this document.',
+              'You have $remaining free '
+              '${remaining == 1 ? 'copy' : 'copies'} left of this document.',
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 4),

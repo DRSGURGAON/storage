@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_build.dart';
+import '../../../core/constants/platform_defaults.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -15,10 +16,8 @@ import '../../../core/subscription/super_admin_scope.dart';
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
-  static const _privacyPolicyUrl = 'https://godownbook.netlify.app/#legal';
-
   Future<void> _openPrivacyPolicy(BuildContext context) async {
-    final uri = Uri.parse(_privacyPolicyUrl);
+    final uri = Uri.parse(PlatformDefaults.privacyPolicyUrl);
 
     try {
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -151,7 +150,7 @@ class SettingsScreen extends ConsumerWidget {
               leading: const Icon(Icons.admin_panel_settings_outlined),
               title: const Text('Users & Roles'),
               subtitle: const Text(
-                'Manage who can access the app and what they can do',
+                'Roles for the people who use this phone',
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/users-roles'),
@@ -190,7 +189,8 @@ class SettingsScreen extends ConsumerWidget {
               leading: const Icon(Icons.folder_open_outlined),
               title: const Text('All Documents'),
               subtitle: const Text(
-                'Quotations, storage receipts, bills, payment receipts, releases',
+                'Quotations, storage receipts, bills, receipts, releases, '
+                'credit notes, notices, damage reports and bilties',
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.go('/documents'),
@@ -299,11 +299,6 @@ class SettingsScreen extends ConsumerWidget {
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Column(
               children: [
-                const ListTile(
-                  leading: Icon(Icons.info_outline),
-                  title: Text('App Version'),
-                  subtitle: Text('1.0.0'),
-                ),
                 ListTile(
                   leading: const Icon(Icons.privacy_tip_outlined),
                   title: const Text('Privacy Policy'),

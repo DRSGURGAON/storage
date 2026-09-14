@@ -55,7 +55,9 @@ class AgedOutstandingPdfService {
           pw.Text(
             'Age is counted from the due date on each bill, or from the bill '
             'date when no due date was set. Amounts are the balance still '
-            'unpaid after receipts and credit notes.',
+            'unpaid on each bill after receipts and credit notes applied to '
+            'it. Money received on account, not yet applied to any bill, is '
+            'not netted off here - the customer statement shows it.',
             style: const pw.TextStyle(fontSize: 6.5),
           ),
         ],

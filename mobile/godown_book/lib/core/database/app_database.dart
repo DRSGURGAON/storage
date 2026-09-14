@@ -1,6 +1,7 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../constants/platform_defaults.dart';
 import '../permissions/permission.dart';
 import 'database_constants.dart';
 import 'migrations.dart';
@@ -326,13 +327,18 @@ class AppDatabase {
 
     if (existing.isNotEmpty) return;
 
+    // The four contact fields are seeded from PlatformDefaults, not
+    // left blank: SubscriptionSettingsModel.fromMap reads the stored
+    // value verbatim, so a blank seed would override the shipped
+    // defaults with nothing and the subscription screen would show no
+    // UPI id and no support number until a Super Admin published one.
     await db.insert('subscription_settings', {
       'id': 'DEFAULT',
-      'upi_id': '',
-      'merchant_name': '',
+      'upi_id': PlatformDefaults.upiId,
+      'merchant_name': PlatformDefaults.merchantName,
       'qr_image_path': null,
-      'whatsapp_number': '',
-      'support_phone_number': '',
+      'whatsapp_number': PlatformDefaults.whatsappNumber,
+      'support_phone_number': PlatformDefaults.supportPhone,
       'payment_instructions': '',
       'demo_generation_limit': 2,
       'watermark_text': 'DEMO - UNLICENSED COPY',

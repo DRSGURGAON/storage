@@ -103,14 +103,19 @@ class BillPdfService {
   /// state code when the customer's GSTIN gives one; else the godown's
   /// own state, because the goods sit there.
   String _placeOfSupply(BillModel bill, CompanyModel? company) {
-    final state = bill.customerState.trim().isNotEmpty
-        ? bill.customerState.trim()
-        : (company?.state ?? '').trim();
-    final code = SacCodes.stateCodeOf(bill.customerGst).isNotEmpty
-        ? SacCodes.stateCodeOf(bill.customerGst)
-        : SacCodes.stateCodeOf(company?.gstNumber ?? '');
-    if (state.isEmpty) return '-';
-    return code.isEmpty ? state : '$state ($code)';
+    // The name and the code must come from the SAME party, or a
+    // customer whose typed state is Delhi and whose GSTIN starts 27
+    // prints "Delhi (27)".
+    final customerState = bill.customerState.trim();
+    if (customerState.isNotEmpty) {
+      final code = SacCodes.stateCodeOf(bill.customerGst);
+      return code.isEmpty ? customerState : '$customerState ($code)';
+    }
+
+    final ownState = (company?.state ?? '').trim();
+    if (ownState.isEmpty) return '-';
+    final ownCode = SacCodes.stateCodeOf(company?.gstNumber ?? '');
+    return ownCode.isEmpty ? ownState : '$ownState ($ownCode)';
   }
 
   pw.Widget _declaration(bool hasGst) {
@@ -317,7 +322,12 @@ class BillPdfService {
               ),
             ),
             if (bill.amountPaid > 0) ...[
-              PdfPageKit.gridRow('Received', PdfPageKit.money(bill.amountPaid), _style),
+              // amountPaid is every settling entry against this bill,
+              // credit notes included (BillingRepository restates it
+              // that way), so the row cannot claim the whole figure was
+              // money received.
+              PdfPageKit.gridRow(
+                  'Received / Credited', PdfPageKit.money(bill.amountPaid), _style),
               PdfPageKit.gridRow('Balance Due', PdfPageKit.money(bill.balanceDue), _style,
                   bold: true, isLast: true),
             ],

@@ -41,6 +41,7 @@ class LegalInformationCard extends StatelessWidget {
             TextField(
               textInputAction: TextInputAction.next,
               controller: gstController,
+              textCapitalization: TextCapitalization.characters,
               decoration: const InputDecoration(
                 labelText: "GST Number",
                 border: OutlineInputBorder(),
@@ -53,6 +54,7 @@ class LegalInformationCard extends StatelessWidget {
             TextField(
               textInputAction: TextInputAction.next,
               controller: panController,
+              textCapitalization: TextCapitalization.characters,
               decoration: const InputDecoration(
                 labelText: "PAN Number",
                 border: OutlineInputBorder(),

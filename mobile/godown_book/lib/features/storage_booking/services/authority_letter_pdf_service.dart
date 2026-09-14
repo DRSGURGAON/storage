@@ -154,7 +154,9 @@ class AuthorityLetterPdfService {
     paragraphs.add(
       'I, ${b.customerName}, have kept my household goods in $godown against '
       'Storage Receipt No. ${b.bookingNo}'
-      '${b.storageStartDate.trim().isEmpty ? '' : ' dated ${PdfPageKit.date(b.storageStartDate)}'}.',
+      // The receipt itself is dated by bookingDate (the Entry Date it
+      // prints), so this letter must not date it by the storage start.
+      '${b.bookingDate.trim().isEmpty ? '' : ' dated ${PdfPageKit.date(b.bookingDate)}'}.',
     );
 
     switch (paper) {

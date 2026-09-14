@@ -232,13 +232,18 @@ class QuotationModel {
   /// Recomputes the tax split from the lines and the rate. [interState]
   /// carries the whole tax as IGST.
   QuotationModel recalculated({required bool interState}) {
-    final tax = taxableBase * gstPercent / 100;
+    // Rounded once, the same way the bill does it, so the printed
+    // halves always add back to the printed tax.
+    final tax = _paise(taxableBase * gstPercent / 100);
+    final half = _paise(tax / 2);
     return copyWith(
-      cgstAmount: interState ? 0 : tax / 2,
-      sgstAmount: interState ? 0 : tax / 2,
+      cgstAmount: interState ? 0 : half,
+      sgstAmount: interState ? 0 : _paise(tax - half),
       igstAmount: interState ? tax : 0,
     );
   }
+
+  static double _paise(double value) => (value * 100).roundToDouble() / 100;
 
   String get customerFullAddress {
     final parts = <String>[

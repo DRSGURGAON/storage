@@ -224,6 +224,28 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
     };
     double available(BookingItemModel i) => i.remainingQty + (earlier[i.id] ?? 0);
 
+    // Catch an over-release here, where the operator can still see
+    // which line is wrong. Without this the repository throws after the
+    // release row has been written and rolled back, and the message
+    // that reaches the screen is a technical one.
+    for (final item in items) {
+      final matches = booking.items.where((i) => i.id == item.bookingItemId);
+      if (matches.isEmpty) continue;
+      final source = matches.first;
+      final left = available(source);
+      if (item.quantity > left) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Only ${_num(left)} left of ${source.itemName} - '
+              'you entered ${_num(item.quantity)}.',
+            ),
+          ),
+        );
+        return;
+      }
+    }
+
     final everything = items.length == booking.items.where((i) => available(i) > 0).length &&
         items.every((item) {
           final source = booking.items.firstWhere((i) => i.id == item.bookingItemId);

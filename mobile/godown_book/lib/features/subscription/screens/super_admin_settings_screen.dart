@@ -214,7 +214,12 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Settings saved and published.')),
+        const SnackBar(
+          content: Text(
+            'Payment details published to every company. Demo limit, '
+            'watermark and plan prices are saved on this device only.',
+          ),
+        ),
       );
       _load();
     } catch (e) {
@@ -244,19 +249,19 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
             TextField(
               textInputAction: TextInputAction.next,
               controller: priceController,
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(labelText: 'Price (₹)'),
             ),
             TextField(
               textInputAction: TextInputAction.next,
               controller: discountController,
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(labelText: 'Discount (₹)'),
             ),
             TextField(
               textInputAction: TextInputAction.next,
               controller: taxController,
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(labelText: 'Tax (%)'),
             ),
           ],
@@ -498,7 +503,7 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                       keyboardType: TextInputType.url,
                       decoration: const InputDecoration(
                         labelText: 'Signing page web address',
-                        hintText: 'https://your-project.web.app/sign',
+                        hintText: 'https://storagebill-pro.web.app/sign',
                         helperText: 'Where the signature link opens. Deploy '
                             'signing_web to Firebase Hosting and put its '
                             'address here. Blank means signature links are '

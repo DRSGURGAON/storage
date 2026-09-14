@@ -962,7 +962,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     String message;
     if (status == SubscriptionStatus.expired) {
-      message = 'Your subscription has expired - renew it to keep printing.';
+      message =
+          'Your subscription has expired - renew it for clean, unlimited '
+          'documents.';
     } else if (status == SubscriptionStatus.limited) {
       message = 'Subscribe to make unlimited documents.';
     } else if (showExpiryWarning) {

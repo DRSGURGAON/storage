@@ -365,6 +365,11 @@ describe('the App ID counter and KYC follow the app', () => {
     await assertSucceeds(updateDoc(doc(asA(), 'kycSubmissions', COMPANY_A), { status: 'PENDING', panBase64: 'new' }));
   });
 
+  it('a company can delete its own KYC submission but not another company\'s', async () => {
+    await assertFails(deleteDoc(doc(asB(), 'kycSubmissions', COMPANY_A)));
+    await assertSucceeds(deleteDoc(doc(asA(), 'kycSubmissions', COMPANY_A)));
+  });
+
   it('a signature request is created by its company for itself, pending, with a future expiry', async () => {
     const db = asA();
     const fresh = doc(db, 'signatureRequests', 'token-a-2234567890abcdefghijklmnop');

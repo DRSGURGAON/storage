@@ -29,6 +29,11 @@ class IncidentFormScreen extends StatefulWidget {
 }
 
 class _IncidentFormScreenState extends State<IncidentFormScreen> {
+
+  /// Keeps paise across an edit: 1500.5 must not come back as 1501 and
+  /// then re-save as 1501.
+  static String _amountText(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
   static final _dateFormat = DateFormat('dd MMM yyyy');
 
   final _goods = TextEditingController();
@@ -90,7 +95,7 @@ class _IncidentFormScreenState extends State<IncidentFormScreen> {
       _what.text = existing.whatHappened;
       _action.text = existing.actionTaken;
       _loss.text = existing.estimatedLoss > 0
-          ? existing.estimatedLoss.toStringAsFixed(0)
+          ? _amountText(existing.estimatedLoss)
           : '';
       _police.text = existing.policeReference;
       _reportedBy.text = existing.reportedBy;

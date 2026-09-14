@@ -194,8 +194,9 @@ class _ReleasePdfScreenState extends State<ReleasePdfScreen> {
           SignatureDetail(
             'Goods',
             release.items
-                .map((i) =>
-                    '${i.itemName} - ${i.quantity.toStringAsFixed(0)} ${i.unit}')
+                // The PDF prints 2.5, so what the customer signs for
+                // must not read 3.
+                .map((i) => '${i.itemName} - ${_qty(i.quantity)} ${i.unit}')
                 .join(', '),
           ),
           SignatureDetail('Collected by', release.collectedByName),
@@ -242,3 +243,8 @@ class _ReleasePdfScreenState extends State<ReleasePdfScreen> {
     );
   }
 }
+
+/// Same rule as PdfPageKit.qty: whole numbers print plain, fractions
+/// keep their decimals.
+String _qty(double v) =>
+    v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();

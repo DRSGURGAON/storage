@@ -34,6 +34,17 @@ class PlatformDefaults {
   static const String qrAsset = 'assets/images/payment_qr_gpay.png';
   static const String qrLabel = 'Google Pay';
 
+  /// The published website. Google Play's listing points at these
+  /// same pages, and the app links to them rather than carrying a
+  /// second copy of the policy text that could drift from the one the
+  /// Play listing shows.
+  static const String websiteUrl = 'https://drsgurgaon.github.io/storage/';
+  static const String privacyPolicyUrl =
+      'https://drsgurgaon.github.io/storage/privacy.html';
+  static const String termsUrl = 'https://drsgurgaon.github.io/storage/terms.html';
+  static const String supportUrl =
+      'https://drsgurgaon.github.io/storage/support.html';
+
   /// The UPI deep link every UPI app understands. No amount is put in:
   /// the customer chooses a plan and types its price, exactly as the
   /// subscription screen already asks them to, and a wrong amount from

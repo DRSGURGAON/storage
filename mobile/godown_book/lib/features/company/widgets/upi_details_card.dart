@@ -67,6 +67,7 @@ class UpiDetailsCard extends StatelessWidget {
             TextField(
               textInputAction: TextInputAction.next,
               controller: phonePeController,
+              keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
                 labelText: "PhonePe Number",
                 border: OutlineInputBorder(),
@@ -79,6 +80,7 @@ class UpiDetailsCard extends StatelessWidget {
             TextField(
               textInputAction: TextInputAction.next,
               controller: googlePayController,
+              keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
                 labelText: "Google Pay Number",
                 border: OutlineInputBorder(),
@@ -91,6 +93,7 @@ class UpiDetailsCard extends StatelessWidget {
             TextField(
               textInputAction: TextInputAction.next,
               controller: paytmController,
+              keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
                 labelText: "Paytm Number",
                 border: OutlineInputBorder(),

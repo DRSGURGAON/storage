@@ -126,18 +126,14 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
     _goods.text = draft.goodsDescription;
     _packages.text = draft.packages > 0 ? '${draft.packages}' : '';
     _weight.text = draft.weight;
-    _declaredValue.text =
-        draft.declaredValue > 0 ? draft.declaredValue.toStringAsFixed(0) : '';
+    _declaredValue.text = _amountText(draft.declaredValue);
     _vehicle.text = draft.vehicleNumber;
     _driver.text = draft.driverName;
     _driverPhone.text = draft.driverPhone;
     _licence.text = draft.driverLicence;
-    _freight.text =
-        draft.freightAmount > 0 ? draft.freightAmount.toStringAsFixed(0) : '';
-    _otherCharges.text =
-        draft.otherCharges > 0 ? draft.otherCharges.toStringAsFixed(0) : '';
-    _advance.text =
-        draft.advancePaid > 0 ? draft.advancePaid.toStringAsFixed(0) : '';
+    _freight.text = _amountText(draft.freightAmount);
+    _otherCharges.text = _amountText(draft.otherCharges);
+    _advance.text = _amountText(draft.advancePaid);
     _insurer.text = draft.insurer;
     _policy.text = draft.policyNo;
     _notes.text = draft.notes;
@@ -151,8 +147,14 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
       _freightBasis = draft.freightBasis;
       _riskBasis = draft.riskBasis;
       _insured = draft.insured;
+      // Name alone is not enough: a depositor shipping his own goods
+      // to a new address has the same name on both sides, and treating
+      // that as "same person" hid the receiver card and overwrote the
+      // delivery address on the next save.
       _sameAsSender = draft.consigneeName.trim().isEmpty ||
-          draft.consigneeName.trim() == draft.consignorName.trim();
+          (draft.consigneeName.trim() == draft.consignorName.trim() &&
+              draft.consigneePhone.trim() == draft.consignorPhone.trim() &&
+              draft.consigneeAddress.trim() == draft.consignorAddress.trim());
       _loading = false;
     });
   }
@@ -233,6 +235,7 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
     TextInputType? keyboard,
     int maxLines = 1,
     String? prefix,
+    TextCapitalization? capitalization,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -241,9 +244,10 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
         controller: controller,
         keyboardType: keyboard,
         maxLines: maxLines,
-        textCapitalization: keyboard == null
-            ? TextCapitalization.words
-            : TextCapitalization.none,
+        textCapitalization: capitalization ??
+            (keyboard == null
+                ? TextCapitalization.words
+                : TextCapitalization.none),
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
@@ -374,7 +378,12 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
 
   Widget _vehicleCard() {
     return _card('Truck and driver', [
-      _field(_vehicle, 'Vehicle number', hint: 'HR 45 A 1234'),
+      _field(
+        _vehicle,
+        'Vehicle number',
+        hint: 'HR 45 A 1234',
+        capitalization: TextCapitalization.characters,
+      ),
       _field(_driver, 'Driver name'),
       _field(_driverPhone, 'Driver mobile', keyboard: TextInputType.phone),
       _field(_licence, 'Licence number'),
@@ -518,6 +527,15 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
     });
   }
 
+  /// Keeps paise across an edit: 1500.5 comes back as "1500.5", not
+  /// "1501".
+  String _amountText(double value) {
+    if (value <= 0) return '';
+    return value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toString();
+  }
+
   double _number(TextEditingController controller) =>
       double.tryParse(controller.text.trim()) ?? 0;
 
@@ -556,7 +574,7 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
             : _consigneeAddress.text.trim(),
         fromPlace: _from.text.trim(),
         toPlace: _to.text.trim(),
-        vehicleNumber: _vehicle.text.trim(),
+        vehicleNumber: _vehicle.text.trim().toUpperCase(),
         driverName: _driver.text.trim(),
         driverPhone: _driverPhone.text.trim(),
         driverLicence: _licence.text.trim(),
@@ -570,8 +588,11 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
         advancePaid: _number(_advance),
         riskBasis: _riskBasis,
         insured: _insured,
-        insurer: _insurer.text.trim(),
-        policyNo: _policy.text.trim(),
+        // Both fields are hidden when the switch is off, so storing what
+        // was typed before it was turned off would leave a row claiming
+        // no insurance beside a live insurer and policy number.
+        insurer: _insured ? _insurer.text.trim() : '',
+        policyNo: _insured ? _policy.text.trim() : '',
         deliveredOn: _existing?.deliveredOn ?? '',
         receivedBy: _existing?.receivedBy ?? '',
         deliveryRemarks: _existing?.deliveryRemarks ?? '',

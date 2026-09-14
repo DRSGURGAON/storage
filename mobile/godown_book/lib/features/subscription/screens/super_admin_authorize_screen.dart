@@ -500,7 +500,7 @@ class _AuthorizeDialogState extends State<_AuthorizeDialog> {
               TextField(
                 textInputAction: TextInputAction.next,
                 controller: _amountController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(labelText: 'Payment Amount (₹)'),
               ),
               const SizedBox(height: 12),

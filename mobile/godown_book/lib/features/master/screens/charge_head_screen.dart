@@ -21,7 +21,7 @@ class ChargeHeadScreen extends ConsumerWidget {
     final amountController = TextEditingController(
       text: (existing?.defaultAmount ?? 0) == 0
           ? ''
-          : existing!.defaultAmount.toStringAsFixed(0),
+          : _amountText(existing!.defaultAmount),
     );
 
     var mode = existing?.defaultMode ?? ChargeMode.amount;
@@ -64,7 +64,7 @@ class ChargeHeadScreen extends ConsumerWidget {
                   TextField(
                     textInputAction: TextInputAction.next,
                     controller: amountController,
-                    keyboardType: TextInputType.number,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       labelText: 'Default amount',
                       prefixText: '₹ ',
@@ -239,3 +239,8 @@ class ChargeHeadScreen extends ConsumerWidget {
     );
   }
 }
+
+/// Keeps paise across an edit: a Rs. 250.50 charge head must not come
+/// back as 250 and re-save at that.
+String _amountText(double v) =>
+    v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
