@@ -9,6 +9,7 @@ import '../../../core/subscription/super_admin_scope.dart';
 import '../../../core/utils/id_generator.dart';
 import '../../audit/repositories/security_audit_repository.dart';
 import '../../company/controllers/company_controller.dart';
+import '../../company/services/app_id_counter_service.dart';
 import '../data/subscription_dao.dart';
 import '../data/subscription_history_dao.dart';
 import '../models/subscription_history_model.dart';
@@ -321,24 +322,18 @@ class SubscriptionRepository {
     return SubscriptionModel.fromFirestore(doc.data(), doc.id);
   }
 
-  /// Super Admin lookup by the customer's unique App ID (the numeric
+  /// Super Admin lookup by the customer's unique App ID (the
   /// companyCode shown under the company name on their dashboard) -
-  /// the second search key alongside the mobile number. App IDs are
-  /// now plain numbers ("4839"), but companies that haven't opened
-  /// the app since the prefix was dropped may still carry the old
-  /// "DRS-4839" form on their subscription document - both are
-  /// matched, and typed prefixes/spacing are tolerated either way.
+  /// the second search key alongside the mobile number. App IDs read
+  /// "SW4839"; a company that has not opened the app since an earlier
+  /// build may still carry the plain "4839" or the original
+  /// "DRS-4839" on its subscription document, so every form of the
+  /// same number is searched and typed prefixes and spacing are
+  /// tolerated.
   Future<SubscriptionModel?> getByCompanyCode(String code) async {
     await _requireSuperAdmin();
 
-    final compact =
-        code.toUpperCase().replaceAll(RegExp(r'[\s\-]'), '');
-    if (compact.isEmpty) return null;
-
-    final digits = compact.startsWith('DRS') ? compact.substring(3) : compact;
-    if (digits.isEmpty || int.tryParse(digits) == null) return null;
-
-    for (final candidate in [digits, 'DRS-$digits']) {
+    for (final candidate in AppIdCounterService.lookupCandidates(code)) {
       final snapshot = await _subscriptionsCollection
           .where('companyCode', isEqualTo: candidate)
           .limit(1)

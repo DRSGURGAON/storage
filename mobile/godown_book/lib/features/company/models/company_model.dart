@@ -146,7 +146,7 @@ class CompanyModel {
   const CompanyModel({
     this.id = 1,
     this.companyId = '',
-    this.companyCode = 'DRS001',
+    this.companyCode = '',
 
     required this.companyName,
 
@@ -410,7 +410,7 @@ class CompanyModel {
     return CompanyModel(
       id: map['id'] ?? 1,
       companyId: map['company_id'] ?? '',
-      companyCode: map['company_code'] ?? 'DRS001',
+      companyCode: map['company_code'] ?? '',
 
       companyName: map['company_name'] ?? '',
       tagLine: map['tag_line'] ?? '',

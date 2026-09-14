@@ -19,7 +19,7 @@ class Migrations {
        cannot be used as a key once data syncs to the cloud. */
     company_id TEXT NOT NULL DEFAULT '',
 
-    /* Human-readable company code, e.g. DRS001. Distinct from company_id:
+    /* Human-readable App ID, e.g. SW1324. Distinct from company_id:
        this is shown to the user, company_id never is. */
     company_code TEXT NOT NULL DEFAULT '',
 

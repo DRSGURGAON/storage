@@ -5,6 +5,7 @@ import '../../../core/subscription/document_type.dart';
 import '../../../core/subscription/subscription_status.dart';
 import '../../../core/subscription/super_admin_scope.dart';
 import '../../kyc/widgets/kyc_review_card.dart';
+import '../../company/services/app_id_counter_service.dart';
 import '../models/subscription_model.dart';
 import '../repositories/subscription_repository.dart';
 
@@ -224,8 +225,8 @@ class _SuperAdminCompanyDetailScreenState
                               : _subscription.companyName,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        if (_subscription.companyCode.isNotEmpty &&
-                            _subscription.companyCode != 'DRS001')
+                        if (AppIdCounterService.isAssigned(
+                            _subscription.companyCode))
                           Text(
                             'Customer ID: ${_subscription.companyCode}',
                             style: const TextStyle(

@@ -251,7 +251,7 @@ class CompanyFirestoreSyncService {
   CompanyModel _fromFirestoreMap(Map<String, dynamic> data) {
     return CompanyModel(
       companyId: data['companyId'] as String? ?? '',
-      companyCode: data['companyCode'] as String? ?? 'DRS001',
+      companyCode: data['companyCode'] as String? ?? '',
       companyName: data['companyName'] as String? ?? '',
       tagLine: data['tagLine'] as String? ?? '',
       affiliatedBy: data['affiliatedBy'] as String? ?? '',

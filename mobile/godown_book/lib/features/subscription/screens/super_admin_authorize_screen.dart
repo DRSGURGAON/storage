@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/permissions/permission_service.dart';
 import '../../../core/subscription/super_admin_scope.dart';
 import '../../kyc/widgets/kyc_review_card.dart';
+import '../../company/services/app_id_counter_service.dart';
 import '../models/subscription_history_model.dart';
 import '../models/subscription_model.dart';
 import '../models/subscription_plan_model.dart';
@@ -74,10 +75,10 @@ class _SuperAdminAuthorizeScreenState
     });
 
     // The query can be either the customer's mobile number or their
-    // unique App ID (DRS-xxxx, shown under the company name on their
+    // unique App ID (SW4839, shown under the company name on their
     // dashboard) - a 10-digit number is tried as a phone first, and
-    // anything else (or a phone that matches nothing) is tried as a
-    // DRS ID. Both lookups tolerate natural formatting.
+    // anything else (or a phone that matches nothing) is tried as an
+    // App ID. Both lookups tolerate natural formatting.
     var subscription =
         await SubscriptionRepository.instance.getByMobileNumber(query);
     subscription ??=
@@ -292,8 +293,7 @@ class _SuperAdminAuthorizeScreenState
                       : subscription.companyName,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
-                if (subscription.companyCode.isNotEmpty &&
-                    subscription.companyCode != 'DRS001')
+                if (AppIdCounterService.isAssigned(subscription.companyCode))
                   Text(
                     'App ID: ${subscription.companyCode}',
                     style: const TextStyle(fontWeight: FontWeight.bold),

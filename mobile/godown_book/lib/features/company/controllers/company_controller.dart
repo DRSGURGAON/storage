@@ -43,10 +43,10 @@ class CompanyController {
         ? company.companyId
         : const Uuid().v4();
 
-    // The settings screen never shows or edits company_code, so its model
-    // always carries the class default ('DRS001'). Without this, every
-    // settings save would silently reset company_code back to the
-    // default and erase whatever it had actually been set to.
+    // The settings screen never shows or edits company_code, so its
+    // model always carries the class default (empty). Without this,
+    // every settings save would silently wipe the App ID the dashboard
+    // had already minted.
     final companyCode = (existing?.companyCode.isNotEmpty ?? false)
         ? existing!.companyCode
         : company.companyCode;

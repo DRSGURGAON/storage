@@ -16,7 +16,7 @@ import '../company/controllers/company_controller.dart';
 import '../company/models/company_model.dart';
 import '../company/repositories/company_repository.dart';
 import '../company/services/company_firestore_sync_service.dart';
-import '../company/services/drs_id_counter_service.dart';
+import '../company/services/app_id_counter_service.dart';
 import '../promo/promo_banner.dart';
 import '../subscription/models/subscription_model.dart';
 import '../subscription/models/subscription_settings_model.dart';
@@ -97,11 +97,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       final company = await CompanyController.instance.getCompany();
       if (company == null) return;
 
-      final code = company.companyCode.trim();
-      if (code.isNotEmpty) return;
+      // An unassigned company carries either nothing or the old
+      // placeholder; both mean "no App ID has ever been minted".
+      if (AppIdCounterService.isAssigned(company.companyCode)) return;
 
       final updated = company.copyWith(
-        companyCode: await DrsIdCounterService.instance.assignNextDrsId(),
+        companyCode: await AppIdCounterService.instance.assignNextAppId(),
         updatedAt: DateTime.now().toIso8601String(),
       );
 
@@ -184,7 +185,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _header(CompanyModel? company, DashboardStats? stats) {
     final top = MediaQuery.of(context).padding.top;
     final name = (company?.companyName ?? '').trim();
-    final appId = (company?.companyCode ?? '').trim();
+    final appId = AppIdCounterService.isAssigned(company?.companyCode)
+        ? company!.companyCode.trim()
+        : '';
     final city = (company?.city ?? '').trim();
     final subtitle = [
       if (city.isNotEmpty) city,
@@ -1016,7 +1019,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     if (whatsapp.isEmpty && call.isEmpty) return const SizedBox.shrink();
 
     final company = ref.read(currentCompanyProvider).value;
-    final appId = company?.companyCode ?? '';
+    final appId = AppIdCounterService.isAssigned(company?.companyCode)
+        ? company!.companyCode.trim()
+        : '';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),

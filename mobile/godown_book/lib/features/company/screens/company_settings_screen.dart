@@ -9,6 +9,7 @@ import '../../../shared/widgets/save_problem.dart';
 import '../controllers/company_controller.dart';
 import '../models/company_model.dart';
 import '../providers/company_provider.dart';
+import '../services/app_id_counter_service.dart';
 
 import '../utils/company_image_picker.dart';
 import '../utils/company_text_controllers.dart';
@@ -44,7 +45,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
   String? stampPath;
   DocumentTheme documentTheme = DocumentTheme.classic;
 
-  /// Display-only - the customer's own DRS ID (see DrsIdCounterService),
+  /// Display-only - the company's own App ID (see AppIdCounterService),
   /// assigned once at company creation and never editable here, same
   /// reasoning already established for companyId itself.
   String? companyCode;
@@ -370,7 +371,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
 
           child: Column(
             children: [
-              if ((companyCode ?? '').isNotEmpty && companyCode != 'DRS001')
+              if (AppIdCounterService.isAssigned(companyCode))
                 Card(
                   color: const Color(0xffEAF1FB),
                   margin: const EdgeInsets.only(bottom: 16),
