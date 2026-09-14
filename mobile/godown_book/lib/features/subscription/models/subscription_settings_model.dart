@@ -1,3 +1,5 @@
+import '../../../core/constants/platform_defaults.dart';
+
 /// Platform-wide subscription configuration (Sections 9, 31) - a
 /// single row, exactly like CompanyModel's own "one row per install"
 /// pattern (fixed id, always upserted rather than inserted fresh).
@@ -68,14 +70,17 @@ class SubscriptionSettingsModel {
 
   const SubscriptionSettingsModel({
     this.id = 'DEFAULT',
-    this.upiId = '',
-    this.merchantName = '',
+    // The platform owner's own details ship with the app, so a fresh
+    // install shows the right UPI and support number before anything
+    // is published (PlatformDefaults); a published row replaces them.
+    this.upiId = PlatformDefaults.upiId,
+    this.merchantName = PlatformDefaults.merchantName,
     this.qrImagePath,
     this.qrLabel1,
     this.qrImagePath2,
     this.qrLabel2,
-    this.whatsappNumber = '',
-    this.supportPhoneNumber = '',
+    this.whatsappNumber = PlatformDefaults.whatsappNumber,
+    this.supportPhoneNumber = PlatformDefaults.supportPhone,
     this.paymentInstructions = '',
     this.demoGenerationLimit = 2,
     this.watermarkText = 'DEMO - UNLICENSED COPY',

@@ -3,11 +3,14 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:go_router/go_router.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/constants/platform_defaults.dart';
 import '../../../core/contact/contact_launcher.dart';
 import '../../../core/subscription/subscription_access_service.dart';
 import '../../../core/subscription/subscription_status.dart';
@@ -65,6 +68,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   String _platformLabel1 = '';
   String _platformLabel2 = '';
 
+  /// The platform's payment and support details as they should be
+  /// shown: published where published, shipped with the app where
+  /// not (PlatformSettingsService.effective).
+  PlatformSettings? _platform;
+
   @override
   void initState() {
     super.initState();
@@ -120,9 +128,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   /// message is the only safe behaviour when the platform QR cannot be
   /// reached.
   Future<void> _buildQrIfNeeded(SubscriptionSettingsModel settings) async {
-    final platform = await PlatformSettingsService.instance.fetch();
+    final platform = await PlatformSettingsService.instance.effective();
+    if (!mounted) return;
+    setState(() => _platform = platform);
 
-    if (platform != null && platform.hasAnyQr) {
+    if (platform.hasAnyQr) {
       if (!mounted) return;
       setState(() {
         _qrPng = platform.qr1;
@@ -160,9 +170,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     // Last resort: build a QR from the PLATFORM's own UPI id only -
     // never the signed-in company's. If the Super Admin has not
     // configured one, say so rather than showing something wrong.
-    final payee = platform?.upiId.isNotEmpty == true
-        ? platform!.upiId
-        : settings.upiId;
+    final payee = platform.upiId.isNotEmpty ? platform.upiId : settings.upiId;
 
     if (payee.isEmpty) {
       if (mounted) {
@@ -173,8 +181,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       return;
     }
 
-    final payeeName = platform?.merchantName.isNotEmpty == true
-        ? platform!.merchantName
+    final payeeName = platform.merchantName.isNotEmpty
+        ? platform.merchantName
         : (settings.merchantName.isNotEmpty ? settings.merchantName : 'Payment');
 
     final upiLink =
@@ -448,6 +456,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   Widget _paymentCard(BuildContext context) {
     final settings = _settings;
+    final platform = _platform;
+    final whatsapp = _firstNonEmpty([platform?.whatsappNumber, settings?.whatsappNumber]);
+    final support = _firstNonEmpty([platform?.supportPhoneNumber, settings?.supportPhoneNumber]);
+    final upiId = _firstNonEmpty([platform?.upiId, settings?.upiId]);
+    final payeeName = _firstNonEmpty([platform?.merchantName, settings?.merchantName]);
 
     return Card(
       child: Padding(
@@ -469,7 +482,23 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             const SizedBox(height: 16),
             Center(child: _qrWidget()),
             const SizedBox(height: 16),
-            if ((settings?.whatsappNumber.isNotEmpty ?? false))
+            // The customer is reading this on the phone they pay from,
+            // so a QR alone is not enough: hand them the UPI ID to copy
+            // and a button that opens their UPI app straight away.
+            if (upiId.isNotEmpty) ...[
+              _upiIdRow(context, upiId, payeeName),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _payInUpiApp(upiId, payeeName),
+                  icon: const Icon(Icons.account_balance_wallet_outlined),
+                  label: const Text('Pay in UPI App'),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (whatsapp.isNotEmpty)
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
@@ -478,7 +507,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ),
                   onPressed: () => ContactLauncher.openWhatsAppWithChoice(
                     context,
-                    settings!.whatsappNumber,
+                    whatsapp,
                     message:
                         'Hi, I have made a payment for my StorageBill Pro subscription'
                         '${(_company?.companyName ?? '').trim().isEmpty ? '' : ' for ${_company!.companyName.trim()}'}'
@@ -488,13 +517,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   label: const Text('Send Payment Screenshot on WhatsApp'),
                 ),
               ),
-            if ((settings?.supportPhoneNumber.isNotEmpty ?? false)) ...[
+            if (support.isNotEmpty) ...[
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () =>
-                      ContactLauncher.call(settings!.supportPhoneNumber),
+                  onPressed: () => ContactLauncher.call(support),
                   icon: const Icon(Icons.call),
                   label: const Text('Call For Support'),
                 ),
@@ -511,6 +539,83 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
       ),
     );
+  }
+
+  static String _firstNonEmpty(List<String?> candidates) {
+    for (final candidate in candidates) {
+      final value = candidate?.trim() ?? '';
+      if (value.isNotEmpty) return value;
+    }
+    return '';
+  }
+
+  Widget _upiIdRow(BuildContext context, String upiId, String payeeName) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  payeeName.isEmpty ? 'UPI ID' : 'UPI ID · $payeeName',
+                  style: const TextStyle(fontSize: 11.5, color: Colors.grey),
+                ),
+                SelectableText(
+                  upiId,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Copy UPI ID',
+            icon: const Icon(Icons.copy_rounded),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: upiId));
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('UPI ID copied')),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Opens whichever UPI app the phone has, with the payee filled in.
+  /// The amount is left for the customer to type - the plan they chose
+  /// is on this same screen.
+  Future<void> _payInUpiApp(String upiId, String payeeName) async {
+    final uri = Uri.parse(
+      PlatformDefaults.upiLink(upiId: upiId, payeeName: payeeName),
+    );
+
+    var opened = false;
+    try {
+      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      opened = false;
+    }
+
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No UPI app opened. Copy the UPI ID above and pay from your UPI app.',
+          ),
+        ),
+      );
+    }
   }
 
   Widget _qrWidget() {

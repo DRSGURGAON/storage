@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -17,6 +19,7 @@ import '../company/models/company_model.dart';
 import '../company/repositories/company_repository.dart';
 import '../company/services/company_firestore_sync_service.dart';
 import '../company/services/app_id_counter_service.dart';
+import '../subscription/services/platform_settings_service.dart';
 import '../promo/promo_banner.dart';
 import '../subscription/models/subscription_model.dart';
 import '../subscription/models/subscription_settings_model.dart';
@@ -50,6 +53,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   /// The app owner's own support contact - the same number for every
   /// installed company, not a per-company value.
   SubscriptionSettingsModel? _supportSettings;
+
+  /// The platform's published support numbers, when reachable. The
+  /// local settings (which ship with the real number) draw the card
+  /// first, so nothing waits on the network.
+  PlatformSettings? _platform;
 
   @override
   void initState() {
@@ -88,6 +96,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _supportSettings = supportSettings;
       _loading = false;
     });
+
+    unawaited(_loadPlatformContact());
+  }
+
+  /// Picks up a support number the Super Admin has published, replacing
+  /// the shipped one. Offline this resolves to the bundle, which is what
+  /// is already on screen.
+  Future<void> _loadPlatformContact() async {
+    final platform = await PlatformSettingsService.instance.effective();
+    if (!mounted) return;
+    setState(() => _platform = platform);
   }
 
   /// Mints this company's App ID the first time it is online. Offline,
@@ -1012,10 +1031,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   /// The app owner's support contact, from the Super Admin's own
   /// settings - never a per-company number, never invented.
   Widget _supportCard(SubscriptionSettingsModel settings) {
-    final whatsapp = settings.whatsappNumber.isNotEmpty
-        ? settings.whatsappNumber
+    final platform = _platform;
+    final call = (platform?.supportPhoneNumber.isNotEmpty ?? false)
+        ? platform!.supportPhoneNumber
         : settings.supportPhoneNumber;
-    final call = settings.supportPhoneNumber;
+    final whatsapp = (platform?.whatsappNumber.isNotEmpty ?? false)
+        ? platform!.whatsappNumber
+        : (settings.whatsappNumber.isNotEmpty ? settings.whatsappNumber : call);
     if (whatsapp.isEmpty && call.isEmpty) return const SizedBox.shrink();
 
     final company = ref.read(currentCompanyProvider).value;
@@ -1067,18 +1089,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         onTap: onTap,
         child: Container(
           height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
             border: Border.all(color: Brand.line),
             borderRadius: BorderRadius.circular(14),
           ),
+          // Two of these share one row on a phone, so the label must
+          // give way rather than push past the border when the font
+          // is large or the screen is narrow.
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               icon,
               const SizedBox(width: 8),
-              Text(label,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 13, color: Brand.ink)),
+                      fontWeight: FontWeight.w800, fontSize: 13, color: Brand.ink),
+                ),
+              ),
             ],
           ),
         ),

@@ -46,6 +46,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
   final _qrLabel1Controller = TextEditingController();
   final _qrLabel2Controller = TextEditingController();
   final _signBaseUrlController = TextEditingController();
+  final _whatsappController = TextEditingController();
+  final _supportPhoneController = TextEditingController();
 
   @override
   void initState() {
@@ -64,6 +66,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
     _qrLabel1Controller.dispose();
     _qrLabel2Controller.dispose();
     _signBaseUrlController.dispose();
+    _whatsappController.dispose();
+    _supportPhoneController.dispose();
     super.dispose();
   }
 
@@ -96,6 +100,15 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
       _qrLabel2Controller.text = settings.qrLabel2 ?? '';
       _upiIdController.text = settings.upiId;
       _merchantNameController.text = settings.merchantName;
+      // The published numbers are what every company sees; the local
+      // row is only this device's last edit.
+      _whatsappController.text = (platform?.whatsappNumber.isNotEmpty ?? false)
+          ? platform!.whatsappNumber
+          : settings.whatsappNumber;
+      _supportPhoneController.text =
+          (platform?.supportPhoneNumber.isNotEmpty ?? false)
+              ? platform!.supportPhoneNumber
+              : settings.supportPhoneNumber;
       _paymentInstructionsController.text = settings.paymentInstructions;
       _demoLimitController.text = '${settings.demoGenerationLimit}';
       _watermarkTextController.text = settings.watermarkText;
@@ -153,6 +166,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
         settings.copyWith(
           upiId: _upiIdController.text.trim(),
           merchantName: _merchantNameController.text.trim(),
+          whatsappNumber: _whatsappController.text.trim(),
+          supportPhoneNumber: _supportPhoneController.text.trim(),
           qrImagePath: _qrImagePath,
           qrLabel1: _qrLabel1Controller.text.trim(),
           qrImagePath2: _qrImagePath2,
@@ -174,6 +189,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
         await PlatformSettingsService.instance.publish(
           upiId: _upiIdController.text.trim(),
           merchantName: _merchantNameController.text.trim(),
+          whatsappNumber: _whatsappController.text.trim(),
+          supportPhoneNumber: _supportPhoneController.text.trim(),
           qr1: await _readBytes(_qrImagePath),
           qr2: await _readBytes(_qrImagePath2),
           qrLabel1: _qrLabel1Controller.text.trim(),
@@ -359,6 +376,26 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                       textInputAction: TextInputAction.next,
                       controller: _merchantNameController,
                       decoration: const InputDecoration(labelText: 'Merchant Name'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      textInputAction: TextInputAction.next,
+                      controller: _whatsappController,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'Support WhatsApp Number',
+                        hintText: 'Where customers send the payment screenshot',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      textInputAction: TextInputAction.next,
+                      controller: _supportPhoneController,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'Support Phone Number',
+                        hintText: 'The number the Call Support buttons dial',
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Text(
