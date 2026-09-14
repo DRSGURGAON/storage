@@ -61,10 +61,17 @@ void main() {
     expect(find.text('Save quotation'), findsOneWidget);
 
     // The amount is typed on the row itself, and the total follows.
-    final amountBoxes = find.byType(ChargeLineRow);
-    expect(amountBoxes, findsWidgets);
+    // The rows sit below the customer boxes, so scroll to them first.
+    final rentRow = find.byWidgetPredicate(
+      (w) => w is ChargeLineRow && w.name == 'Storage Rent',
+    );
+    await tester.scrollUntilVisible(
+      rentRow,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.enterText(
-      find.descendant(of: amountBoxes.first, matching: find.byType(TextField)),
+      find.descendant(of: rentRow, matching: find.byType(TextField)),
       '5000',
     );
     await tester.pump();
