@@ -15,6 +15,15 @@ if (hasReleaseKeystore) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// Test signing. Without the release keystore, every CI runner used to
+// sign with a debug key it had just generated, so no two builds shared
+// a signature and Android refused to install one over the other - the
+// app had to be uninstalled for every update. dev-signing.jks is
+// checked in so that every test build is signed the same way and
+// installs as an update. It is not a secret and not the Play key.
+val devKeystore = rootProject.file("dev-signing.jks")
+val hasDevKeystore = !hasReleaseKeystore && devKeystore.exists()
+
 plugins {
     id("com.android.application")
     // Required for Firebase Phone Auth's Android app verification (Play
@@ -59,18 +68,26 @@ android {
                 storePassword = keystoreProperties["storePassword"] as String
             }
         }
+        if (hasDevKeystore) {
+            create("dev") {
+                keyAlias = "storagebill-dev"
+                keyPassword = "storagebill-dev"
+                storeFile = devKeystore
+                storePassword = "storagebill-dev"
+            }
+        }
     }
 
     buildTypes {
         release {
-            signingConfig = if (hasReleaseKeystore) {
-                signingConfigs.getByName("release")
-            } else {
-                // No keystore on this machine - debug signing keeps
+            signingConfig = when {
+                hasReleaseKeystore -> signingConfigs.getByName("release")
+                hasDevKeystore -> signingConfigs.getByName("dev")
+                // Neither keystore on this machine - debug signing keeps
                 // local release builds runnable. A build signed this way
                 // cannot be uploaded to Play, which is the honest
                 // outcome rather than a silent failure later.
-                signingConfigs.getByName("debug")
+                else -> signingConfigs.getByName("debug")
             }
 
             isMinifyEnabled = true

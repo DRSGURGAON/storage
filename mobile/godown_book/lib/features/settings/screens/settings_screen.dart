@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../core/constants/app_build.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -260,6 +262,11 @@ class SettingsScreen extends ConsumerWidget {
                     title: const Text('Signed in as'),
                     subtitle: Text('+91 ${session.mobileNumber}'),
                   ),
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text('App version'),
+                  subtitle: Text(AppBuild.label),
+                ),
                 ListTile(
                   leading: const Icon(Icons.logout, color: Colors.red),
                   title: const Text(

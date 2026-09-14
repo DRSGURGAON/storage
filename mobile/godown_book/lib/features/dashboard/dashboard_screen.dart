@@ -11,6 +11,7 @@ import '../../core/subscription/subscription_access_service.dart';
 import '../../core/subscription/subscription_status.dart';
 import '../../core/tenant/tenant_provider.dart';
 import '../../core/tenant/tenant_scope.dart';
+import '../../core/update/app_update_banner.dart';
 import '../company/controllers/company_controller.dart';
 import '../company/models/company_model.dart';
 import '../company/repositories/company_repository.dart';
@@ -158,6 +159,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               _moneyTiles(stats),
               _todayTasks(stats),
             ],
+            // A newer build from CI, or nothing at all (no gap).
+            const AppUpdateBanner(),
             // One remotely-published offer, or nothing at all (no gap).
             PromoBanner(
               subscriptionStatus: _subscription?.status,

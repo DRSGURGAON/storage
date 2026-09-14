@@ -202,6 +202,16 @@ superAdmins/<uid>
 
 They then see Super Admin Dashboard in Settings.
 
+### Installing a new build over the old one
+
+Every CI build is signed with the same test key (`android/dev-signing.jks`,
+checked in on purpose - it is not the Play key) and carries the workflow
+run number as its version code. So a new APK installs over the last one
+as an update: open it, tap Update, done - no uninstall, and the data on
+the phone stays. Settings shows which build is installed. The one
+exception is the first time: a build from before this key existed has to
+be uninstalled once.
+
 ### Signing a release build
 
 Make a keystore once and keep it safe - losing it means never updating

@@ -18,3 +18,8 @@ key.properties
 **/*.keystore
 **/*.jks
 app/google-services.json
+
+# The one keystore that IS shared: it signs test builds from CI so every
+# build carries the same signature and installs over the last one as an
+# update. It is not the Play release key (that stays in secrets).
+!dev-signing.jks

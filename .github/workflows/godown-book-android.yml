@@ -19,6 +19,11 @@ on:
       - 'mobile/godown_book/**'
       - '.github/workflows/godown-book-android.yml'
 
+# Publishing each build as a release needs write access to the
+# repository's contents; nothing else does.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -100,6 +105,10 @@ jobs:
             echo "::warning::No GODOWN_BOOK_KEYSTORE_BASE64 secret - this build is debug-signed and cannot be uploaded to Play."
           fi
 
+      # Every build gets a version code higher than the last one (the
+      # workflow run number), so a phone takes each new APK as an update
+      # over the one before. The same number is compiled into the app and
+      # shown under Settings, so "which build is this?" has an answer.
       - name: Build app bundle
         run: |
           ARGS=""
@@ -108,11 +117,19 @@ jobs:
           fi
           if [ -n "${{ github.event.inputs.build_number }}" ]; then
             ARGS="$ARGS --build-number=${{ github.event.inputs.build_number }}"
+          else
+            ARGS="$ARGS --build-number=${{ github.run_number }}"
           fi
-          flutter build appbundle --release $ARGS
+          echo "BUILD_ARGS=$ARGS" >> "$GITHUB_ENV"
+          flutter build appbundle --release $ARGS --dart-define=BUILD_NUMBER=${{ github.run_number }}
 
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release $BUILD_ARGS --dart-define=BUILD_NUMBER=${{ github.run_number }}
+
+      - name: Rename the APK by build number
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             "build/app/outputs/flutter-apk/storagebill-pro-build-${{ github.run_number }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -122,9 +139,27 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: godown-book-apk
-          path: mobile/godown_book/build/app/outputs/flutter-apk/app-release.apk
+          name: storagebill-pro-apk-build-${{ github.run_number }}
+          path: mobile/godown_book/build/app/outputs/flutter-apk/storagebill-pro-build-*.apk
           if-no-files-found: error
+
+      # Every build is also a GitHub release, tagged by its run number,
+      # with the APK attached. The repository is public, so the app can
+      # read the latest release without a token and offer the update
+      # from its own dashboard - and a phone installs it over the old
+      # build because every build is signed with the same key.
+      - name: Publish the APK as a release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          body: |
+            ${{ github.event.head_commit.message || 'Manual build' }}
+
+            Branch: ${{ github.ref_name }}
+          files: mobile/godown_book/build/app/outputs/flutter-apk/storagebill-pro-build-*.apk
+          make_latest: true
+          fail_on_unmatched_files: true
 
       - name: Clean up secrets from the runner
         if: always()
