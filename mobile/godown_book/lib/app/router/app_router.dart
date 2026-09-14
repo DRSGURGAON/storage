@@ -316,6 +316,16 @@ class AppRouter {
         builder: (context, state) => const StorageBookingListScreen(),
       ),
 
+      // One customer's documents, pushed over whatever is open. This is
+      // deliberately its own route: /documents is a tab of the shell, and
+      // pushing a tab's path a second time gives the navigator two pages
+      // with the same key, which is an assertion, not a screen.
+      GoRoute(
+        path: '/customer-documents',
+        builder: (context, state) =>
+            DocumentCentreScreen(customerId: state.extra as String),
+      ),
+
       GoRoute(
         path: '/agreements',
         builder: (context, state) => const StorageBookingListScreen(

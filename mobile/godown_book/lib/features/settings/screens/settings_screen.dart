@@ -191,7 +191,7 @@ class SettingsScreen extends ConsumerWidget {
                 'Quotations, storage receipts, bills, payment receipts, releases',
               ),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/documents'),
+              onTap: () => context.go('/documents'),
             ),
           ),
           Card(
@@ -219,7 +219,7 @@ class SettingsScreen extends ConsumerWidget {
                 'View, search, add and edit customers',
               ),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/customers'),
+              onTap: () => context.go('/customers'),
             ),
           ),
           Card(

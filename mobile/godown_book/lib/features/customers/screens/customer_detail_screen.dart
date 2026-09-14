@@ -127,7 +127,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                           ),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () async {
-                            await context.push('/documents', extra: customer.id);
+                            await context.push('/customer-documents', extra: customer.id);
                             _load();
                           },
                         ),
