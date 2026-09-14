@@ -150,8 +150,21 @@ jobs:
               print('::warning::firebase_options.dart still has a placeholder outside the '
                     'android block (the web app). Nothing published here uses it.')
 
-          if not pathlib.Path('android/key.properties').exists():
+          properties = pathlib.Path('android/key.properties')
+          if not properties.exists():
               problems.append('android/key.properties is missing; the build would not be release-signed')
+          else:
+              named = dict(
+                  line.split('=', 1)
+                  for line in properties.read_text().splitlines()
+                  if '=' in line
+              )
+              store = named.get('storeFile', '').strip()
+              if not store:
+                  problems.append('android/key.properties names no storeFile')
+              elif not (pathlib.Path('android') / store).exists():
+                  problems.append(
+                      f'the keystore {store!r} named by key.properties is not beside it in android/')
           if pathlib.Path('android/dev-signing.jks').exists():
               problems.append('android/dev-signing.jks is back; a published build must not use a test key')
 

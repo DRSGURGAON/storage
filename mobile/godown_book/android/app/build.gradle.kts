@@ -55,7 +55,10 @@ android {
             create("release") {
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+                // Resolved against android/, where key.properties
+                // itself lives - file() here would look inside
+                // android/app/ and never find it.
+                storeFile = keystoreProperties["storeFile"]?.let { rootProject.file(it) }
                 storePassword = keystoreProperties["storePassword"] as String
             }
         }
