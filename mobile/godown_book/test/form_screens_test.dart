@@ -5,6 +5,7 @@ import 'package:godown_book/features/billing/screens/bill_form_screen.dart';
 import 'package:godown_book/features/billing/screens/payment_form_screen.dart';
 import 'package:godown_book/features/quotation/screens/quotation_form_screen.dart';
 import 'package:godown_book/features/storage_booking/screens/storage_booking_form_screen.dart';
+import 'package:godown_book/shared/widgets/charge_line_row.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'support/test_database.dart';
@@ -58,6 +59,16 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Bol kar bhariye'), findsOneWidget);
     expect(find.text('Save quotation'), findsOneWidget);
+
+    // The amount is typed on the row itself, and the total follows.
+    final amountBoxes = find.byType(ChargeLineRow);
+    expect(amountBoxes, findsWidgets);
+    await tester.enterText(
+      find.descendant(of: amountBoxes.first, matching: find.byType(TextField)),
+      '5000',
+    );
+    await tester.pump();
+    expect(find.text('₹5000.00'), findsOneWidget);
   });
 
   testWidgets('a payment form comes up, and every chip has readable text',

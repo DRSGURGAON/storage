@@ -45,6 +45,7 @@ class ContactInformationCard extends StatelessWidget {
             const SizedBox(height: 20),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: mobile1Controller,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
@@ -57,6 +58,7 @@ class ContactInformationCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: mobile2Controller,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
@@ -69,6 +71,7 @@ class ContactInformationCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: mobile3Controller,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
@@ -81,6 +84,7 @@ class ContactInformationCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: mobile4Controller,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
@@ -93,6 +97,7 @@ class ContactInformationCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: whatsappController,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
@@ -105,6 +110,7 @@ class ContactInformationCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: landlineController,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
@@ -117,6 +123,7 @@ class ContactInformationCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: emailController,
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(

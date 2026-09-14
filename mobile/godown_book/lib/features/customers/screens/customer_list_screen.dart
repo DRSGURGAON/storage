@@ -116,6 +116,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: TextField(
+              textInputAction: TextInputAction.search,
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search by name, phone, city or GST',

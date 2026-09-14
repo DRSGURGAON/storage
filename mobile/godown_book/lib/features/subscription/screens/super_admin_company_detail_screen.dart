@@ -164,6 +164,7 @@ class _SuperAdminCompanyDetailScreenState
       builder: (context) => AlertDialog(
         title: Text(title),
         content: TextField(
+          textInputAction: TextInputAction.next,
           controller: controller,
           decoration: const InputDecoration(labelText: 'Reason'),
         ),

@@ -246,6 +246,7 @@ class _IncidentFormScreenState extends State<IncidentFormScreen> {
             ),
             const SizedBox(height: 14),
             TextField(
+              textInputAction: TextInputAction.next,
               controller: _loss,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
@@ -256,6 +257,7 @@ class _IncidentFormScreenState extends State<IncidentFormScreen> {
             ),
             const SizedBox(height: 14),
             TextField(
+              textInputAction: TextInputAction.next,
               controller: _place,
               decoration: const InputDecoration(
                 labelText: 'Where in the godown (optional)',
@@ -375,6 +377,7 @@ class _IncidentFormScreenState extends State<IncidentFormScreen> {
             child: Column(
               children: [
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: _police,
                   decoration: const InputDecoration(
                     labelText: 'Police / FIR number (if any)',
@@ -383,6 +386,7 @@ class _IncidentFormScreenState extends State<IncidentFormScreen> {
                 ),
                 const SizedBox(height: 14),
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: _reportedBy,
                   decoration: const InputDecoration(
                     labelText: 'Reported by',

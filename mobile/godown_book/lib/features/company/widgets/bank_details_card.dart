@@ -41,6 +41,7 @@ class BankDetailsCard extends StatelessWidget {
             const SizedBox(height: 20),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: beneficiaryController,
               decoration: const InputDecoration(
                 labelText: "Beneficiary Name",
@@ -52,6 +53,7 @@ class BankDetailsCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: bankController,
               decoration: const InputDecoration(
                 labelText: "Bank Name",
@@ -63,6 +65,7 @@ class BankDetailsCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: branchController,
               decoration: const InputDecoration(
                 labelText: "Branch Name",
@@ -74,6 +77,7 @@ class BankDetailsCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: accountController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
@@ -86,6 +90,7 @@ class BankDetailsCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: ifscController,
               textCapitalization: TextCapitalization.characters,
               decoration: const InputDecoration(

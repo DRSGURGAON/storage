@@ -566,6 +566,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: TextField(
+                    textInputAction: TextInputAction.next,
                     controller: c.authorizedSignatoryName,
                     decoration: const InputDecoration(
                       labelText: 'Authorized Signatory Name',

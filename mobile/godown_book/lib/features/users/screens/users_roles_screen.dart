@@ -109,10 +109,12 @@ class _UsersRolesScreenState extends State<UsersRolesScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: nameController,
                 decoration: const InputDecoration(labelText: 'Name'),
               ),
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: mobileController,
                 keyboardType: TextInputType.phone,
                 decoration: const InputDecoration(labelText: 'Mobile Number'),
@@ -175,6 +177,7 @@ class _UsersRolesScreenState extends State<UsersRolesScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('New Custom Role'),
         content: TextField(
+          textInputAction: TextInputAction.next,
           controller: controller,
           decoration: const InputDecoration(labelText: 'Role Name'),
         ),

@@ -55,6 +55,7 @@ class AddressCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: cityController,
               decoration: const InputDecoration(
                 labelText: "City",
@@ -77,6 +78,7 @@ class AddressCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: pincodeController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
@@ -89,6 +91,7 @@ class AddressCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: jurisdictionController,
               decoration: const InputDecoration(
                 labelText: "Jurisdiction (Optional)",

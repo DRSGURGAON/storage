@@ -196,6 +196,7 @@ class _SuperAdminEntryScreenState extends State<SuperAdminEntryScreen> {
         ),
         const SizedBox(height: 20),
         TextField(
+          textInputAction: TextInputAction.next,
           controller: _nameController,
           decoration: const InputDecoration(labelText: 'Your Name (optional)'),
         ),

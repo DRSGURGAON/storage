@@ -58,6 +58,7 @@ class CustomerNameField extends StatelessWidget {
         });
 
         return TextField(
+          textInputAction: TextInputAction.next,
           controller: textController,
           focusNode: focusNode,
           onSubmitted: (_) => onSubmitted(),

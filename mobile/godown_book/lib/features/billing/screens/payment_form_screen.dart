@@ -237,12 +237,14 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
                   const SizedBox(height: 12),
                 ] else ...[
                   TextField(
+                    textInputAction: TextInputAction.next,
                     controller: _payerName,
                     decoration: const InputDecoration(labelText: 'Received from *'),
                   ),
                   const SizedBox(height: 12),
                 ],
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: _payerPhone,
                   keyboardType: TextInputType.phone,
                   onChanged: (_) => typedOver(VoiceFieldKind.customerPhone),
@@ -251,6 +253,7 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: _amount,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
@@ -311,6 +314,7 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: _reference,
                   onChanged: (_) => typedOver(VoiceFieldKind.reference),
                   decoration: voiceDecoration(
@@ -319,6 +323,7 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
                 if (bill == null) ...[
                   const SizedBox(height: 12),
                   TextField(
+                    textInputAction: TextInputAction.next,
                     controller: _against,
                     decoration: const InputDecoration(
                       labelText: 'Against',

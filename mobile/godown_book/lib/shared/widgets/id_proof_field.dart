@@ -70,6 +70,7 @@ class IdProofField extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: TextField(
+                textInputAction: TextInputAction.next,
                 controller: numberController,
                 textCapitalization: TextCapitalization.characters,
                 decoration: _decoration(numberLabel),
@@ -80,6 +81,7 @@ class IdProofField extends StatelessWidget {
         if (type == IdProofTypes.other) ...[
           const SizedBox(height: 12),
           TextField(
+            textInputAction: TextInputAction.next,
             controller: customTypeController,
             textCapitalization: TextCapitalization.words,
             decoration: _decoration(

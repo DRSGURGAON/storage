@@ -117,6 +117,7 @@ class _StoragePhotosScreenState extends State<StoragePhotosScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Describe this photo'),
         content: TextField(
+          textInputAction: TextInputAction.next,
           controller: controller,
           autofocus: true,
           textCapitalization: TextCapitalization.sentences,

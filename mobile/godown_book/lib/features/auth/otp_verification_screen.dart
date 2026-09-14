@@ -190,6 +190,7 @@ class _OtpVerificationScreenState
               const SizedBox(height: 30),
 
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: _otpController,
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,

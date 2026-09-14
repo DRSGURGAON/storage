@@ -354,6 +354,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: name,
                 autofocus: existing == null,
                 textCapitalization: TextCapitalization.sentences,
@@ -361,6 +362,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
               ),
               const SizedBox(height: 10),
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: description,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(labelText: 'Description'),
@@ -370,6 +372,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                 children: [
                   Expanded(
                     child: TextField(
+                      textInputAction: TextInputAction.next,
                       controller: quantity,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(labelText: 'Quantity'),
@@ -378,6 +381,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                   const SizedBox(width: 10),
                   Expanded(
                     child: TextField(
+                      textInputAction: TextInputAction.next,
                       controller: unit,
                       decoration: const InputDecoration(labelText: 'Unit', hintText: 'Nos / Bags / Cartons'),
                     ),
@@ -386,16 +390,19 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
               ),
               const SizedBox(height: 10),
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: weight,
                 decoration: const InputDecoration(labelText: 'Weight (optional)', hintText: '250 kg'),
               ),
               const SizedBox(height: 10),
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: marks,
                 decoration: const InputDecoration(labelText: 'Marks / Lot no. (optional)'),
               ),
               const SizedBox(height: 10),
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: condition,
                 decoration: const InputDecoration(labelText: 'Condition on receipt (optional)'),
               ),
@@ -527,6 +534,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                   children: [
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _customerPhone,
                         keyboardType: TextInputType.phone,
                         onChanged: (_) =>
@@ -538,6 +546,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _customerGst,
                         textCapitalization: TextCapitalization.characters,
                         decoration: const InputDecoration(labelText: 'GST No.'),
@@ -557,6 +566,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                   children: [
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _customerCity,
                         textCapitalization: TextCapitalization.words,
                         onChanged: (_) =>
@@ -568,6 +578,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _customerPincode,
                         keyboardType: TextInputType.number,
                         onChanged: (_) =>
@@ -631,6 +642,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                   children: [
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _totalPackages,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
@@ -642,6 +654,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _declaredValue,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         onChanged: (_) =>
@@ -654,6 +667,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: _insuranceNote,
                   decoration: const InputDecoration(
                     labelText: 'Insurance',
@@ -676,6 +690,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: _rentRate,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => typedOver(VoiceFieldKind.rent),
@@ -689,6 +704,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                   children: [
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _areaSqft,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: const InputDecoration(labelText: 'Area (sq.ft)'),
@@ -697,6 +713,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _securityDeposit,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         onChanged: (_) =>
@@ -714,6 +731,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                   children: [
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _vehicleNumber,
                         textCapitalization: TextCapitalization.characters,
                         onChanged: (_) =>
@@ -725,6 +743,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _driverName,
                         textCapitalization: TextCapitalization.words,
                         decoration: const InputDecoration(labelText: 'Driver'),
@@ -734,6 +753,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: _receivedBy,
                   textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(labelText: 'Received by (staff)'),

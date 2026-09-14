@@ -39,6 +39,7 @@ class LegalInformationCard extends StatelessWidget {
             const SizedBox(height: 20),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: gstController,
               decoration: const InputDecoration(
                 labelText: "GST Number",
@@ -50,6 +51,7 @@ class LegalInformationCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: panController,
               decoration: const InputDecoration(
                 labelText: "PAN Number",
@@ -61,6 +63,7 @@ class LegalInformationCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: msmeController,
               decoration: const InputDecoration(
                 labelText: "MSME Number",
@@ -72,6 +75,7 @@ class LegalInformationCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: isoController,
               decoration: const InputDecoration(
                 labelText: "ISO Certificate",

@@ -264,6 +264,7 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
                             SizedBox(
                               width: 90,
                               child: TextField(
+                                textInputAction: TextInputAction.next,
                                 controller: _quantities[item.bookingItemId],
                                 keyboardType:
                                     const TextInputType.numberWithOptions(decimal: true),
@@ -281,6 +282,7 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
                   const SizedBox(height: 20),
                   _section('Who is collecting'),
                   TextField(
+                    textInputAction: TextInputAction.next,
                     controller: _collectedByName,
                     textCapitalization: TextCapitalization.words,
                     decoration: const InputDecoration(labelText: 'Collected by'),
@@ -290,6 +292,7 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
                     children: [
                       Expanded(
                         child: TextField(
+                          textInputAction: TextInputAction.next,
                           controller: _collectedByPhone,
                           keyboardType: TextInputType.phone,
                           decoration: const InputDecoration(labelText: 'Mobile'),
@@ -298,6 +301,7 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextField(
+                          textInputAction: TextInputAction.next,
                           controller: _collectedByIdProof,
                           decoration: const InputDecoration(labelText: 'ID shown'),
                         ),
@@ -310,6 +314,7 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
                     children: [
                       Expanded(
                         child: TextField(
+                          textInputAction: TextInputAction.next,
                           controller: _vehicleNumber,
                           textCapitalization: TextCapitalization.characters,
                           decoration: const InputDecoration(labelText: 'Vehicle no.'),
@@ -318,6 +323,7 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextField(
+                          textInputAction: TextInputAction.next,
                           controller: _driverName,
                           textCapitalization: TextCapitalization.words,
                           decoration: const InputDecoration(labelText: 'Driver'),

@@ -224,6 +224,7 @@ class _HandoverPaperScreenState extends State<HandoverPaperScreen> {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 const SizedBox(height: 12),
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: _name,
                   textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(
@@ -233,6 +234,7 @@ class _HandoverPaperScreenState extends State<HandoverPaperScreen> {
                 ),
                 const SizedBox(height: 14),
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: _phone,
                   keyboardType: TextInputType.phone,
                   decoration: const InputDecoration(
@@ -251,6 +253,7 @@ class _HandoverPaperScreenState extends State<HandoverPaperScreen> {
                 ),
                 const SizedBox(height: 14),
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: _relation,
                   decoration: const InputDecoration(
                     labelText: 'Relation to the customer',

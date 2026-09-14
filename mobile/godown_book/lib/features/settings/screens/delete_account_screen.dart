@@ -300,6 +300,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
         ),
         const SizedBox(height: 24),
         TextField(
+          textInputAction: TextInputAction.next,
           controller: _otpController,
           keyboardType: TextInputType.number,
           textAlign: TextAlign.center,

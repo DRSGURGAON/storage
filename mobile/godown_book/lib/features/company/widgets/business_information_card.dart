@@ -81,6 +81,7 @@ class BusinessInformationCard extends StatelessWidget {
             const SizedBox(height: 20),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: companyNameController,
               decoration: const InputDecoration(
                 labelText: "Company Name *",
@@ -91,6 +92,7 @@ class BusinessInformationCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: tagLineController,
               decoration: const InputDecoration(
                 labelText: "Tag Line",
@@ -101,6 +103,7 @@ class BusinessInformationCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: affiliatedByController,
               decoration: const InputDecoration(
                 labelText: "Affiliated By",
@@ -111,6 +114,7 @@ class BusinessInformationCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: websiteController,
               decoration: const InputDecoration(
                 labelText: "Website",

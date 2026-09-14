@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 
 import '../../../core/customer/customer_lookup_service.dart';
 import '../../../core/utils/id_generator.dart';
+import '../../../shared/widgets/charge_line_row.dart';
 import '../../../shared/widgets/customer_name_field.dart';
+import '../../master/repositories/charge_head_repository.dart';
 import '../../../shared/widgets/state_autocomplete_field.dart';
 import '../../../shared/widgets/save_problem.dart';
 import '../../master/models/charge_head_model.dart';
@@ -66,6 +68,10 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
   DateTime? _validUpto;
   DateTime? _moveDate;
   final List<QuotationLineModel> _lines = [];
+  final _amounts = LineAmountControllers();
+
+  /// The id of a line just added from a chip, so its box takes focus.
+  String? _focusLineId;
 
   bool get _isEdit => widget.editQuotationId != null;
 
@@ -155,7 +161,89 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
     ]) {
       c.dispose();
     }
+    _amounts.dispose();
     super.dispose();
+  }
+
+  /// The amount typed on a row is the line's amount: one unit at that
+  /// rate. Quantity and rate stay editable in the details dialog.
+  void _amountTyped(int i, String text) {
+    final value = double.tryParse(text.trim()) ?? 0;
+    setState(() {
+      _lines[i] = _lines[i].copyWith(
+        mode: ChargeMode.amount,
+        quantity: 1,
+        rate: value,
+        amount: value,
+      );
+    });
+  }
+
+  void _setMode(int i, ChargeMode mode) {
+    setState(() {
+      _lines[i] = _lines[i].copyWith(
+        mode: mode,
+        amount: mode == ChargeMode.amount ? _lines[i].quantity * _lines[i].rate : 0,
+      );
+    });
+  }
+
+  /// Services the company lists that are not on this quotation yet -
+  /// one tap adds the row and puts the cursor in its amount box.
+  Future<void> _addFromHeads() async {
+    final heads = await ChargeHeadRepository.instance.getAll();
+    if (!mounted) return;
+    final present = _lines.map((l) => l.serviceName.toLowerCase()).toSet();
+    final missing =
+        heads.where((h) => !present.contains(h.chargeName.toLowerCase())).toList();
+
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text('Add a service',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+            for (final head in missing)
+              ListTile(
+                title: Text(head.chargeName),
+                onTap: () => Navigator.pop(sheetContext, head.chargeName),
+              ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Something else...'),
+              onTap: () => Navigator.pop(sheetContext, ''),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    if (picked.isEmpty) {
+      await _editLine();
+      return;
+    }
+
+    final head = missing.firstWhere((h) => h.chargeName == picked);
+    final line = QuotationLineModel(
+      id: IdGenerator.generateId(),
+      chargeHeadId: head.id,
+      sortOrder: _lines.length,
+      serviceName: head.chargeName,
+      mode: head.defaultMode,
+      rate: head.defaultAmount,
+      amount: head.defaultMode == ChargeMode.amount ? head.defaultAmount : 0,
+      taxable: head.taxable,
+    );
+    setState(() {
+      _lines.add(line);
+      _focusLineId = line.id;
+    });
   }
 
   void _applySuggestion(CustomerSuggestion s) {
@@ -242,6 +330,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: name,
                   autofocus: existing == null,
                   textCapitalization: TextCapitalization.words,
@@ -249,6 +338,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                 ),
                 const SizedBox(height: 10),
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: description,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(labelText: 'Details'),
@@ -273,6 +363,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                     children: [
                       Expanded(
                         child: TextField(
+                          textInputAction: TextInputAction.next,
                           controller: quantity,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           decoration: const InputDecoration(labelText: 'Qty'),
@@ -282,6 +373,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                       const SizedBox(width: 10),
                       Expanded(
                         child: TextField(
+                          textInputAction: TextInputAction.next,
                           controller: rate,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           decoration: const InputDecoration(labelText: 'Rate (₹)'),
@@ -340,10 +432,12 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
     setState(() {
       if (index == null) {
         _lines.add(line);
+        _focusLineId = line.id;
       } else {
         _lines[index] = line;
       }
     });
+    _amounts.set(line.id, line.amount);
   }
 
   /// Puts what the operator accepted on the voice sheet into the
@@ -403,6 +497,9 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
       if (spoken.discount != null) _discount.text = _num(spoken.discount!);
       if (spoken.gstPercent != null) _gstPercent.text = _num(spoken.gstPercent!);
     });
+    for (final line in _lines) {
+      _amounts.set(line.id, line.amount);
+    }
 
     announceVoice(spoken.fields.length);
   }
@@ -498,6 +595,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                   children: [
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _customerPhone,
                         keyboardType: TextInputType.phone,
                         onChanged: (_) =>
@@ -509,6 +607,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _customerGst,
                         textCapitalization: TextCapitalization.characters,
                         decoration: const InputDecoration(labelText: 'GST No. (if any)'),
@@ -528,6 +627,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                   children: [
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _customerCity,
                         textCapitalization: TextCapitalization.words,
                         decoration: const InputDecoration(labelText: 'City'),
@@ -536,6 +636,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _customerPincode,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(labelText: 'Pincode'),
@@ -552,6 +653,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                   children: [
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _fromCity,
                         textCapitalization: TextCapitalization.words,
                         onChanged: (_) => typedOver(VoiceFieldKind.fromCity),
@@ -562,6 +664,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _toCity,
                         textCapitalization: TextCapitalization.words,
                         onChanged: (_) => typedOver(VoiceFieldKind.toCity),
@@ -606,6 +709,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                   children: [
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _storageMonths,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         onChanged: (_) =>
@@ -618,6 +722,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                     Expanded(
                       flex: 2,
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _storageNote,
                         decoration: const InputDecoration(
                           labelText: 'Storage note',
@@ -630,33 +735,42 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                 const SizedBox(height: 20),
 
                 _section('Services'),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Type the amount on each row. Next on the keyboard moves '
+                    'to the row below. Tap a name for quantity, rate or details.',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                ),
                 for (var i = 0; i < _lines.length; i++)
-                  Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      dense: true,
-                      title: Text(_lines[i].serviceName),
-                      subtitle: _lines[i].description.isEmpty ? null : Text(_lines[i].description),
-                      onTap: () => _editLine(existing: _lines[i], index: i),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _lines[i].mode == ChargeMode.amount
-                                ? '₹${_lines[i].amount.toStringAsFixed(0)}'
-                                : _lines[i].mode.label,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => setState(() => _lines.removeAt(i)),
-                          ),
-                        ],
-                      ),
-                    ),
+                  ChargeLineRow(
+                    key: ValueKey('line-${_lines[i].id}'),
+                    name: _lines[i].serviceName,
+                    subtitle: _lines[i].description.isEmpty
+                        ? (_lines[i].quantity != 1 && _lines[i].mode == ChargeMode.amount
+                            ? '${_num(_lines[i].quantity)} x ₹${_num(_lines[i].rate)}'
+                            : null)
+                        : _lines[i].description,
+                    amount: _amounts.of(_lines[i].id, _lines[i].amount),
+                    onChanged: (text) => _amountTyped(i, text),
+                    modeLabel: _lines[i].mode == ChargeMode.amount
+                        ? null
+                        : _lines[i].mode.label,
+                    modeOptions: [
+                      for (final m in ChargeMode.values) (m.code, m.label),
+                    ],
+                    onModeSelected: (code) => _setMode(
+                        i, ChargeMode.values.firstWhere((m) => m.code == code)),
+                    autofocus: _focusLineId == _lines[i].id,
+                    onDetails: () => _editLine(existing: _lines[i], index: i),
+                    onRemove: () => setState(() {
+                      _amounts.remove(_lines[i].id);
+                      _lines.removeAt(i);
+                    }),
                   ),
                 OutlinedButton.icon(
-                  onPressed: () => _editLine(),
+                  onPressed: _addFromHeads,
                   icon: const Icon(Icons.add),
                   label: const Text('Add service'),
                 ),
@@ -667,6 +781,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                   children: [
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _discount,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         onChanged: (_) {
@@ -680,6 +795,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _gstPercent,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         onChanged: (_) {

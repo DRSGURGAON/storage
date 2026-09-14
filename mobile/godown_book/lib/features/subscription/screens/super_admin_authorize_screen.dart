@@ -151,6 +151,7 @@ class _SuperAdminAuthorizeScreenState
       builder: (context) => AlertDialog(
         title: Text(cancel ? 'Cancel Subscription' : 'Suspend Subscription'),
         content: TextField(
+          textInputAction: TextInputAction.next,
           controller: reasonController,
           decoration: const InputDecoration(labelText: 'Reason'),
         ),
@@ -234,6 +235,8 @@ class _SuperAdminAuthorizeScreenState
           children: [
             Expanded(
               child: TextField(
+                textInputAction: TextInputAction.search,
+                keyboardType: TextInputType.phone,
                 controller: _searchController,
                 decoration: const InputDecoration(
                   labelText: 'Mobile Number or App ID (e.g. 4838)',
@@ -495,6 +498,7 @@ class _AuthorizeDialogState extends State<_AuthorizeDialog> {
               ),
               const SizedBox(height: 12),
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: _amountController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Payment Amount (₹)'),

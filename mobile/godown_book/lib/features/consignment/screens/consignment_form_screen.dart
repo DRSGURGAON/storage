@@ -237,6 +237,7 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextField(
+        textInputAction: TextInputAction.next,
         controller: controller,
         keyboardType: keyboard,
         maxLines: maxLines,
@@ -453,6 +454,7 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: name,
                 autofocus: true,
                 textCapitalization: TextCapitalization.words,
@@ -463,6 +465,7 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
                 children: [
                   Expanded(
                     child: TextField(
+                      textInputAction: TextInputAction.next,
                       controller: qty,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
@@ -472,6 +475,7 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: TextField(
+                      textInputAction: TextInputAction.next,
                       controller: unit,
                       decoration: const InputDecoration(labelText: 'Unit'),
                     ),
@@ -480,6 +484,7 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
               ),
               const SizedBox(height: 10),
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: condition,
                 decoration:
                     const InputDecoration(labelText: 'Condition / marks'),

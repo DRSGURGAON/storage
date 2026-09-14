@@ -225,16 +225,19 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
+              textInputAction: TextInputAction.next,
               controller: priceController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Price (₹)'),
             ),
             TextField(
+              textInputAction: TextInputAction.next,
               controller: discountController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Discount (₹)'),
             ),
             TextField(
+              textInputAction: TextInputAction.next,
               controller: taxController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Tax (%)'),
@@ -347,11 +350,13 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                     Text('Payment Settings', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 8),
                     TextField(
+                      textInputAction: TextInputAction.next,
                       controller: _upiIdController,
                       decoration: const InputDecoration(labelText: 'UPI ID'),
                     ),
                     const SizedBox(height: 12),
                     TextField(
+                      textInputAction: TextInputAction.next,
                       controller: _merchantNameController,
                       decoration: const InputDecoration(labelText: 'Merchant Name'),
                     ),
@@ -369,6 +374,7 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                     const SizedBox(height: 12),
 
                     TextField(
+                      textInputAction: TextInputAction.next,
                       controller: _qrLabel1Controller,
                       decoration: const InputDecoration(
                         labelText: 'QR 1 Label (optional)',
@@ -403,6 +409,7 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                     const SizedBox(height: 20),
 
                     TextField(
+                      textInputAction: TextInputAction.next,
                       controller: _qrLabel2Controller,
                       decoration: const InputDecoration(
                         labelText: 'QR 2 Label (optional)',
@@ -449,6 +456,7 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                         style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 8),
                     TextField(
+                      textInputAction: TextInputAction.next,
                       controller: _signBaseUrlController,
                       keyboardType: TextInputType.url,
                       decoration: const InputDecoration(
@@ -467,6 +475,7 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                     Text('Limited Mode', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 8),
                     TextField(
+                      textInputAction: TextInputAction.next,
                       controller: _demoLimitController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
@@ -475,6 +484,7 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                     ),
                     const SizedBox(height: 12),
                     TextField(
+                      textInputAction: TextInputAction.next,
                       controller: _watermarkTextController,
                       decoration: const InputDecoration(
                         labelText: 'Watermark Text',
@@ -482,6 +492,7 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                     ),
                     const SizedBox(height: 12),
                     TextField(
+                      textInputAction: TextInputAction.next,
                       controller: _expiryWarningDaysController,
                       decoration: const InputDecoration(
                         labelText: 'Expiry Warning Days (comma-separated)',

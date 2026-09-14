@@ -38,6 +38,7 @@ class ChargeHeadScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: nameController,
                   autofocus: existing == null,
                   textCapitalization: TextCapitalization.words,
@@ -61,6 +62,7 @@ class ChargeHeadScreen extends ConsumerWidget {
                 if (mode == ChargeMode.amount) ...[
                   const SizedBox(height: 12),
                   TextField(
+                    textInputAction: TextInputAction.next,
                     controller: amountController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(

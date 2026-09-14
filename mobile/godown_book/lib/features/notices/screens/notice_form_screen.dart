@@ -205,6 +205,7 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             TextField(
+              textInputAction: TextInputAction.next,
               controller: _amount,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(

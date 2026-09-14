@@ -141,6 +141,7 @@ class _CreditNoteFormScreenState extends State<CreditNoteFormScreen> {
                     ),
                     const SizedBox(height: 16),
                     TextField(
+                      textInputAction: TextInputAction.next,
                       controller: _amount,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),

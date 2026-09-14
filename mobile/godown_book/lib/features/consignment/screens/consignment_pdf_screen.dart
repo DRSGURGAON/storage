@@ -290,6 +290,7 @@ class _ConsignmentPdfScreenState extends State<ConsignmentPdfScreen> {
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: receivedBy,
                 textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(
@@ -299,6 +300,7 @@ class _ConsignmentPdfScreenState extends State<ConsignmentPdfScreen> {
               ),
               const SizedBox(height: 12),
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: remarks,
                 decoration: const InputDecoration(
                   labelText: 'Shortage or damage noted (optional)',

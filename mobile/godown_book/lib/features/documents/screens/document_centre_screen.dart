@@ -46,6 +46,20 @@ enum DocumentKind {
         DocumentKind.bilty => 'Bilty / Lorry Receipt',
       };
 
+  /// Where a new one of these is made. Null when it is only ever made
+  /// from somewhere else (a credit note starts from a bill).
+  String? get createRoute => switch (this) {
+        DocumentKind.quotation => '/quotation-create',
+        DocumentKind.storageReceipt => '/storage-create',
+        DocumentKind.bill => '/bill-create',
+        DocumentKind.receipt => '/payment-create',
+        DocumentKind.creditNote => null,
+        DocumentKind.release => '/release-create',
+        DocumentKind.notice => '/notice-create',
+        DocumentKind.incident => '/incident-create',
+        DocumentKind.bilty => '/bilty-create',
+      };
+
   IconData get icon => switch (this) {
         DocumentKind.quotation => Icons.request_quote_outlined,
         DocumentKind.storageReceipt => Icons.inventory_2_outlined,
@@ -99,7 +113,8 @@ class _DocumentCentreScreenState extends State<DocumentCentreScreen> {
   static final _dateFormat = DateFormat('dd MMM yyyy');
 
   final _search = TextEditingController();
-  final Set<DocumentKind> _kinds = {...DocumentKind.values};
+  /// The folder that is open; null shows the folders themselves.
+  DocumentKind? _folder;
 
   List<DocumentRow> _rows = const [];
   bool _loading = true;
@@ -247,7 +262,7 @@ class _DocumentCentreScreenState extends State<DocumentCentreScreen> {
     final query = _search.text.trim().toLowerCase();
 
     return _rows.where((row) {
-      if (!_kinds.contains(row.kind)) return false;
+      if (_folder != null && row.kind != _folder) return false;
 
       final date = DateTime.tryParse(row.date);
       if (_from != null && date != null && date.isBefore(_from!)) return false;
@@ -289,22 +304,43 @@ class _DocumentCentreScreenState extends State<DocumentCentreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final list = _filtered;
+    final folder = _folder;
+    final searching = _search.text.trim().isNotEmpty;
+    // A folder, or a search across every folder, shows the list; with
+    // neither, the folders themselves.
+    final showList = folder != null || searching;
+    final list = showList ? _filtered : const <DocumentRow>[];
 
     return Scaffold(
       appBar: AppBar(
         // A tab root has the bar below it; a customer's own document
-        // list is pushed on top and gets a way back.
+        // list is pushed on top and gets a way back. Inside a folder,
+        // back closes the folder first.
         automaticallyImplyLeading: false,
-        leading: context.canPop()
+        leading: folder != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () => context.pop(),
+                onPressed: () => setState(() => _folder = null),
               )
-            : null,
-        title: const Text('Documents'),
+            : context.canPop()
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => context.pop(),
+                  )
+                : null,
+        title: Text(folder == null ? 'Documents' : folder.label),
         centerTitle: true,
       ),
+      floatingActionButton: folder == null || folder.createRoute == null
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () async {
+                await context.push(folder.createRoute!);
+                _load();
+              },
+              icon: const Icon(Icons.add),
+              label: Text('New ${folder.singular}'),
+            ),
       body: Column(
         children: [
           Padding(
@@ -312,110 +348,139 @@ class _DocumentCentreScreenState extends State<DocumentCentreScreen> {
             child: TextField(
               controller: _search,
               onChanged: (_) => setState(() {}),
+              textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: 'Search customer, phone or document number',
+                hintText: folder == null
+                    ? 'Search every document'
+                    : 'Search in ${folder.label.toLowerCase()}',
                 prefixIcon: const Icon(Icons.search),
+                suffixIcon: searching
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () => setState(_search.clear),
+                      )
+                    : null,
                 isDense: true,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),
-          SizedBox(
-            height: 46,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: [
-                for (final kind in DocumentKind.values)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: FilterChip(
-                      label: Text(kind.label, style: const TextStyle(fontSize: 12)),
-                      selected: _kinds.contains(kind),
-                      onSelected: (on) => setState(() {
-                        if (on) {
-                          _kinds.add(kind);
-                        } else if (_kinds.length > 1) {
-                          _kinds.remove(kind);
-                        }
-                      }),
-                    ),
-                  ),
-              ],
+          if (showList)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(child: _dateTile('From', _from, (d) => _from = d)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _dateTile('To', _to, (d) => _to = d)),
+                ],
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Row(
-              children: [
-                Expanded(child: _dateTile('From', _from, (d) => _from = d)),
-                const SizedBox(width: 12),
-                Expanded(child: _dateTile('To', _to, (d) => _to = d)),
-              ],
-            ),
-          ),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : list.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.folder_open_outlined, size: 48),
-                              const SizedBox(height: 12),
-                              Text(
-                                _rows.isEmpty
-                                    ? 'No documents yet.\nWhatever you make will be listed here.'
-                                    : 'Nothing matches these filters.',
-                                textAlign: TextAlign.center,
+                : !showList
+                    ? _folders()
+                    : list.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(folder?.icon ?? Icons.folder_open_outlined, size: 48),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    folder != null && !searching
+                                        ? 'No ${folder.label.toLowerCase()} yet.'
+                                            '${folder.createRoute == null ? '' : '\nTap New ${folder.singular} to make the first one.'}'
+                                        : 'Nothing matches.',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _load,
+                            child: ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(12, 4, 12, 96),
+                              itemCount: list.length,
+                              itemBuilder: (context, index) => _rowTile(list[index]),
+                            ),
                           ),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-                          itemCount: list.length,
-                          itemBuilder: (context, index) {
-                            final row = list[index];
-                            return Card(
-                              margin: const EdgeInsets.symmetric(vertical: 5),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: Theme.of(context)
-                                      .colorScheme
-                                      .primaryContainer,
-                                  foregroundColor: Theme.of(context)
-                                      .colorScheme
-                                      .onPrimaryContainer,
-                                  child: Icon(row.kind.icon, size: 18),
-                                ),
-                                title: Text(
-                                  row.number.isEmpty ? row.kind.singular : row.number,
-                                  style: const TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                                subtitle: Text(
-                                  '${row.kind.singular}  •  ${row.customerName}\n'
-                                  '${_short(row.date)}${row.status.isEmpty ? '' : '  •  ${row.status}'}',
-                                ),
-                                isThreeLine: true,
-                                trailing: row.amount > 0
-                                    ? Text('₹${row.amount.toStringAsFixed(0)}',
-                                        style: const TextStyle(fontWeight: FontWeight.bold))
-                                    : const Icon(Icons.chevron_right),
-                                onTap: () => _open(row),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// One tile per kind of paper, with how many there are. The old
+  /// list is behind each one, and the New button with it - the way a
+  /// person keeps paper: bills in the bills file, and a blank on top.
+  Widget _folders() {
+    final counts = <DocumentKind, int>{};
+    for (final row in _rows) {
+      counts[row.kind] = (counts[row.kind] ?? 0) + 1;
+    }
+
+    return GridView.count(
+      crossAxisCount: 2,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 1.45,
+      children: [
+        for (final kind in DocumentKind.values)
+          Card(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => setState(() => _folder = kind),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(kind.icon, color: Theme.of(context).colorScheme.primary),
+                    const Spacer(),
+                    Text(kind.label,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(
+                      '${counts[kind] ?? 0}',
+                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _rowTile(DocumentRow row) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 5),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+          child: Icon(row.kind.icon, size: 18),
+        ),
+        title: Text(
+          row.number.isEmpty ? row.kind.singular : row.number,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          '${_folder == null ? '${row.kind.singular}  •  ' : ''}${row.customerName}\n'
+          '${_short(row.date)}${row.status.isEmpty ? '' : '  •  ${row.status}'}',
+        ),
+        isThreeLine: true,
+        trailing: row.amount > 0
+            ? Text('₹${row.amount.toStringAsFixed(0)}',
+                style: const TextStyle(fontWeight: FontWeight.bold))
+            : const Icon(Icons.chevron_right),
+        onTap: () => _open(row),
       ),
     );
   }

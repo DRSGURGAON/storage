@@ -41,6 +41,7 @@ class UpiDetailsCard extends StatelessWidget {
             const SizedBox(height: 20),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: upi1Controller,
               decoration: const InputDecoration(
                 labelText: "UPI ID 1",
@@ -52,6 +53,7 @@ class UpiDetailsCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: upi2Controller,
               decoration: const InputDecoration(
                 labelText: "UPI ID 2",
@@ -63,6 +65,7 @@ class UpiDetailsCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: phonePeController,
               decoration: const InputDecoration(
                 labelText: "PhonePe Number",
@@ -74,6 +77,7 @@ class UpiDetailsCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: googlePayController,
               decoration: const InputDecoration(
                 labelText: "Google Pay Number",
@@ -85,6 +89,7 @@ class UpiDetailsCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: paytmController,
               decoration: const InputDecoration(
                 labelText: "Paytm Number",

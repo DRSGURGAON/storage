@@ -47,6 +47,7 @@ class DocumentPreferencesCard extends StatelessWidget {
             const SizedBox(height: 20),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: quotationPrefixController,
               decoration: const InputDecoration(
                 labelText: "Quotation Prefix",
@@ -59,6 +60,7 @@ class DocumentPreferencesCard extends StatelessWidget {
             const SizedBox(height: 12),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: bookingPrefixController,
               decoration: const InputDecoration(
                 labelText: "Storage Receipt Prefix",
@@ -71,6 +73,7 @@ class DocumentPreferencesCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: invoicePrefixController,
               decoration: const InputDecoration(
                 labelText: "Storage Bill Prefix",
@@ -83,6 +86,7 @@ class DocumentPreferencesCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: receiptPrefixController,
               decoration: const InputDecoration(
                 labelText: "Payment Receipt Prefix",
@@ -95,6 +99,7 @@ class DocumentPreferencesCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: releasePrefixController,
               decoration: const InputDecoration(
                 labelText: "Release Record Prefix",
@@ -107,6 +112,7 @@ class DocumentPreferencesCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             TextField(
+              textInputAction: TextInputAction.next,
               controller: consignmentPrefixController,
               decoration: const InputDecoration(
                 labelText: "Bilty / LR Prefix",

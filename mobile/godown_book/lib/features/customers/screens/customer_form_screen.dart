@@ -161,6 +161,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                 children: [
                   _section('Contact'),
                   TextFormField(
+                    textInputAction: TextInputAction.next,
                     controller: _name,
                     textCapitalization: TextCapitalization.words,
                     autofocus: !_isEdit,
@@ -170,18 +171,21 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
+                    textInputAction: TextInputAction.next,
                     controller: _mobile,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(labelText: 'Mobile number'),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
+                    textInputAction: TextInputAction.next,
                     controller: _altMobile,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(labelText: 'Alternate mobile'),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
+                    textInputAction: TextInputAction.next,
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(labelText: 'Email'),
@@ -199,6 +203,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                     children: [
                       Expanded(
                         child: TextFormField(
+                          textInputAction: TextInputAction.next,
                           controller: _city,
                           textCapitalization: TextCapitalization.words,
                           decoration: const InputDecoration(labelText: 'City'),
@@ -207,6 +212,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextFormField(
+                          textInputAction: TextInputAction.next,
                           controller: _pincode,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(labelText: 'Pincode'),
@@ -219,12 +225,14 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                   const SizedBox(height: 20),
                   _section('Tax & identity'),
                   TextFormField(
+                    textInputAction: TextInputAction.next,
                     controller: _gst,
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(labelText: 'GST number'),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
+                    textInputAction: TextInputAction.next,
                     controller: _pan,
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(labelText: 'PAN'),

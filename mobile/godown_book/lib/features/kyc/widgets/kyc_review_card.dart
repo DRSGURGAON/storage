@@ -62,6 +62,7 @@ class _KycReviewCardState extends State<KycReviewCard> {
         builder: (dialogContext) => AlertDialog(
           title: const Text('Reject KYC'),
           content: TextField(
+            textInputAction: TextInputAction.next,
             controller: controller,
             decoration: const InputDecoration(labelText: 'Reason'),
           ),

@@ -56,6 +56,7 @@ class _PaymentListScreenState extends ConsumerState<PaymentListScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: TextField(
+              textInputAction: TextInputAction.search,
               controller: _search,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/utils/id_generator.dart';
+import '../../../shared/widgets/charge_line_row.dart';
 import '../../../shared/widgets/customer_name_field.dart';
 import '../../../shared/widgets/save_problem.dart';
 import '../../master/repositories/charge_head_repository.dart';
@@ -58,6 +59,8 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
   DateTime? _periodTo;
   DateTime? _dueDate;
   final List<BillLineModel> _lines = [];
+  final _amounts = LineAmountControllers();
+  String? _focusLineId;
 
   bool get _isEdit => widget.editBillId != null;
 
@@ -144,7 +147,176 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
     for (final c in [_customerName, _customerPhone, _customerGst, _discount, _gstPercent, _notes]) {
       c.dispose();
     }
+    _amounts.dispose();
     super.dispose();
+  }
+
+  void _amountTyped(int i, String text) {
+    final value = double.tryParse(text.trim()) ?? 0;
+    setState(() {
+      _lines[i] = _lines[i].copyWith(quantity: 1, rate: value, amount: value);
+    });
+  }
+
+  /// One tap on a charge head adds its row with the cursor in the box.
+  /// The storage charge is never added this way - it is worked out
+  /// from the record and the period.
+  Future<void> _addFromHeads() async {
+    final heads = await ChargeHeadRepository.instance.getAll();
+    if (!mounted) return;
+    final present = _lines.map((l) => l.chargeName.toLowerCase()).toSet();
+    final missing = heads
+        .where((h) =>
+            h.chargeName != 'Storage Rent' &&
+            !present.contains(h.chargeName.toLowerCase()))
+        .toList();
+
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text('Add a charge',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+            for (final head in missing)
+              ListTile(
+                title: Text(head.chargeName),
+                onTap: () => Navigator.pop(sheetContext, head.chargeName),
+              ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Something else...'),
+              onTap: () => Navigator.pop(sheetContext, ''),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    if (picked.isEmpty) {
+      await _addCharge();
+      return;
+    }
+
+    final head = missing.firstWhere((h) => h.chargeName == picked);
+    final line = BillLineModel(
+      id: IdGenerator.generateId(),
+      chargeName: head.chargeName,
+      quantity: 1,
+      rate: head.defaultAmount,
+      amount: head.defaultAmount,
+      taxable: head.taxable,
+    );
+    setState(() {
+      _lines.add(line);
+      _focusLineId = line.id;
+    });
+  }
+
+  /// Quantity, rate, description and GST for one line - the things a
+  /// row does not have room for.
+  Future<void> _editLine(int index) async {
+    final line = _lines[index];
+    final name = TextEditingController(text: line.chargeName);
+    final description = TextEditingController(text: line.description);
+    final quantity = TextEditingController(text: _num(line.quantity));
+    final rate = TextEditingController(text: line.rate == 0 ? '' : _num(line.rate));
+    var taxable = line.taxable;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Charge details'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: name,
+                  textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: 'Charge *'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: description,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: 'Details'),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: quantity,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(labelText: 'Qty'),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: rate,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        textInputAction: TextInputAction.done,
+                        decoration: const InputDecoration(labelText: 'Rate (₹)'),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Amount: ₹${((double.tryParse(quantity.text) ?? 1) * (double.tryParse(rate.text) ?? 0)).toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: taxable,
+                  title: const Text('GST applies'),
+                  onChanged: (v) => setDialogState(() => taxable = v ?? true),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (name.text.trim().isEmpty) return;
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (saved != true) return;
+
+    final qty = double.tryParse(quantity.text.trim()) ?? 1;
+    final rateValue = double.tryParse(rate.text.trim()) ?? 0;
+    final updated = line.copyWith(
+      chargeName: name.text.trim(),
+      description: description.text.trim(),
+      quantity: qty <= 0 ? 1 : qty,
+      rate: rateValue,
+      amount: (qty <= 0 ? 1 : qty) * rateValue,
+      taxable: taxable,
+    );
+    setState(() => _lines[index] = updated);
+    _amounts.set(updated.id, updated.amount);
   }
 
   double _parse(TextEditingController c) =>
@@ -294,12 +466,14 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: nameController,
                   textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(labelText: 'Charge *'),
                 ),
                 const SizedBox(height: 10),
                 TextField(
+                  textInputAction: TextInputAction.next,
                   controller: amountController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(labelText: 'Amount (₹)'),
@@ -332,15 +506,17 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
     if (saved != true) return;
 
     final amount = double.tryParse(amountController.text.trim()) ?? 0;
+    final line = BillLineModel(
+      id: IdGenerator.generateId(),
+      chargeName: nameController.text.trim(),
+      quantity: 1,
+      rate: amount,
+      amount: amount,
+      taxable: taxable,
+    );
     setState(() {
-      _lines.add(BillLineModel(
-        id: IdGenerator.generateId(),
-        chargeName: nameController.text.trim(),
-        quantity: 1,
-        rate: amount,
-        amount: amount,
-        taxable: taxable,
-      ));
+      _lines.add(line);
+      _focusLineId = line.id;
     });
   }
 
@@ -390,6 +566,9 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
       if (spoken.discount != null) _discount.text = _num(spoken.discount!);
       if (spoken.gstPercent != null) _gstPercent.text = _num(spoken.gstPercent!);
     });
+    for (final line in _lines) {
+      _amounts.set(line.id, line.amount);
+    }
 
     announceVoice(spoken.fields.length);
   }
@@ -559,6 +738,7 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
                   children: [
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _customerPhone,
                         keyboardType: TextInputType.phone,
                         onChanged: (_) =>
@@ -570,6 +750,7 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _customerGst,
                         textCapitalization: TextCapitalization.characters,
                         decoration: const InputDecoration(labelText: 'GST No. (if any)'),
@@ -580,30 +761,34 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
                 const SizedBox(height: 20),
 
                 _section('Charges'),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Type the amount on each row. Next on the keyboard moves '
+                    'to the row below. Tap a name for quantity, rate or details.',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                ),
                 for (var i = 0; i < _lines.length; i++)
-                  Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      dense: true,
-                      title: Text(_lines[i].chargeName),
-                      subtitle: _lines[i].description.isEmpty
-                          ? null
-                          : Text(_lines[i].description, style: const TextStyle(fontSize: 12)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('₹${_lines[i].amount.toStringAsFixed(0)}',
-                              style: const TextStyle(fontWeight: FontWeight.w600)),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () => setState(() => _lines.removeAt(i)),
-                          ),
-                        ],
-                      ),
-                    ),
+                  ChargeLineRow(
+                    key: ValueKey('line-${_lines[i].id}'),
+                    name: _lines[i].chargeName,
+                    subtitle: _lines[i].description.isEmpty
+                        ? (_lines[i].quantity != 1
+                            ? '${_num(_lines[i].quantity)} x ₹${_num(_lines[i].rate)}'
+                            : null)
+                        : _lines[i].description,
+                    amount: _amounts.of(_lines[i].id, _lines[i].amount),
+                    onChanged: (text) => _amountTyped(i, text),
+                    autofocus: _focusLineId == _lines[i].id,
+                    onDetails: () => _editLine(i),
+                    onRemove: () => setState(() {
+                      _amounts.remove(_lines[i].id);
+                      _lines.removeAt(i);
+                    }),
                   ),
                 OutlinedButton.icon(
-                  onPressed: _addCharge,
+                  onPressed: _addFromHeads,
                   icon: const Icon(Icons.add),
                   label: const Text('Add charge'),
                 ),
@@ -629,6 +814,7 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
                   children: [
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _discount,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         onChanged: (_) {
@@ -642,6 +828,7 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        textInputAction: TextInputAction.next,
                         controller: _gstPercent,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         onChanged: (_) {

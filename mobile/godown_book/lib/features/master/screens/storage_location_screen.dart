@@ -51,6 +51,7 @@ class _StorageLocationScreenState extends State<StorageLocationScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: nameController,
                 autofocus: existing == null,
                 textCapitalization: TextCapitalization.words,
@@ -61,6 +62,7 @@ class _StorageLocationScreenState extends State<StorageLocationScreen> {
               ),
               const SizedBox(height: 12),
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: codeController,
                 textCapitalization: TextCapitalization.characters,
                 decoration: const InputDecoration(
@@ -76,6 +78,7 @@ class _StorageLocationScreenState extends State<StorageLocationScreen> {
               ),
               const SizedBox(height: 12),
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: capacityController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(

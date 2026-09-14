@@ -308,6 +308,7 @@ class _DocumentCustomisationScreenState
                         ),
                         const SizedBox(height: 8),
                         TextField(
+                          textInputAction: TextInputAction.next,
                           controller: _footer1Controller,
                           decoration: const InputDecoration(
                             labelText: 'Footer Line 1',
@@ -318,6 +319,7 @@ class _DocumentCustomisationScreenState
                         ),
                         const SizedBox(height: 12),
                         TextField(
+                          textInputAction: TextInputAction.next,
                           controller: _footer2Controller,
                           decoration: const InputDecoration(
                             labelText: 'Footer Line 2 (optional)',

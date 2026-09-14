@@ -293,6 +293,7 @@ class _DepositScreenState extends State<DepositScreen> {
                   style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               TextField(
+                textInputAction: TextInputAction.next,
                 controller: amount,
                 autofocus: true,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
