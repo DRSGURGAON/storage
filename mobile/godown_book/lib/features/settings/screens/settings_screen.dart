@@ -280,22 +280,10 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(height: 16),
-
-          _SectionHeader('Data & Backup'),
-          Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: ListTile(
-              leading: const Icon(Icons.cloud_done_outlined),
-              title: const Text('Cloud Backup'),
-              subtitle: const Text(
-                'Documents back up automatically to your account - '
-                'view status, backup now, or restore on a new phone',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/cloud-backup'),
-            ),
-          ),
+          // Cloud backup has no tile: it runs on its own every few
+          // minutes while the app is open (DocumentCloudSyncService) and
+          // restores itself on a new phone at login. Nothing for an
+          // operator to press, so nothing for them to worry about.
 
           const SizedBox(height: 16),
 
