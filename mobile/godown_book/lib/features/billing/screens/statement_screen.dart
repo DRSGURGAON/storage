@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/subscription/document_type.dart';
@@ -34,6 +35,9 @@ class _StatementScreenState extends State<StatementScreen> {
   List<StatementEntry> _entries = const [];
   double _openingBalance = 0;
   bool _loading = true;
+
+  /// Bumped after the source record is edited, so the preview rebuilds.
+  int _version = 0;
   bool _showPdf = false;
 
   DateTime? _from;
@@ -85,6 +89,14 @@ class _StatementScreenState extends State<StatementScreen> {
               fileName: () => _fileName,
               getPdfBytes: () => _menuPdfBytes,
               customerPhone: customer?.mobileNumber,
+              // The statement is drawn from the customer's record and
+              // their bills and receipts; the customer is what is edited
+              // here, each bill or receipt from its own screen.
+              onEdit: () async {
+                await context.push('/customer-edit', extra: widget.customerId);
+                _version++;
+                await _load();
+              },
             ),
         ],
       ),
@@ -99,7 +111,7 @@ class _StatementScreenState extends State<StatementScreen> {
                       : DocumentPdfView(
                           documentType: DocumentType.statement,
                           fileName: _fileName,
-                          rebuildKey: '${_from?.toIso8601String()}|${_to?.toIso8601String()}',
+                          rebuildKey: '$_version|${_from?.toIso8601String()}|${_to?.toIso8601String()}',
                           onBytes: (bytes) => _menuPdfBytes = bytes,
                           build: ({required showWatermark}) =>
                               StatementPdfService.instance.build(

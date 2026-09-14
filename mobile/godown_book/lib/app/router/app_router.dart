@@ -420,6 +420,12 @@ class AppRouter {
       ),
 
       GoRoute(
+        path: '/release-edit',
+        builder: (context, state) =>
+            ReleaseFormScreen(editReleaseId: state.extra as String),
+      ),
+
+      GoRoute(
         path: '/release-pdf',
         builder: (context, state) =>
             ReleasePdfScreen(releaseId: state.extra as String),
@@ -467,6 +473,12 @@ class AppRouter {
       ),
 
       GoRoute(
+        path: '/payment-edit',
+        builder: (context, state) =>
+            PaymentFormScreen(editPaymentId: state.extra as String),
+      ),
+
+      GoRoute(
         path: '/deposit',
         builder: (context, state) =>
             DepositScreen(bookingId: state.extra as String),
@@ -476,6 +488,12 @@ class AppRouter {
         path: '/credit-note-create',
         builder: (context, state) =>
             CreditNoteFormScreen(billId: state.extra as String),
+      ),
+
+      GoRoute(
+        path: '/credit-note-edit',
+        builder: (context, state) =>
+            CreditNoteFormScreen(editPaymentId: state.extra as String),
       ),
 
       GoRoute(
@@ -507,6 +525,12 @@ class AppRouter {
             customerId: args?['customerId'] as String?,
           );
         },
+      ),
+
+      GoRoute(
+        path: '/notice-edit',
+        builder: (context, state) =>
+            NoticeFormScreen(editNoticeId: state.extra as String),
       ),
 
       GoRoute(

@@ -31,6 +31,9 @@ class _PaymentReceiptPdfScreenState extends State<PaymentReceiptPdfScreen> {
   double? _balanceAfter;
   bool _loading = true;
 
+  /// Bumped after an edit so the preview is rebuilt from the new figures.
+  int _version = 0;
+
   @override
   void initState() {
     super.initState();
@@ -87,6 +90,16 @@ class _PaymentReceiptPdfScreenState extends State<PaymentReceiptPdfScreen> {
             fileName: () => _fileName,
             getPdfBytes: () => _menuPdfBytes,
             customerPhone: payment?.payerPhone,
+            onEdit: payment == null
+                ? null
+                : () async {
+                    await context.push(
+                      _isCreditNote ? '/credit-note-edit' : '/payment-edit',
+                      extra: widget.paymentId,
+                    );
+                    _version++;
+                    await _load();
+                  },
             onDelete: () => BillingRepository.instance.deletePayment(widget.paymentId),
             afterDelete: () =>
                 context.canPop() ? context.pop() : context.go('/payments'),
@@ -110,6 +123,7 @@ class _PaymentReceiptPdfScreenState extends State<PaymentReceiptPdfScreen> {
                           ? DocumentType.creditNote
                           : DocumentType.moneyReceipt,
                       fileName: _fileName,
+                      rebuildKey: '$_version',
                       onBytes: (bytes) => _menuPdfBytes = bytes,
                       build: ({required showWatermark}) =>
                           PaymentReceiptPdfService.instance.build(

@@ -656,8 +656,31 @@ class BillingRepository {
     return SplitPaymentResult(applied: applied, advance: advance);
   }
 
+  /// Corrects a receipt. It keeps its number; the bill it settles is
+  /// restated from the new figures. The same overpayment rule as
+  /// [recordPayment] applies - the receipt's own earlier amount is
+  /// available again, of course.
   Future<void> updatePayment(PaymentModel payment) async {
     final existing = await _dao.getPaymentById(payment.id);
+
+    if (payment.billId.isNotEmpty && payment.paymentType.settlesDues) {
+      final bill = await _dao.getBillById(payment.billId);
+      if (bill != null) {
+        final ownEarlierAmount = existing != null &&
+                existing.billId == payment.billId &&
+                existing.paymentType.settlesDues
+            ? existing.amount
+            : 0.0;
+        final allowed = bill.balanceDue + ownEarlierAmount;
+        if (payment.amount > allowed + 0.004) {
+          throw OverpaymentException(
+            bill: bill.copyWith(amountPaid: bill.amountPaid - ownEarlierAmount),
+            amount: payment.amount,
+          );
+        }
+      }
+    }
+
     await _dao.updatePayment(payment.copyWith(receiptNo: existing?.receiptNo));
     await _restateBill(payment.billId);
     if (existing != null && existing.billId != payment.billId) {

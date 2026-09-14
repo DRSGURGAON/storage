@@ -27,6 +27,7 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
   QuotationModel? _quotation;
   CompanyModel? _company;
   bool _loading = true;
+  int _version = 0;
 
   @override
   void initState() {
@@ -65,7 +66,11 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
             fileName: () => _fileName,
             getPdfBytes: () => _menuPdfBytes,
             customerPhone: _quotation?.customerPhone,
-            onEdit: () => context.push('/quotation-edit', extra: widget.quotationId),
+            onEdit: () async {
+              await context.push('/quotation-edit', extra: widget.quotationId);
+              _version++;
+              await _load();
+            },
             onDelete: () => QuotationRepository.instance.delete(widget.quotationId),
             afterDelete: () => context.canPop() ? context.pop() : context.go('/quotations'),
           ),
@@ -87,6 +92,7 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
     return DocumentPdfView(
       documentType: DocumentType.quotation,
       fileName: _fileName,
+      rebuildKey: '$_version',
       onBytes: (bytes) => _menuPdfBytes = bytes,
       build: ({required showWatermark}) => QuotationPdfService.instance.build(
         quotation,

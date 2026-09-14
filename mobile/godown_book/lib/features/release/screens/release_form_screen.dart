@@ -5,6 +5,7 @@ import '../../../shared/widgets/save_problem.dart';
 
 import '../../billing/repositories/billing_repository.dart';
 import '../../billing/services/storage_charge_calculator.dart';
+import '../../storage_booking/models/booking_item_model.dart';
 import '../../storage_booking/models/storage_booking_model.dart';
 import '../../storage_booking/models/storage_status.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
@@ -17,7 +18,10 @@ class ReleaseFormScreen extends StatefulWidget {
   /// The storage record the goods are going out of.
   final String? bookingId;
 
-  const ReleaseFormScreen({super.key, this.bookingId});
+  /// A release already recorded, when a wrong entry is corrected.
+  final String? editReleaseId;
+
+  const ReleaseFormScreen({super.key, this.bookingId, this.editReleaseId});
 
   @override
   State<ReleaseFormScreen> createState() => _ReleaseFormScreenState();
@@ -29,6 +33,9 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
   StorageBookingModel? _booking;
   List<StorageBookingModel> _openBookings = const [];
   GoodsReleaseModel? _draft;
+
+  /// The release being corrected, when editing.
+  GoodsReleaseModel? _existing;
   double _outstanding = 0;
   bool _loading = true;
   bool _saving = false;
@@ -52,7 +59,17 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
   Future<void> _load() async {
     _openBookings = await StorageBookingRepository.instance.getOpen();
 
-    if (widget.bookingId != null) {
+    if (widget.editReleaseId != null) {
+      final existing =
+          await GoodsReleaseRepository.instance.getById(widget.editReleaseId!);
+      if (existing != null) {
+        _existing = existing;
+        await _selectBooking(
+          await StorageBookingRepository.instance.getById(existing.bookingId),
+          existing: existing,
+        );
+      }
+    } else if (widget.bookingId != null) {
       await _selectBooking(
         await StorageBookingRepository.instance.getById(widget.bookingId!),
       );
@@ -61,10 +78,40 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _selectBooking(StorageBookingModel? booking) async {
+  /// Shows [booking]'s goods. When correcting [existing], what that
+  /// release took out counts as still available (it is being decided
+  /// again), and its own quantities are filled in.
+  Future<void> _selectBooking(
+    StorageBookingModel? booking, {
+    GoodsReleaseModel? existing,
+  }) async {
     if (booking == null) return;
 
-    final draft = GoodsReleaseRepository.instance.draftForBooking(booking);
+    var draft = GoodsReleaseRepository.instance.draftForBooking(booking);
+    final earlier = <String, ReleaseItemModel>{
+      for (final item in existing?.items ?? const <ReleaseItemModel>[])
+        item.bookingItemId: item,
+    };
+    if (existing != null) {
+      draft = existing.copyWith(
+        items: [
+          for (final item in booking.items)
+            if (item.remainingQty + (earlier[item.id]?.quantity ?? 0) > 0)
+              ReleaseItemModel(
+                id: earlier[item.id]?.id ?? '',
+                bookingItemId: item.id,
+                itemName: item.itemName,
+                quantity: item.remainingQty + (earlier[item.id]?.quantity ?? 0),
+                unit: item.unit,
+              ),
+        ],
+      );
+      _collectedByIdProof.text = existing.collectedByIdProof;
+      _vehicleNumber.text = existing.vehicleNumber;
+      _driverName.text = existing.driverName;
+      _remarks.text = existing.remarks;
+      _releaseDate = DateTime.tryParse(existing.releaseDate) ?? _releaseDate;
+    }
 
     var outstanding = 0.0;
     if (booking.customerId.isNotEmpty) {
@@ -80,8 +127,10 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
     }
     _quantities.clear();
     for (final item in draft.items) {
-      _quantities[item.bookingItemId] =
-          TextEditingController(text: _num(item.quantity));
+      final typed = existing == null
+          ? item.quantity
+          : (earlier[item.bookingItemId]?.quantity ?? 0);
+      _quantities[item.bookingItemId] = TextEditingController(text: _num(typed));
     }
 
     if (!mounted) return;
@@ -89,8 +138,10 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
       _booking = booking;
       _draft = draft;
       _outstanding = outstanding;
-      _collectedByName.text = booking.customerName;
-      _collectedByPhone.text = booking.customerPhone;
+      _collectedByName.text =
+          existing?.collectedByName ?? booking.customerName;
+      _collectedByPhone.text =
+          existing?.collectedByPhone ?? booking.customerPhone;
     });
   }
 
@@ -165,15 +216,23 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
       return;
     }
 
-    final everything = items.length == booking.items.where((i) => i.remainingQty > 0).length &&
+    // What is available to go out: what is left, plus - when correcting
+    // a release - what that release itself had taken.
+    final earlier = <String, double>{
+      for (final item in _existing?.items ?? const <ReleaseItemModel>[])
+        item.bookingItemId: item.quantity,
+    };
+    double available(BookingItemModel i) => i.remainingQty + (earlier[i.id] ?? 0);
+
+    final everything = items.length == booking.items.where((i) => available(i) > 0).length &&
         items.every((item) {
           final source = booking.items.firstWhere((i) => i.id == item.bookingItemId);
-          return item.quantity >= source.remainingQty;
+          return item.quantity >= available(source);
         });
 
     setState(() => _saving = true);
     try {
-      final saved = await GoodsReleaseRepository.instance.save(draft.copyWith(
+      final corrected = draft.copyWith(
         releaseDate: _releaseDate.toIso8601String(),
         releaseType: everything ? ReleaseType.full : ReleaseType.partial,
         collectedByName: _collectedByName.text.trim(),
@@ -181,10 +240,15 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
         collectedByIdProof: _collectedByIdProof.text.trim(),
         vehicleNumber: _vehicleNumber.text.trim().toUpperCase(),
         driverName: _driverName.text.trim(),
-        gateOutTime: TimeOfDay.fromDateTime(DateTime.now()).format(context),
+        gateOutTime: _existing?.gateOutTime.isNotEmpty == true
+            ? _existing!.gateOutTime
+            : TimeOfDay.fromDateTime(DateTime.now()).format(context),
         remarks: _remarks.text.trim(),
         items: items,
-      ));
+      );
+      final saved = _existing == null
+          ? await GoodsReleaseRepository.instance.save(corrected)
+          : await GoodsReleaseRepository.instance.update(corrected);
 
       if (!mounted) return;
       await _offerFinalBill(saved.bookingId);
@@ -241,7 +305,12 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
     final draft = _draft;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Release Goods'), centerTitle: true),
+      appBar: AppBar(
+        title: Text(_existing == null
+            ? 'Release Goods'
+            : 'Edit Release ${_existing!.releaseNo}'),
+        centerTitle: true,
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -256,8 +325,12 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
                     subtitle: Text(_booking == null
                         ? 'Whose goods are going out'
                         : '${_num(_booking!.remainingQuantity)} still in storage'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: _pickBooking,
+                    trailing: _existing == null
+                        ? const Icon(Icons.chevron_right)
+                        : null,
+                    // A release is corrected on the record it was made
+                    // on; it never moves to another customer.
+                    onTap: _existing == null ? _pickBooking : null,
                   ),
                 ),
                 if (_outstanding > 0) ...[
@@ -407,7 +480,7 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
                         ? const SizedBox(
                             width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.outbox_outlined),
-                    label: const Text('Release goods'),
+                    label: Text(_existing == null ? 'Release goods' : 'Save changes'),
                   ),
                   const SizedBox(height: 24),
                 ],

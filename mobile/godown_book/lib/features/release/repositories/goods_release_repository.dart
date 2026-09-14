@@ -178,6 +178,77 @@ class GoodsReleaseRepository {
     return saved;
   }
 
+  /// Corrects a release that was recorded wrongly - quantities, who
+  /// collected, vehicle, date, remarks. The record keeps its number.
+  /// The old quantities go back on the storage record first, then the
+  /// new ones come off, so the check against what is really there is
+  /// exact; if the new quantities are refused, the old ones are put
+  /// back and nothing changes.
+  Future<GoodsReleaseModel> update(GoodsReleaseModel release) async {
+    final existing = await _dao.getById(release.id);
+    if (existing == null) {
+      throw StateError('This release record no longer exists.');
+    }
+
+    final going = release.items.where((i) => i.quantity > 0).toList();
+    if (going.isEmpty) {
+      throw StateError('Nothing to release - enter what is going out.');
+    }
+
+    final bookingRepository = StorageBookingRepository.instance;
+    final oldQuantities = {
+      for (final item in existing.items) item.bookingItemId: item.quantity,
+    };
+
+    await bookingRepository.applyRelease(
+      existing.bookingId,
+      {for (final e in oldQuantities.entries) e.key: -e.value},
+    );
+    try {
+      await bookingRepository.applyRelease(
+        existing.bookingId,
+        {for (final item in going) item.bookingItemId: item.quantity},
+        actualEndDate: release.releaseDate,
+      );
+    } catch (error) {
+      await bookingRepository.applyRelease(existing.bookingId, oldQuantities);
+      rethrow;
+    }
+
+    final updated = release.copyWith(
+      releaseNo: existing.releaseNo,
+      bookingId: existing.bookingId,
+      bookingNo: existing.bookingNo,
+      outstandingAtRelease: existing.outstandingAtRelease,
+      createdAt: existing.createdAt,
+      items: [
+        for (final item in going)
+          item.copyWith(
+            id: item.id.isEmpty ? IdGenerator.generateId() : item.id,
+            releaseId: existing.id,
+          ),
+      ],
+    );
+
+    try {
+      await _db.transaction((txn) => _dao.replaceWithItems(txn, updated));
+    } catch (error) {
+      // The rows could not be rewritten: put the storage record back
+      // the way the old release had it.
+      await bookingRepository.applyRelease(
+        existing.bookingId,
+        {for (final item in going) item.bookingItemId: -item.quantity},
+      );
+      await bookingRepository.applyRelease(
+        existing.bookingId,
+        oldQuantities,
+        actualEndDate: existing.releaseDate,
+      );
+      rethrow;
+    }
+    return updated;
+  }
+
   /// Deletes a release and puts the goods back on the storage record.
   Future<void> delete(String id) async {
     final release = await _dao.getById(id);

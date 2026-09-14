@@ -34,6 +34,7 @@ class _ReleasePdfScreenState extends State<ReleasePdfScreen> {
   CompanyModel? _company;
   SignedSignature? _signature;
   bool _loading = true;
+  int _version = 0;
 
   final Set<String> _selectedCopies = {...ReleasePdfService.copyLabels};
 
@@ -78,6 +79,13 @@ class _ReleasePdfScreenState extends State<ReleasePdfScreen> {
             fileName: () => _fileName,
             getPdfBytes: () => _menuPdfBytes,
             customerPhone: release?.customerPhone,
+            onEdit: release == null
+                ? null
+                : () async {
+                    await context.push('/release-edit', extra: widget.releaseId);
+                    _version++;
+                    await _load();
+                  },
             onDelete: () => GoodsReleaseRepository.instance.delete(widget.releaseId),
             afterDelete: () =>
                 context.canPop() ? context.pop() : context.go('/releases'),
@@ -101,7 +109,7 @@ class _ReleasePdfScreenState extends State<ReleasePdfScreen> {
                             documentType: DocumentType.releaseRecord,
                             fileName: _fileName,
                             rebuildKey:
-                                '${_selectedCopies.join('|')}|${_signature?.signedAt ?? ''}',
+                                '${_selectedCopies.join('|')}|${_signature?.signedAt ?? ''}|$_version',
                             onBytes: (bytes) => _menuPdfBytes = bytes,
                             build: ({required showWatermark}) =>
                                 ReleasePdfService.instance.build(

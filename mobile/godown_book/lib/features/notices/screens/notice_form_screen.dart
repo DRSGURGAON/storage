@@ -20,7 +20,15 @@ class NoticeFormScreen extends StatefulWidget {
   /// The customer, when the letter starts from their page instead.
   final String? customerId;
 
-  const NoticeFormScreen({super.key, this.bookingId, this.customerId});
+  /// A letter already written, when a wrong entry is corrected.
+  final String? editNoticeId;
+
+  const NoticeFormScreen({
+    super.key,
+    this.bookingId,
+    this.customerId,
+    this.editNoticeId,
+  });
 
   @override
   State<NoticeFormScreen> createState() => _NoticeFormScreenState();
@@ -35,6 +43,7 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
   NoticeKind _kind = NoticeKind.reminder;
   StorageBookingModel? _booking;
   CustomerModel? _customer;
+  NoticeModel? _existing;
   DateTime _payBy = DateTime.now().add(const Duration(days: 7));
   bool _loading = true;
   bool _saving = false;
@@ -53,14 +62,25 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
   }
 
   Future<void> _load() async {
+    NoticeModel? existing;
+    var bookingId = widget.bookingId ?? '';
+    var customerIdHint = widget.customerId ?? '';
+    if (widget.editNoticeId != null) {
+      existing = await NoticeRepository.instance.getById(widget.editNoticeId!);
+      if (existing != null) {
+        bookingId = existing.bookingId;
+        customerIdHint = existing.customerId;
+      }
+    }
+
     StorageBookingModel? booking;
-    if ((widget.bookingId ?? '').isNotEmpty) {
-      booking = await StorageBookingRepository.instance.getById(widget.bookingId!);
+    if (bookingId.isNotEmpty) {
+      booking = await StorageBookingRepository.instance.getById(bookingId);
     }
 
     final customerId = booking?.customerId.isNotEmpty == true
         ? booking!.customerId
-        : (widget.customerId ?? '');
+        : customerIdHint;
 
     CustomerModel? customer;
     if (customerId.isNotEmpty) {
@@ -77,7 +97,17 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
     setState(() {
       _booking = booking;
       _customer = customer;
-      _amount.text = due > 0.004 ? due.toStringAsFixed(0) : '';
+      _existing = existing;
+      if (existing != null) {
+        _kind = existing.kind;
+        _amount.text = existing.amountDue == existing.amountDue.roundToDouble()
+            ? existing.amountDue.toStringAsFixed(0)
+            : existing.amountDue.toStringAsFixed(2);
+        _payBy = DateTime.tryParse(existing.payByDate) ?? _payBy;
+        _note.text = existing.bodyNote;
+      } else {
+        _amount.text = due > 0.004 ? due.toStringAsFixed(0) : '';
+      }
       _loading = false;
     });
   }
@@ -121,7 +151,9 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.canPop() ? context.pop() : context.go('/notices'),
         ),
-        title: const Text('Send a Notice'),
+        title: Text(_existing == null
+            ? 'Send a Notice'
+            : 'Edit Notice ${_existing!.noticeNo}'),
         centerTitle: true,
       ),
       body: _loading
@@ -258,6 +290,23 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
 
     setState(() => _saving = true);
     try {
+      final existing = _existing;
+      if (existing != null) {
+        final updated = await NoticeRepository.instance.update(existing.copyWith(
+          kind: _kind,
+          customerName: _customerName,
+          customerPhone: _customerPhone,
+          customerAddress: _customerAddress,
+          amountDue: amount,
+          payByDate: _payBy.toIso8601String(),
+          bodyNote: _note.text.trim(),
+        ));
+        if (!mounted) return;
+        setState(() => _saving = false);
+        context.pop(updated.id);
+        return;
+      }
+
       final notice = await NoticeRepository.instance.save(NoticeModel(
         id: '',
         noticeDate: DateTime.now().toIso8601String(),

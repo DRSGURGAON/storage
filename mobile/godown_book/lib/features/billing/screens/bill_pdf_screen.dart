@@ -28,6 +28,7 @@ class _BillPdfScreenState extends State<BillPdfScreen> {
   CompanyModel? _company;
   double? _previousBalance;
   bool _loading = true;
+  int _version = 0;
 
   @override
   void initState() {
@@ -78,7 +79,11 @@ class _BillPdfScreenState extends State<BillPdfScreen> {
             fileName: () => _fileName,
             getPdfBytes: () => _menuPdfBytes,
             customerPhone: bill?.customerPhone,
-            onEdit: () => context.push('/bill-edit', extra: widget.billId),
+            onEdit: () async {
+              await context.push('/bill-edit', extra: widget.billId);
+              _version++;
+              await _load();
+            },
             onDelete: () => BillingRepository.instance.deleteBill(widget.billId),
             afterDelete: () => context.canPop() ? context.pop() : context.go('/bills'),
             deleteWarning: 'The bill will be deleted. Receipts already issued '
@@ -96,6 +101,7 @@ class _BillPdfScreenState extends State<BillPdfScreen> {
                   : DocumentPdfView(
                       documentType: DocumentType.bill,
                       fileName: _fileName,
+                      rebuildKey: '$_version',
                       onBytes: (bytes) => _menuPdfBytes = bytes,
                       build: ({required showWatermark}) => BillPdfService.instance.build(
                         bill,

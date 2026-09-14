@@ -82,6 +82,26 @@ class GoodsReleaseDao {
     }
   }
 
+  /// Rewrites a release and its items in one transaction - the row
+  /// keeps its id and number, the items are replaced.
+  Future<void> replaceWithItems(
+    DatabaseExecutor txn,
+    GoodsReleaseModel release,
+  ) async {
+    final companyId = TenantScope.companyId;
+    await txn.delete(
+      DatabaseConstants.releaseItemTable,
+      where: 'release_id = ? AND ${DatabaseConstants.companyIdColumn} = ?',
+      whereArgs: [release.id, companyId],
+    );
+    await txn.delete(
+      DatabaseConstants.goodsReleaseTable,
+      where: 'id = ? AND ${DatabaseConstants.companyIdColumn} = ?',
+      whereArgs: [release.id, companyId],
+    );
+    await writeWithItems(txn, release);
+  }
+
   Future<void> delete(String id) async {
     await _db.deleteWhereScoped(
       DatabaseConstants.releaseItemTable,

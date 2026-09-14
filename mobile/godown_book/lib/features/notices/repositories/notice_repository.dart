@@ -55,8 +55,8 @@ class NoticeRepository {
     return maxNumber;
   }
 
-  /// Saves the letter and gives it its number. A notice is never
-  /// edited afterwards: it has been sent.
+  /// Saves a new letter and gives it its number. See [update] for
+  /// correcting one already written.
   Future<NoticeModel> save(NoticeModel notice) async {
     final now = DateTime.now();
     final nowIso = now.toIso8601String();
@@ -93,6 +93,23 @@ class NoticeRepository {
     }
 
     throw StateError('Could not allocate a notice number.');
+  }
+
+  /// Corrects a letter that was written wrongly - amount, date to pay
+  /// by, wording. It keeps its number and the record of how it was
+  /// sent.
+  Future<NoticeModel> update(NoticeModel notice) async {
+    final existing = await _dao.getById(notice.id);
+    if (existing == null) {
+      throw StateError('This notice no longer exists.');
+    }
+    final updated = notice.copyWith(
+      noticeNo: existing.noticeNo,
+      createdAt: existing.createdAt,
+      sentVia: existing.sentVia,
+    );
+    await _dao.update(updated);
+    return updated;
   }
 
   /// Records how the letter was sent, so the trail is complete.

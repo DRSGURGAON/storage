@@ -71,6 +71,7 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
   CompanyModel? _company;
   SignedSignature? _customerSignature;
   bool _loading = true;
+  int _version = 0;
 
   final Set<String> _selectedCopies = {...StorageReceiptPdfService.copyLabels};
 
@@ -119,7 +120,11 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
             fileName: () => _fileName,
             getPdfBytes: () => _menuPdfBytes,
             customerPhone: _booking?.customerPhone,
-            onEdit: () => context.push('/storage-edit', extra: widget.bookingId),
+            onEdit: () async {
+              await context.push('/storage-edit', extra: widget.bookingId);
+              _version++;
+              await _load();
+            },
             onDelete: () => StorageBookingRepository.instance.delete(widget.bookingId),
             afterDelete: () => context.canPop() ? context.pop() : context.go('/storage'),
             deleteWarning: 'This storage record and its goods list will be permanently deleted.',
@@ -150,7 +155,7 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
           child: DocumentPdfView(
             documentType: widget.kind.documentType,
             fileName: _fileName,
-            rebuildKey: _selectedCopies.join('|'),
+            rebuildKey: '${_selectedCopies.join('|')}|$_version',
             onBytes: (bytes) => _menuPdfBytes = bytes,
             build: ({required showWatermark}) => _buildBytes(booking, showWatermark),
           ),

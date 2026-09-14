@@ -23,7 +23,15 @@ class PaymentFormScreen extends StatefulWidget {
   /// The customer paying, when the payment is not against a bill.
   final String? customerId;
 
-  const PaymentFormScreen({super.key, this.billId, this.customerId});
+  /// A receipt already issued, when a wrong entry is being corrected.
+  final String? editPaymentId;
+
+  const PaymentFormScreen({
+    super.key,
+    this.billId,
+    this.customerId,
+    this.editPaymentId,
+  });
 
   @override
   State<PaymentFormScreen> createState() => _PaymentFormScreenState();
@@ -34,6 +42,9 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
   static final _dateFormat = DateFormat('dd MMM yyyy');
 
   BillModel? _bill;
+
+  /// The receipt being corrected, when editing.
+  PaymentModel? _existing;
 
   /// Bills of the customer that still owe money, when the screen was
   /// opened for a customer rather than a bill - the operator picks
@@ -62,7 +73,9 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
   }
 
   Future<void> _load() async {
-    if (widget.billId != null) {
+    if (widget.editPaymentId != null) {
+      await _loadExisting(widget.editPaymentId!);
+    } else if (widget.billId != null) {
       final bill = await BillingRepository.instance.getBillById(widget.billId!);
       if (bill != null) {
         _bill = bill;
@@ -95,6 +108,31 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
     }
 
     if (mounted) setState(() => _loading = false);
+  }
+
+  /// Fills the form with a receipt already issued, so the operator
+  /// changes only what was wrong. The bill it settles stays what it
+  /// was; the receipt number never changes.
+  Future<void> _loadExisting(String paymentId) async {
+    final payment = await BillingRepository.instance.getPaymentById(paymentId);
+    if (payment == null) return;
+    _existing = payment;
+    if (payment.billId.isNotEmpty) {
+      _bill = await BillingRepository.instance.getBillById(payment.billId);
+    }
+    _customerId = payment.customerId;
+    _bookingId = payment.bookingId;
+    _payerName.text = payment.payerName;
+    _payerPhone.text = payment.payerPhone;
+    _amount.text = payment.amount == payment.amount.roundToDouble()
+        ? payment.amount.toStringAsFixed(0)
+        : payment.amount.toStringAsFixed(2);
+    _against.text = payment.against;
+    _reference.text = payment.referenceNo;
+    _notes.text = payment.notes;
+    _mode = payment.mode;
+    _type = payment.paymentType;
+    _paymentDate = DateTime.tryParse(payment.paymentDate) ?? _paymentDate;
   }
 
   /// Points this receipt at [bill] (or at nothing, for on account).
@@ -180,6 +218,13 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
     }
 
     final bill = _bill;
+    final existing = _existing;
+
+    if (existing != null) {
+      await _saveEdit(existing, bill, amount);
+      return;
+    }
+
     var splitExcess = false;
     if (bill != null && _type.settlesDues && amount > bill.balanceDue + 0.004) {
       final choice = await _askAboutOverpayment(bill, amount);
@@ -226,6 +271,50 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
       if (!mounted) return;
       voiceFilled.clear();
       context.pop(saved.id);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showSaveProblem(context, error);
+    }
+  }
+
+  /// Saves a correction to an issued receipt. Against a bill, the
+  /// amount may not exceed what the bill owes once this receipt's own
+  /// earlier figure is set aside.
+  Future<void> _saveEdit(PaymentModel existing, BillModel? bill, double amount) async {
+    if (bill != null && _type.settlesDues) {
+      final ownEarlier = existing.billId == bill.id && existing.paymentType.settlesDues
+          ? existing.amount
+          : 0.0;
+      final allowed = bill.balanceDue + ownEarlier;
+      if (amount > allowed + 0.004) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            'Amount exceeds outstanding balance. Only '
+            '₹${allowed.toStringAsFixed(2)} can be applied to bill ${bill.billNo}.',
+          ),
+        ));
+        return;
+      }
+    }
+
+    setState(() => _saving = true);
+    try {
+      final updated = existing.copyWith(
+        payerName: _payerName.text.trim(),
+        payerPhone: _payerPhone.text.trim(),
+        against: _against.text.trim(),
+        amount: amount,
+        mode: _mode,
+        paymentType: _type,
+        paymentDate: _paymentDate.toIso8601String(),
+        referenceNo: _reference.text.trim(),
+        notes: _notes.text.trim(),
+      );
+      await BillingRepository.instance.updatePayment(updated);
+      if (!mounted) return;
+      voiceFilled.clear();
+      context.pop(existing.id);
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -308,7 +397,9 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Receive Payment'),
+        title: Text(_existing == null
+            ? 'Receive Payment'
+            : 'Edit Receipt ${_existing!.receiptNo}'),
         centerTitle: true,
         actions: [
           IconButton(
@@ -473,7 +564,9 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
                       ? const SizedBox(
                           width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.check),
-                  label: const Text('Save and make receipt'),
+                  label: Text(_existing == null
+                      ? 'Save and make receipt'
+                      : 'Save changes'),
                 ),
                 const SizedBox(height: 24),
               ],

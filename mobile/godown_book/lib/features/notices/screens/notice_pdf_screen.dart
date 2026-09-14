@@ -31,6 +31,7 @@ class _NoticePdfScreenState extends State<NoticePdfScreen> {
   NoticeModel? _notice;
   CompanyModel? _company;
   bool _loading = true;
+  int _version = 0;
 
   @override
   void initState() {
@@ -70,6 +71,13 @@ class _NoticePdfScreenState extends State<NoticePdfScreen> {
             fileName: () => _fileName,
             getPdfBytes: () => _menuPdfBytes,
             customerPhone: notice?.customerPhone,
+            onEdit: notice == null
+                ? null
+                : () async {
+                    await context.push('/notice-edit', extra: widget.noticeId);
+                    _version++;
+                    await _load();
+                  },
             onDelete: () => NoticeRepository.instance.delete(widget.noticeId),
             afterDelete: () =>
                 context.canPop() ? context.pop() : context.go('/notices'),
@@ -92,6 +100,7 @@ class _NoticePdfScreenState extends State<NoticePdfScreen> {
                           child: DocumentPdfView(
                             documentType: DocumentType.notice,
                             fileName: _fileName,
+                            rebuildKey: '$_version',
                             onBytes: (bytes) => _menuPdfBytes = bytes,
                             build: ({required showWatermark}) =>
                                 NoticePdfService.instance.build(

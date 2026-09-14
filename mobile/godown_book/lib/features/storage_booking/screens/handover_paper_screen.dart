@@ -47,6 +47,9 @@ class _HandoverPaperScreenState extends State<HandoverPaperScreen> {
   CompanyModel? _company;
   Uint8List? _menuPdfBytes;
   bool _loading = true;
+
+  /// Bumped after the source record is edited, so the preview rebuilds.
+  int _version = 0;
   bool _showLetter = false;
 
   @override
@@ -122,6 +125,12 @@ class _HandoverPaperScreenState extends State<HandoverPaperScreen> {
               fileName: () => _fileName,
               getPdfBytes: () => _menuPdfBytes,
               customerPhone: booking?.customerPhone,
+              // The paper is drawn from the storage record.
+              onEdit: () async {
+                await context.push('/storage-edit', extra: widget.bookingId);
+                _version++;
+                await _load();
+              },
             ),
         ],
       ),
@@ -136,7 +145,7 @@ class _HandoverPaperScreenState extends State<HandoverPaperScreen> {
                       ? DocumentPdfView(
                           documentType: _documentType,
                           fileName: _fileName,
-                          rebuildKey: '${_paper.name}|${_details.personName}'
+                          rebuildKey: '$_version|${_paper.name}|${_details.personName}'
                               '|${_details.personPhone}|${_details.personIdProof}'
                               '|${_details.relation}|${_details.reason}',
                           onBytes: (bytes) => _menuPdfBytes = bytes,

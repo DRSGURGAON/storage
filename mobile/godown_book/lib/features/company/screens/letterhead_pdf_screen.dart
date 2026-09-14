@@ -21,6 +21,9 @@ class LetterHeadPdfScreen extends StatefulWidget {
 class _LetterHeadPdfScreenState extends State<LetterHeadPdfScreen> {
   CompanyModel? _company;
   bool _loading = true;
+
+  /// Bumped after the source record is edited, so the preview rebuilds.
+  int _version = 0;
   Object? _buildError;
   Object? _loadError;
 
@@ -70,6 +73,17 @@ class _LetterHeadPdfScreenState extends State<LetterHeadPdfScreen> {
         ),
         title: const Text('Letter Head'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Edit company details',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () async {
+              await context.push('/company-settings');
+              _version++;
+              await _load();
+            },
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -136,6 +150,7 @@ class _LetterHeadPdfScreenState extends State<LetterHeadPdfScreen> {
     return DocumentPdfView(
       documentType: DocumentType.letterHead,
       fileName: fileName,
+      rebuildKey: '$_version',
       build: ({required showWatermark}) => LetterHeadPdfService.instance.build(
         company,
         showWatermark: showWatermark,

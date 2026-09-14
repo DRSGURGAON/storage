@@ -36,6 +36,9 @@ class _NoDuesPdfScreenState extends State<NoDuesPdfScreen> {
   String _collectedOn = '';
   bool _loading = true;
 
+  /// Bumped after the source record is edited, so the preview rebuilds.
+  int _version = 0;
+
   @override
   void initState() {
     super.initState();
@@ -99,6 +102,12 @@ class _NoDuesPdfScreenState extends State<NoDuesPdfScreen> {
               fileName: () => _fileName,
               getPdfBytes: () => _menuPdfBytes,
               customerPhone: booking?.customerPhone,
+              // The certificate is drawn from the storage record.
+              onEdit: () async {
+                await context.push('/storage-edit', extra: widget.bookingId);
+                _version++;
+                await _load();
+              },
             ),
         ],
       ),
@@ -114,6 +123,7 @@ class _NoDuesPdfScreenState extends State<NoDuesPdfScreen> {
                       : DocumentPdfView(
                           documentType: DocumentType.noDues,
                           fileName: _fileName,
+                          rebuildKey: '$_version',
                           onBytes: (bytes) => _menuPdfBytes = bytes,
                           build: ({required showWatermark}) =>
                               NoDuesPdfService.instance.build(

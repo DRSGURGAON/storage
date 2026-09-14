@@ -12,9 +12,14 @@ import '../repositories/billing_repository.dart';
 /// or a correction. No money moves; the bill simply comes down by the
 /// amount, and the customer gets a numbered paper saying so.
 class CreditNoteFormScreen extends StatefulWidget {
-  final String billId;
+  /// The bill the credit is given against, for a new note.
+  final String? billId;
 
-  const CreditNoteFormScreen({super.key, required this.billId});
+  /// A credit note already issued, when a wrong entry is corrected.
+  final String? editPaymentId;
+
+  const CreditNoteFormScreen({super.key, this.billId, this.editPaymentId})
+      : assert(billId != null || editPaymentId != null);
 
   @override
   State<CreditNoteFormScreen> createState() => _CreditNoteFormScreenState();
@@ -24,6 +29,7 @@ class _CreditNoteFormScreenState extends State<CreditNoteFormScreen> {
   static final _dateFormat = DateFormat('dd MMM yyyy');
 
   BillModel? _bill;
+  PaymentModel? _existing;
   bool _loading = true;
   bool _saving = false;
 
@@ -38,9 +44,24 @@ class _CreditNoteFormScreenState extends State<CreditNoteFormScreen> {
   }
 
   Future<void> _load() async {
-    final bill = await BillingRepository.instance.getBillById(widget.billId);
+    PaymentModel? existing;
+    var billId = widget.billId ?? '';
+    if (widget.editPaymentId != null) {
+      existing = await BillingRepository.instance.getPaymentById(widget.editPaymentId!);
+      if (existing != null) {
+        billId = existing.billId;
+        _amount.text = existing.amount == existing.amount.roundToDouble()
+            ? existing.amount.toStringAsFixed(0)
+            : existing.amount.toStringAsFixed(2);
+        _reason.text = existing.notes;
+        _date = DateTime.tryParse(existing.paymentDate) ?? _date;
+      }
+    }
+    final bill =
+        billId.isEmpty ? null : await BillingRepository.instance.getBillById(billId);
     if (!mounted) return;
     setState(() {
+      _existing = existing;
       _bill = bill;
       _loading = false;
     });
@@ -64,11 +85,13 @@ class _CreditNoteFormScreenState extends State<CreditNoteFormScreen> {
       );
       return;
     }
-    if (amount > bill.balanceDue + 0.004) {
+    // When correcting a note, its own earlier amount is available again.
+    final allowed = bill.balanceDue + (_existing?.amount ?? 0);
+    if (amount > allowed + 0.004) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Only ₹${bill.balanceDue.toStringAsFixed(2)} is still due on this bill.',
+            'Only ₹${allowed.toStringAsFixed(2)} is still due on this bill.',
           ),
         ),
       );
@@ -83,6 +106,18 @@ class _CreditNoteFormScreenState extends State<CreditNoteFormScreen> {
 
     setState(() => _saving = true);
     try {
+      final existing = _existing;
+      if (existing != null) {
+        await BillingRepository.instance.updatePayment(existing.copyWith(
+          amount: amount,
+          paymentDate: _date.toIso8601String(),
+          notes: _reason.text.trim(),
+        ));
+        if (!mounted) return;
+        context.pop(existing.id);
+        return;
+      }
+
       final saved = await BillingRepository.instance.recordPayment(PaymentModel(
         id: IdGenerator.generateId(),
         billId: bill.id,
@@ -113,7 +148,12 @@ class _CreditNoteFormScreenState extends State<CreditNoteFormScreen> {
     final bill = _bill;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Issue Credit Note'), centerTitle: true),
+      appBar: AppBar(
+        title: Text(_existing == null
+            ? 'Issue Credit Note'
+            : 'Edit Credit Note ${_existing!.receiptNo}'),
+        centerTitle: true,
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : bill == null
