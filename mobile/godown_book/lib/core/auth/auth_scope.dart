@@ -1,25 +1,29 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Synchronous, app-wide read of whether this device has a completed
 /// mobile+OTP sign-in - the auth equivalent of TenantScope.
 ///
-/// GoRouter's redirect callback is easiest to reason about as a plain
-/// synchronous function (the existing TenantScope-based tenant redirect
-/// already relies on this), so - exactly like TenantScope - the actual
-/// SharedPreferences read happens once at startup in main(), and this
-/// class just holds the resulting in-memory flag for the redirect to
-/// check instantly on every navigation.
+/// GoRouter's redirect callback is a plain synchronous function, so -
+/// exactly like TenantScope - the SharedPreferences read happens once
+/// at startup in main(), and this class holds the resulting in-memory
+/// flag for the redirect to check instantly on every navigation.
+///
+/// [listenable] is the router's refreshListenable: when the flag flips
+/// (a sign-in, a logout, or Firebase ending the session while the app
+/// is open) the router re-runs its redirect and lands on the right
+/// screen without anyone having to navigate.
 class AuthScope {
   AuthScope._();
 
-  static bool _isAuthenticated = false;
+  static final ValueNotifier<bool> listenable = ValueNotifier<bool>(false);
 
-  static bool get isAuthenticated => _isAuthenticated;
+  static bool get isAuthenticated => listenable.value;
 
-  static void set(bool value) => _isAuthenticated = value;
+  static void set(bool value) => listenable.value = value;
 
   /// Used on sign-out.
-  static void clear() => _isAuthenticated = false;
+  static void clear() => listenable.value = false;
 
   static const _authenticatedKey = 'auth_is_authenticated';
 
@@ -28,10 +32,10 @@ class AuthScope {
   static Future<void> loadFromDisk() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _isAuthenticated = prefs.getBool(_authenticatedKey) ?? false;
+      listenable.value = prefs.getBool(_authenticatedKey) ?? false;
     } catch (_) {
       // First run, or preferences unavailable - default to signed-out.
-      _isAuthenticated = false;
+      listenable.value = false;
     }
   }
 }

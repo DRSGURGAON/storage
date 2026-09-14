@@ -7,6 +7,7 @@ import '../../core/subscription/super_admin_scope.dart';
 // Auth
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/otp_verification_screen.dart';
+import '../../features/auth/services/otp_auth_service.dart';
 
 // Documents
 import '../../features/documents/screens/document_centre_screen.dart';
@@ -115,6 +116,10 @@ class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation: '/login',
 
+    // Re-run the redirect whenever the signed-in flag flips, so a
+    // session Firebase ends mid-use lands on Login by itself.
+    refreshListenable: AuthScope.listenable,
+
     // Two guards, checked in order: first "is anyone signed in on
     // this device" (unauthenticated always lands on Login regardless
     // of what URL was requested, so there is no way to deep-link or
@@ -155,7 +160,7 @@ class AppRouter {
 
           return OtpVerificationScreen(
             mobileNumber: args['mobileNumber'] as String,
-            verificationHandle: args['verificationHandle'] as String,
+            request: args['request'] as OtpRequest,
           );
         },
       ),

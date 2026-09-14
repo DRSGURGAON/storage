@@ -13,6 +13,7 @@ import 'app/splash/branded_splash_screen.dart';
 import 'app/theme/app_theme.dart';
 import 'core/auth/auth_scope.dart';
 import 'core/auth/auth_session.dart';
+import 'core/auth/auth_state_watcher.dart';
 import 'core/cloud_sync/document_cloud_sync_service.dart';
 import 'core/permissions/permission_service.dart';
 import 'core/subscription/super_admin_scope.dart';
@@ -68,6 +69,11 @@ Future<void> main() async {
   await _loadTenant();
 
   runApp(const ProviderScope(child: GodownBookApp()));
+
+  // From here on Firebase's own session is watched live: if it ends
+  // while the app is open, the local session clears and the router
+  // returns to Login (see AuthStateWatcher).
+  AuthStateWatcher.start();
 
   // Deliberately NOT awaited before runApp(): this is a Firestore
   // network call, and awaiting it held the very first frame hostage to

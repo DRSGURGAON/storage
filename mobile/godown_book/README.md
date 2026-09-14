@@ -186,6 +186,34 @@ deletes the cloud copy - so a link stops showing a customer's details as
 soon as it has done its job. The signature image itself lives on the
 operator's own device.
 
+### Phone sign-in checklist (Firebase Console)
+
+Sign-in is the mobile number and the code Firebase sends to it; there
+is no password and no bypass. The app never knows whether a number is
+a real one or a "phone number for testing" set up in the console -
+both go through `verifyPhoneNumber` and `signInWithCredential`. Test
+numbers and their codes live only in the console, never in the code.
+
+- Authentication, Sign-in method: Phone enabled.
+- Authentication, Settings, SMS region policy: India (+91) allowed.
+- Authentication, Settings, User actions: sign-up enabled, or a new
+  number cannot create its account.
+- Project settings, Android app `com.drs.godownbook`: the SHA-1 and
+  SHA-256 of every key that signs a build you install - the CI test key
+  (`android/dev-signing.jks`), your own machine's key, and the Play App
+  Signing key once you publish. Without them Play Integrity cannot
+  vouch for the app and Firebase falls back to a browser reCAPTCHA.
+- `google-services.json` from that same app, in the
+  `GODOWN_BOOK_GOOGLE_SERVICES_JSON` secret (never committed).
+
+What the app does with Firebase's answers: a wrong code, an expired
+code, a bad number, too many attempts, no network, an unregistered
+build and a cancelled flow each get one fixed sentence in plain words
+(see `AuthFailure`); Firebase's own messages are never shown. A code
+that Firebase verifies by itself signs the user in without typing. A
+session Firebase ends while the app is open sends the app back to
+Login by itself; a session that is still valid survives a restart.
+
 ### The first Super Admin
 
 Super Admins authorise subscriptions. There is no way to make one from

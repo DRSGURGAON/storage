@@ -37,6 +37,22 @@ class AuthSessionState {
 class AuthSessionNotifier extends StateNotifier<AuthSessionState> {
   AuthSessionNotifier() : super(const AuthSessionState()) {
     _load();
+    // AuthScope is what the router and AuthStateWatcher flip; when it
+    // goes false from outside this class (Firebase ended the session)
+    // the provider's own state follows, so screens reading it agree.
+    AuthScope.listenable.addListener(_followScope);
+  }
+
+  void _followScope() {
+    if (!AuthScope.isAuthenticated && state.isAuthenticated) {
+      state = const AuthSessionState();
+    }
+  }
+
+  @override
+  void dispose() {
+    AuthScope.listenable.removeListener(_followScope);
+    super.dispose();
   }
 
   /// Public so main.dart's own _syncFirebaseAuthState() can read/write
@@ -63,7 +79,9 @@ class AuthSessionNotifier extends StateNotifier<AuthSessionState> {
   /// signed out of.
   static const explicitSignOutKey = 'auth_explicit_sign_out';
 
-  static const _uidKey = 'auth_uid';
+  /// Public for the same reason as the keys above: AuthStateWatcher
+  /// clears it when Firebase ends the session.
+  static const uidKey = 'auth_uid';
 
   Future<void> _load() async {
     try {
@@ -71,7 +89,7 @@ class AuthSessionNotifier extends StateNotifier<AuthSessionState> {
 
       final isAuthenticated = prefs.getBool(authenticatedKey) ?? false;
       final mobileNumber = prefs.getString(mobileKey);
-      final uid = prefs.getString(_uidKey);
+      final uid = prefs.getString(uidKey);
 
       state = AuthSessionState(
         isAuthenticated: isAuthenticated,
@@ -107,7 +125,7 @@ class AuthSessionNotifier extends StateNotifier<AuthSessionState> {
       await prefs.setBool(authenticatedKey, true);
       await prefs.setString(mobileKey, mobileNumber);
       if (uid != null) {
-        await prefs.setString(_uidKey, uid);
+        await prefs.setString(uidKey, uid);
       }
       // A fresh, genuine sign-in always supersedes any earlier logout.
       await prefs.remove(explicitSignOutKey);
@@ -229,7 +247,7 @@ class AuthSessionNotifier extends StateNotifier<AuthSessionState> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(authenticatedKey);
       await prefs.remove(mobileKey);
-      await prefs.remove(_uidKey);
+      await prefs.remove(uidKey);
       // Recorded even though FirebaseAuth.instance.signOut() was just
       // attempted above - if that call failed (e.g. offline) and left
       // currentUser non-null, this is what stops main.dart's startup

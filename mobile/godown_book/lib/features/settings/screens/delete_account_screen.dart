@@ -35,7 +35,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   // Re-authentication state - only populated if Firebase genuinely
   // throws 'requires-recent-login' when delete is first attempted.
   bool _needsReauth = false;
-  String? _reauthVerificationHandle;
+  OtpRequest? _reauthRequest;
   final _otpController = TextEditingController();
   String? _reauthError;
 
@@ -129,30 +129,37 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     }
 
     try {
-      final handle = await activeOtpAuthService.sendOtp(mobileNumber);
+      final request = await activeOtpAuthService.sendOtp(mobileNumber);
 
       if (!mounted) return;
 
       setState(() {
         _needsReauth = true;
-        _reauthVerificationHandle = handle;
+        _reauthRequest = request;
         _working = false;
+      });
+    } on AuthFailure catch (failure) {
+      if (!mounted) return;
+
+      setState(() {
+        _working = false;
+        _reauthError = failure.message;
       });
     } catch (error) {
       if (!mounted) return;
 
       setState(() {
         _working = false;
-        _reauthError = 'Could not send verification code: $error';
+        _reauthError = const AuthFailure(AuthFailureKind.unknown).message;
       });
     }
   }
 
   Future<void> _submitReauthAndDelete() async {
     final otp = _otpController.text.trim();
-    final handle = _reauthVerificationHandle;
+    final request = _reauthRequest;
 
-    if (otp.length != 6 || handle == null) {
+    if (otp.length != 6 || request == null) {
       setState(() => _reauthError = 'Enter the 6-digit code');
       return;
     }
@@ -174,7 +181,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
       final service = activeOtpAuthService as FirebasePhoneAuthService;
 
       final verified = await service.reauthenticateWithOtp(
-        verificationHandle: handle,
+        request: request,
         otp: otp,
       );
 
@@ -191,12 +198,19 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
       // Re-authenticated - retry the actual delete, which should now
       // succeed since Firebase's own session is fresh again.
       await _performDelete();
+    } on AuthFailure catch (failure) {
+      if (!mounted) return;
+
+      setState(() {
+        _working = false;
+        _reauthError = failure.message;
+      });
     } catch (error) {
       if (!mounted) return;
 
       setState(() {
         _working = false;
-        _reauthError = 'Could not verify code: $error';
+        _reauthError = const AuthFailure(AuthFailureKind.unknown).message;
       });
     }
   }
