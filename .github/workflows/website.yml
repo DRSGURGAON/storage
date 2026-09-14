@@ -1,0 +1,111 @@
+name: StorageBill Pro website
+
+# Publishes website/ to GitHub Pages. The Play listing points at these
+# pages - the privacy policy and the account deletion page are required
+# fields - so they have to be reachable at a stable address that is not
+# the app's own Firebase Hosting site (that one serves the customer
+# signing page at its root).
+#
+# Turn it on once: Settings -> Pages -> Source: GitHub Actions.
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One publish at a time; a newer push supersedes an older one that has
+# not started, rather than queueing a stale version behind it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Two different kinds of problem, treated differently. A broken
+      # link or a missing page is a defect and fails the run. Contact
+      # details not filled in yet is simply "not ready to publish": it
+      # holds the deploy back and says so, without painting the build
+      # red for something only a human can supply.
+      - name: Check the pages are finished and link to each other
+        id: check
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, sys
+
+          site = pathlib.Path('website')
+          pages = sorted(site.glob('*.html'))
+          faults = []       # real defects
+          unfilled = []     # placeholders a person must supply
+
+          if not pages:
+              faults.append('website/ has no pages')
+
+          for page in pages:
+              text = page.read_text()
+
+              for placeholder in sorted(set(re.findall(r'\{\{[A-Z_]+\}\}', text))):
+                  unfilled.append(f'{page.name} still contains {placeholder}')
+
+              for target in re.findall(r'href="([^"#:]+\.(?:html|css|png))', text):
+                  if not (site / target.lstrip('/')).exists():
+                      faults.append(f'{page.name} links to missing {target}')
+
+              if '<title>' not in text:
+                  faults.append(f'{page.name} has no title')
+              if 'name="viewport"' not in text:
+                  faults.append(f'{page.name} has no viewport meta, so it will not read on a phone')
+
+          for name in ['index.html', 'privacy.html', 'delete-account.html',
+                       'support.html', 'terms.html']:
+              if not (site / name).exists():
+                  faults.append(f'website/{name} is missing; Play asks for it')
+
+          for fault in faults:
+              print(f'::error::{fault}')
+          if faults:
+              sys.exit(1)
+
+          ready = not unfilled
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'ready={str(ready).lower()}\n')
+
+          if unfilled:
+              print('::warning::The site is not published yet: contact details are '
+                    'still placeholders. See website/README.md for the one command '
+                    'that fills them in.')
+              for item in unfilled:
+                  print(f'  - {item}')
+              print(f'{len(pages)} pages check out, but {len(unfilled)} placeholders remain.')
+          else:
+              print(f'{len(pages)} pages, all filled in and linked. Publishing.')
+          PY
+
+  deploy:
+    needs: check
+    if: needs.check.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: website
+      - id: deployment
+        uses: actions/deploy-pages@v4

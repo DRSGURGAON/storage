@@ -1,0 +1,395 @@
+/* StorageBill Pro - the public site.
+   The palette is the app's own (lib/app/theme/brand.dart), so the
+   website and the phone look like one product. */
+
+:root {
+  --navy: #0d2b49;
+  --navy-deep: #081c33;
+  --navy-soft: #16375c;
+  --navy-line: #1e4470;
+  --green: #14d1a0;
+  --green-ink: #06261e;
+  --paper: #f6f3ee;
+  --card: #ffffff;
+  --line: #e8e3db;
+  --chip: #f1eee8;
+  --ink: #17202b;
+  --ink-muted: #5f6672;
+  --on-navy-muted: #9fb3c8;
+  --amber-soft: #fff4e0;
+  --amber-ink: #7a4700;
+  --radius: 16px;
+  --wrap: 1080px;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+img { max-width: 100%; height: auto; }
+
+a { color: #0b5fbf; }
+a:hover { color: #09407f; }
+
+.wrap {
+  width: 100%;
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding-inline: 20px;
+}
+
+/* ---------- Header ---------- */
+
+.site-head {
+  background: var(--navy);
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.site-head .wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-block: 14px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  font-size: 17px;
+}
+
+.brand img {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: block;
+}
+
+.site-nav {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.site-nav a {
+  color: var(--on-navy-muted);
+  text-decoration: none;
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 7px 11px;
+  border-radius: 9px;
+}
+
+.site-nav a:hover,
+.site-nav a[aria-current="page"] {
+  color: #fff;
+  background: var(--navy-soft);
+}
+
+/* ---------- Hero ---------- */
+
+.hero {
+  background: linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%);
+  color: #fff;
+  padding-block: 64px 72px;
+}
+
+.hero h1 {
+  font-size: clamp(30px, 5.2vw, 46px);
+  line-height: 1.12;
+  letter-spacing: -0.8px;
+  margin: 0 0 16px;
+  max-width: 16ch;
+}
+
+.hero p.lede {
+  font-size: clamp(16px, 2.2vw, 19px);
+  color: #d6e2ee;
+  margin: 0 0 28px;
+  max-width: 54ch;
+}
+
+.eyebrow {
+  display: inline-block;
+  background: rgba(20, 209, 160, 0.16);
+  color: var(--green);
+  border: 1px solid rgba(20, 209, 160, 0.35);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 999px;
+  margin-bottom: 20px;
+}
+
+.cta-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn {
+  display: inline-block;
+  padding: 13px 22px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 15px;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+
+.btn-primary { background: var(--green); color: var(--green-ink); }
+.btn-primary:hover { background: #0fbf92; color: var(--green-ink); }
+
+/* On the navy hero only: white text needs a dark ground behind it. */
+.btn-ghost {
+  background: transparent;
+  color: #fff;
+  border-color: var(--navy-line);
+}
+.btn-ghost:hover { background: var(--navy-soft); color: #fff; }
+
+/* The same shape for a light section, where white text would vanish. */
+.btn-outline {
+  background: transparent;
+  color: var(--navy);
+  border-color: var(--navy);
+}
+.btn-outline:hover { background: var(--navy); color: #fff; }
+
+.hero-note {
+  margin-top: 18px;
+  font-size: 13.5px;
+  color: var(--on-navy-muted);
+}
+
+/* ---------- Sections ---------- */
+
+section { padding-block: 56px; }
+
+section > .wrap > h2 {
+  font-size: clamp(23px, 3.4vw, 30px);
+  letter-spacing: -0.4px;
+  margin: 0 0 10px;
+}
+
+section > .wrap > p.sub {
+  color: var(--ink-muted);
+  margin: 0 0 30px;
+  max-width: 60ch;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px;
+}
+
+.card h3 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  letter-spacing: -0.2px;
+}
+
+.card p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 15px;
+}
+
+.band { background: var(--card); border-block: 1px solid var(--line); }
+
+/* Document chips */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.chips li {
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Numbered steps */
+
+.steps {
+  list-style: none;
+  counter-reset: step;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.steps li {
+  counter-increment: step;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px;
+}
+
+.steps li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+
+.steps strong { display: block; margin-bottom: 4px; }
+.steps span { color: var(--ink-muted); font-size: 15px; }
+
+/* ---------- Legal / long-form pages ---------- */
+
+.page {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: clamp(22px, 4vw, 44px);
+  margin-block: 40px;
+}
+
+.page h1 {
+  font-size: clamp(26px, 4vw, 34px);
+  letter-spacing: -0.5px;
+  margin: 0 0 6px;
+}
+
+.page .updated {
+  color: var(--ink-muted);
+  font-size: 14px;
+  margin: 0 0 28px;
+}
+
+.page h2 {
+  font-size: 20px;
+  letter-spacing: -0.2px;
+  margin: 34px 0 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.page h2:first-of-type { border-top: 0; padding-top: 0; }
+
+.page h3 { font-size: 16.5px; margin: 22px 0 6px; }
+
+.page ul, .page ol { padding-left: 22px; }
+.page li { margin-bottom: 7px; }
+
+.callout {
+  background: var(--amber-soft);
+  border: 1px solid #f3dcae;
+  color: var(--amber-ink);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin: 22px 0;
+}
+
+.callout strong { color: var(--amber-ink); }
+
+.table-scroll { overflow-x: auto; margin: 18px 0; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 460px;
+  font-size: 15px;
+}
+
+th, td {
+  text-align: left;
+  vertical-align: top;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--line);
+}
+
+th { background: var(--chip); font-weight: 700; }
+
+.contact-block {
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-top: 8px;
+}
+
+.contact-block p { margin: 0 0 6px; }
+.contact-block p:last-child { margin-bottom: 0; }
+
+/* ---------- Footer ---------- */
+
+.site-foot {
+  background: var(--navy-deep);
+  color: var(--on-navy-muted);
+  padding-block: 40px;
+  font-size: 14.5px;
+}
+
+.site-foot a { color: #cfe0f0; text-decoration: none; }
+.site-foot a:hover { color: #fff; text-decoration: underline; }
+
+.foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 18px;
+}
+
+.foot-legal { margin: 0; line-height: 1.7; }
+
+@media (max-width: 560px) {
+  /* The nav wraps onto a second line here, and a sticky header two
+     lines tall eats a sixth of a phone screen for the whole visit.
+     Let it scroll away instead. */
+  .site-head { position: static; }
+  .site-head .wrap { padding-block: 12px; }
+  .site-nav { gap: 2px; }
+  .site-nav a { padding: 6px 8px; font-size: 13.5px; }
+  section { padding-block: 44px; }
+  .hero { padding-block: 44px 52px; }
+}
