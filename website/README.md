@@ -26,8 +26,10 @@ Every page carries the same placeholders. Nothing else needs editing.
 | `{{COMPANY_NAME}}` | the registered name of the business publishing the app |
 | `{{COMPANY_ADDRESS}}` | its postal address |
 | `{{SUPPORT_EMAIL}}` | the address you will answer support on |
-| `{{SUPPORT_PHONE}}` | the number people may call or WhatsApp |
 | `{{COMPANY_JURISDICTION}}` | the city whose courts govern the terms, e.g. Gurugram |
+
+The support phone is already in: +91 70428 89134, as a `tel:` link with a
+WhatsApp link beside it, on every page that shows contact details.
 
 From the repository root:
 
@@ -37,7 +39,6 @@ sed -i \
   -e 's/{{COMPANY_NAME}}/DRS Enterprises/g' \
   -e 's/{{COMPANY_ADDRESS}}/Plot 1, Sector 1, Gurugram, Haryana 122001/g' \
   -e 's/{{SUPPORT_EMAIL}}/support@example.com/g' \
-  -e 's/{{SUPPORT_PHONE}}/+91 99999 99999/g' \
   -e 's/{{COMPANY_JURISDICTION}}/Gurugram/g' \
   *.html
 grep -rn '{{' *.html || echo "nothing left to fill in"
