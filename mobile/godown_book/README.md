@@ -130,8 +130,11 @@ deliberately.
 
 #### Deploying the rules from CI
 
-The build workflow deploys `firestore.rules` on every push when two
-repository secrets exist; without them it prints a warning and skips.
+The build workflow deploys `firestore.rules` on every push, after the
+emulator tests pass. Both secrets below are required and the job fails
+without them: until the rules are deployed the App ID counter, the
+subscription record and the signature links are all refused by
+Firestore, and the app fails quietly rather than loudly.
 
 | Secret | What goes in it |
 | --- | --- |
@@ -139,9 +142,32 @@ repository secrets exist; without them it prints a warning and skips.
 | `GODOWN_BOOK_FIREBASE_SERVICE_ACCOUNT` | The whole JSON of a service-account key |
 
 To make the key: Firebase Console → Project settings → **Service
-accounts** → **Generate new private key**. The default service account
-already has the Editor role, which is enough to deploy rules. Paste the
-downloaded file's contents into the secret and never commit it.
+accounts** → **Generate new private key**, from the same project the app
+points at. Paste the downloaded file's contents into the secret and
+never commit it.
+
+That key does not come with enough access on its own. The account it
+belongs to (`firebase-adminsdk-…@<project>.iam.gserviceaccount.com`)
+carries the Firebase Admin SDK service agent role, which cannot read
+Service Usage - so `firebase deploy` fails before it starts, on the
+check that the Firestore API is enabled:
+
+```
+Error: Request to https://serviceusage.googleapis.com/v1/projects/<project>/services/firestore.googleapis.com
+had HTTP Error: 403, Permission denied to get service [firestore.googleapis.com]
+```
+
+Grant it two roles in Google Cloud Console → **IAM and Admin** → **IAM**,
+on the same project:
+
+| Role | Why |
+| --- | --- |
+| **Service Usage Consumer** | passes the "is the Firestore API on?" check |
+| **Firebase Rules Admin** | writes the rules themselves |
+
+**Editor** alone covers both if you would rather grant one role. The
+same 403 appears when the key was generated from a different project
+than `GODOWN_BOOK_FIREBASE_PROJECT_ID`, so check that too.
 
 On Android the two files carry the same facts, and the native SDK reads
 `google-services.json` before any Dart code runs - so a build that has
