@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../../core/document_theme/document_theme.dart';
+import '../../../core/document_theme/pdf_fonts.dart';
 import '../../../core/document_theme/pdf_page_kit.dart';
 import '../../../core/utils/amount_in_words.dart';
 import '../../billing/repositories/billing_repository.dart';
@@ -37,7 +38,7 @@ class NoDuesPdfService {
   }) async {
     _style = DocumentThemeStyle.of(company?.documentTheme ?? DocumentTheme.classic);
 
-    final document = pw.Document();
+    final document = await PdfFonts.document();
     final logo = await PdfPageKit.loadImage(company?.logoPath ?? '');
     final signature = await PdfPageKit.loadImage(company?.signaturePath ?? '');
     final dated = issuedOn.isEmpty ? DateTime.now().toIso8601String() : issuedOn;

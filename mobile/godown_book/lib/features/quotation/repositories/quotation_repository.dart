@@ -107,19 +107,25 @@ class QuotationRepository {
         customerState.isNotEmpty &&
         companyState != customerState;
 
-    var customerId = quotation.customerId;
-    try {
-      customerId = await CustomerRepository.instance.ensureCustomer(
-        name: quotation.customerName,
-        phone: quotation.customerPhone,
-        gst: quotation.customerGst,
-        address: quotation.customerAddress,
-        city: quotation.customerCity,
-        state: quotation.customerState,
-        pincode: quotation.customerPincode,
-      );
-    } catch (_) {
-      // The quotation must still save even if the master write fails.
+    // An explicitly picked customer is never replaced by a phone/name
+    // match - see StorageBookingRepository.save for the reasoning.
+    var customerId = await CustomerRepository.instance.resolveLink(
+      quotation.customerId,
+    );
+    if (customerId.isEmpty) {
+      try {
+        customerId = await CustomerRepository.instance.ensureCustomer(
+          name: quotation.customerName,
+          phone: quotation.customerPhone,
+          gst: quotation.customerGst,
+          address: quotation.customerAddress,
+          city: quotation.customerCity,
+          state: quotation.customerState,
+          pincode: quotation.customerPincode,
+        );
+      } catch (_) {
+        // The quotation must still save even if the master write fails.
+      }
     }
 
     final priced = quotation

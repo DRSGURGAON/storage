@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../../core/document_theme/document_theme.dart';
+import '../../../core/document_theme/pdf_fonts.dart';
 import '../../../core/document_theme/pdf_page_kit.dart';
 import '../../company/models/company_model.dart';
 import 'report_builder.dart';
@@ -25,7 +26,7 @@ class RentRollPdfService {
   }) async {
     _style = DocumentThemeStyle.of(company?.documentTheme ?? DocumentTheme.classic);
 
-    final document = pw.Document();
+    final document = await PdfFonts.document();
     final logo = await PdfPageKit.loadImage(company?.logoPath ?? '');
 
     document.addPage(

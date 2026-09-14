@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../cloud_sync/document_cloud_sync_service.dart';
 import '../permissions/permission_service.dart';
 import '../subscription/super_admin_scope.dart';
+import '../tenant/tenant_bootstrap.dart';
 import 'auth_scope.dart';
 
 /// Whether the app has a completed mobile+OTP sign-in on this device,
@@ -220,12 +221,20 @@ class AuthSessionNotifier extends StateNotifier<AuthSessionState> {
     // (see this method's own doc comment) rather than swallowing it.
     await user.delete();
 
-    await signOut();
+    // The backup was just wiped on purpose - nothing is pushed back.
+    await signOut(backupFirst: false);
   }
 
-  /// Clears the session. Never touches company/customer/storage/billing
-  /// data - this only affects whether the login screen is shown again.
-  Future<void> signOut() async {
+  /// Clears the session. The company's rows stay on the device under
+  /// their own company id (and come straight back when the same account
+  /// signs in again); what ends is the ACTIVE tenant, so that whoever
+  /// signs in next works on their own company, never this one's.
+  Future<void> signOut({bool backupFirst = true}) async {
+    // The account's latest work goes to its cloud backup first, so it
+    // is there for the next sign-in on any phone. Best-effort: a dead
+    // network never blocks signing out.
+    if (backupFirst) await TenantBootstrap.beforeSignOut();
+
     // Firebase's own session is the actual source of truth for
     // authentication (see this class's own doc comment) - sign out of
     // it first. Wrapped separately so a failure here (e.g. genuinely
@@ -239,6 +248,7 @@ class AuthSessionNotifier extends StateNotifier<AuthSessionState> {
 
     state = const AuthSessionState();
     AuthScope.clear();
+    TenantBootstrap.clearActiveTenant();
     PermissionService.currentMobileNumberOverride = null;
     PermissionService.invalidateCache();
     SuperAdminScope.clear();

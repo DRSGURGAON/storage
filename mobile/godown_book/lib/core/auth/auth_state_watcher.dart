@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../permissions/permission_service.dart';
 import '../subscription/super_admin_scope.dart';
+import '../tenant/tenant_scope.dart';
 import 'auth_scope.dart';
 import 'auth_session.dart';
 
@@ -81,6 +82,9 @@ class AuthStateWatcher {
 
     debugPrint('Firebase session ended; clearing the local session.');
     AuthScope.clear();
+    // The active tenant belongs to the account that just ended; the
+    // next sign-in establishes its own (see TenantBootstrap).
+    TenantScope.clear();
     PermissionService.currentMobileNumberOverride = null;
     PermissionService.invalidateCache();
     SuperAdminScope.clear();

@@ -91,19 +91,28 @@ class StorageBookingRepository {
     final now = DateTime.now();
     final nowIso = now.toIso8601String();
 
-    var customerId = booking.customerId;
-    try {
-      customerId = await CustomerRepository.instance.ensureCustomer(
-        name: booking.customerName,
-        phone: booking.customerPhone,
-        gst: booking.customerGst,
-        address: booking.customerAddress,
-        city: booking.customerCity,
-        state: booking.customerState,
-        pincode: booking.customerPincode,
-      );
-    } catch (_) {
-      // The receipt must still save even if the master write fails.
+    // A customer the operator explicitly picked stays picked: matching
+    // by phone or name only runs when the record carries no customer
+    // link at all, so two customers who share a name (or a corrected
+    // phone number on the receipt) can never move the record to the
+    // wrong master row.
+    var customerId = await CustomerRepository.instance.resolveLink(
+      booking.customerId,
+    );
+    if (customerId.isEmpty) {
+      try {
+        customerId = await CustomerRepository.instance.ensureCustomer(
+          name: booking.customerName,
+          phone: booking.customerPhone,
+          gst: booking.customerGst,
+          address: booking.customerAddress,
+          city: booking.customerCity,
+          state: booking.customerState,
+          pincode: booking.customerPincode,
+        );
+      } catch (_) {
+        // The receipt must still save even if the master write fails.
+      }
     }
 
     final existing = await _dao.getById(booking.id);

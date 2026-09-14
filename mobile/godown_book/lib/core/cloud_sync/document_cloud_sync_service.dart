@@ -100,7 +100,23 @@ class DocumentCloudSyncService {
   static const Duration _syncInterval = Duration(minutes: 3);
   static const Duration _firstSyncDelay = Duration(seconds: 15);
 
-  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  /// Tests: a fake Firestore and a pretend signed-in account.
+  static FirebaseFirestore? firestoreOverride;
+  static String? currentUidOverride;
+
+  FirebaseFirestore get _firestore =>
+      firestoreOverride ?? FirebaseFirestore.instance;
+
+  String? get _currentUid {
+    final override = currentUidOverride;
+    if (override != null) return override.isEmpty ? null : override;
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      return (uid == null || uid.isEmpty) ? null : uid;
+    } catch (_) {
+      return null;
+    }
+  }
 
   bool _started = false;
   bool _syncing = false;
@@ -140,8 +156,8 @@ class DocumentCloudSyncService {
       return const CloudSyncResult(error: 'A backup is already running.');
     }
 
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || uid.isEmpty) {
+    final uid = _currentUid;
+    if (uid == null) {
       return const CloudSyncResult(error: 'Not signed in.');
     }
 
@@ -194,8 +210,14 @@ class DocumentCloudSyncService {
 
         // Rows pushed earlier but no longer present locally were
         // genuinely deleted in the app -> delete the cloud copy too.
-        final toDelete =
+        // "No longer present" means gone from the table altogether: a
+        // row that still exists under another company id (another
+        // account's data on this phone, or a restore that predates the
+        // company switch) is not a deletion and must never take a
+        // cloud copy with it.
+        final candidates =
             pushedHashes.keys.where((id) => !currentIds.contains(id)).toList();
+        final toDelete = await _absentFromTable(db, table, candidates);
 
         if (toPush.isEmpty && toDelete.isEmpty) continue;
 
@@ -215,6 +237,34 @@ class DocumentCloudSyncService {
     } finally {
       _syncing = false;
     }
+  }
+
+  /// Of [ids], the ones with no row at all in [table] - any company.
+  Future<List<String>> _absentFromTable(
+    Database db,
+    String table,
+    List<String> ids,
+  ) async {
+    if (ids.isEmpty) return const [];
+    final present = <String>{};
+    const chunkSize = 400;
+    for (var i = 0; i < ids.length; i += chunkSize) {
+      final chunk = ids.sublist(
+        i,
+        i + chunkSize > ids.length ? ids.length : i + chunkSize,
+      );
+      final placeholders = List.filled(chunk.length, '?').join(',');
+      final rows = await db.query(
+        table,
+        columns: ['id'],
+        where: 'id IN ($placeholders)',
+        whereArgs: chunk,
+      );
+      for (final row in rows) {
+        present.add(row['id'] as String);
+      }
+    }
+    return ids.where((id) => !present.contains(id)).toList();
   }
 
   Future<int> _pushTable(
@@ -308,11 +358,21 @@ class DocumentCloudSyncService {
   /// on top of existing local data merges by identity - it can never
   /// duplicate a document, and rows that exist only locally are left
   /// exactly as they are.
-  Future<CloudSyncResult> restoreFromCloud() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || uid.isEmpty) {
+  ///
+  /// [companyId] is the company the rows must belong to - the id of the
+  /// cloud company just installed. A cloud row stamped with a different
+  /// company id is skipped: written under the current scope it would be
+  /// invisible, and worse, the next backup pass would read its absence
+  /// as a deletion. Nothing in the cloud is ever deleted by a restore.
+  Future<CloudSyncResult> restoreFromCloud({
+    String? uid,
+    String? companyId,
+  }) async {
+    final account = uid ?? _currentUid;
+    if (account == null || account.isEmpty) {
       return const CloudSyncResult(error: 'Not signed in.');
     }
+    final expectedCompany = companyId ?? TenantScope.companyIdOrNull;
 
     try {
       final db = await AppDatabase.instance.database;
@@ -320,7 +380,7 @@ class DocumentCloudSyncService {
 
       for (final table in syncedTables) {
         final snapshot =
-            await _tableCollection(uid, table).get().timeout(_readTimeout);
+            await _tableCollection(account, table).get().timeout(_readTimeout);
         if (snapshot.docs.isEmpty) continue;
 
         // Only columns this install's schema actually has - a cloud
@@ -342,6 +402,12 @@ class DocumentCloudSyncService {
           };
           if (!row.containsKey('id') ||
               (row['id'] as String?)?.isEmpty != false) {
+            continue;
+          }
+          final rowCompany = row['company_id'] as String? ?? '';
+          if (expectedCompany != null &&
+              expectedCompany.isNotEmpty &&
+              rowCompany != expectedCompany) {
             continue;
           }
 
@@ -420,8 +486,8 @@ class DocumentCloudSyncService {
   /// delete - a connectivity failure never blocks the account
   /// deletion itself.
   Future<void> wipeCloudBackup() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || uid.isEmpty) return;
+    final uid = _currentUid;
+    if (uid == null) return;
 
     for (final table in syncedTables) {
       try {

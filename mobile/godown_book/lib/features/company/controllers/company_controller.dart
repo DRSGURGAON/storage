@@ -31,7 +31,10 @@ class CompanyController {
   /// The id is generated once and never changes: it is the key every
   /// business row is stamped with, so regenerating it would orphan the
   /// entire database.
-  Future<CompanyModel> saveCompany(CompanyModel company) async {
+  Future<CompanyModel> saveCompany(
+    CompanyModel company, {
+    bool pushToCloud = true,
+  }) async {
     final existing = await _repository.getCompany();
 
     final companyId = (existing?.companyId.isNotEmpty ?? false)
@@ -63,7 +66,9 @@ class CompanyController {
     // own errors (offline, etc.) and returns false rather than
     // throwing, so the local save above remains authoritative and
     // immediate regardless of connectivity.
-    await CompanyFirestoreSyncService.instance.pushToCloud(toSave);
+    if (pushToCloud) {
+      await CompanyFirestoreSyncService.instance.pushToCloud(toSave);
+    }
 
     // Seed rows written before the company existed have no owner yet.
     await TenantMigrator.claimUnassignedRows(companyId);
@@ -78,6 +83,16 @@ class CompanyController {
     }
 
     return toSave;
+  }
+
+  /// Installs [company] as THE company on this device, replacing
+  /// whatever was here - the cloud copy of the signed-in account's
+  /// company (keeping its own id), or a brand-new one. Local only: a
+  /// company that just came from the cloud has nothing to push back,
+  /// and a new empty one is never pushed until it has a name.
+  Future<CompanyModel> replaceCompany(CompanyModel company) async {
+    await _repository.clearCompany();
+    return saveCompany(company, pushToCloud: false);
   }
 
   // ==========================

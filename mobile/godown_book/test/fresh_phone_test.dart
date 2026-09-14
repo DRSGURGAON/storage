@@ -19,8 +19,8 @@ import 'package:godown_book/features/storage_booking/repositories/storage_bookin
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// What a brand-new phone goes through: an empty database, no company
-/// yet, the shell company main() creates before the first frame, and
-/// then the operator's first four saves. Every other test hands the
+/// yet, the empty company TenantBootstrap creates for a new account
+/// at sign-in, and then the operator's first four saves. Every other test hands the
 /// repositories a ready-made tenant; this one earns it the way the app
 /// does.
 void main() {
@@ -52,7 +52,7 @@ void main() {
   });
 
   test('the first saves on a fresh phone all land', () async {
-    // main._loadTenant(): no company, nothing in the cloud, so a shell.
+    // TenantBootstrap: no company, nothing in the cloud, so a new one.
     await CompanyController.instance.saveCompany(
       const CompanyModel(companyName: ''),
     );
@@ -144,7 +144,7 @@ void main() {
       createdAt: '',
     ));
 
-    // Next launch: _loadTenant() finds the company and reuses it.
+    // Next launch: TenantBootstrap finds the company and reuses it.
     TenantScope.clear();
     final again = await CompanyController.instance.getCompany();
     expect(again?.companyId, first);

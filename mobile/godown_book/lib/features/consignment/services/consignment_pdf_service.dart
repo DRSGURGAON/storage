@@ -5,6 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../../core/constants/default_terms.dart';
 import '../../../core/document_theme/document_theme.dart';
 import '../../../core/document_theme/pdf_box_row.dart';
+import '../../../core/document_theme/pdf_fonts.dart';
 import '../../../core/document_theme/pdf_page_kit.dart';
 import '../../../core/utils/amount_in_words.dart';
 import '../../company/models/company_model.dart';
@@ -68,7 +69,7 @@ class ConsignmentPdfService {
   }) async {
     _style = DocumentThemeStyle.of(company?.documentTheme ?? DocumentTheme.classic);
 
-    final document = pw.Document();
+    final document = await PdfFonts.document();
     final logo = await PdfPageKit.loadImage(company?.logoPath ?? '');
     final signature = await PdfPageKit.loadImage(company?.signaturePath ?? '');
 

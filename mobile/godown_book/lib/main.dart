@@ -17,12 +17,9 @@ import 'core/auth/auth_state_watcher.dart';
 import 'core/cloud_sync/document_cloud_sync_service.dart';
 import 'core/permissions/permission_service.dart';
 import 'core/subscription/super_admin_scope.dart';
-import 'core/tenant/tenant_scope.dart';
-import 'features/company/controllers/company_controller.dart';
-import 'features/company/services/company_firestore_sync_service.dart';
+import 'core/tenant/tenant_bootstrap.dart';
 import 'features/signature/repositories/signature_repository.dart';
 import 'features/subscription/services/platform_settings_service.dart';
-import 'features/company/models/company_model.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -66,7 +63,7 @@ Future<void> main() async {
   await _syncFirebaseAuthState();
   await AuthScope.loadFromDisk();
   await _loadPermissionSession();
-  await _loadTenant();
+  await TenantBootstrap.loadAtStartup();
 
   runApp(const ProviderScope(child: GodownBookApp()));
 
@@ -293,75 +290,6 @@ Future<void> _loadPermissionSession() async {
         prefs.getString(AuthSessionNotifier.mobileKey);
   } catch (error) {
     debugPrint('Permission session not loaded at startup: $error');
-  }
-}
-
-Future<void> _loadTenant() async {
-  try {
-    final company = await CompanyController.instance.getCompany();
-
-    if (company != null && company.companyId.isNotEmpty) {
-      TenantScope.set(company.companyId);
-      return;
-    }
-
-    // No company exists locally yet - before creating a fresh empty
-    // shell, check whether the currently signed-in Firebase user
-    // already has a company saved in the cloud (e.g. this is a
-    // reinstall, or a login on a different device). This is
-    // genuinely what makes "same company, same data, any device"
-    // possible - see CompanyFirestoreSyncService's own doc comment.
-    // Never overwrites an existing LOCAL company (the check above
-    // already returned early if one exists) - this only ever fills
-    // in a genuinely empty local state.
-    final cloudCompany = await CompanyFirestoreSyncService.instance.pullFromCloud();
-
-    if (cloudCompany != null && cloudCompany.companyName.isNotEmpty) {
-      // Restoring the user's own real company from the cloud - uses
-      // the exact same save path Company Settings' own save button
-      // uses, so this is genuinely no different from the user having
-      // just re-entered their details themselves.
-      await CompanyController.instance.saveCompany(cloudCompany);
-
-      // Same reinstall/new-device situation, one level deeper: the
-      // company profile came back from the cloud, so its documents
-      // (receipts/bills/releases - whatever the old device backed up)
-      // exist in the cloud too. Pull them in the
-      // background - deliberately NOT awaited, for the same
-      // first-frame reason SuperAdminScope.refresh() isn't: the app
-      // is fully usable while documents stream back in, and each
-      // list screen reads fresh from SQLite every time it opens.
-      unawaited(DocumentCloudSyncService.instance.restoreFromCloud());
-      return;
-    }
-
-    // No company exists locally yet - rather than leaving TenantScope
-    // unset (which would force every screen through the old mandatory
-    // "Set Up Your Company" onboarding gate before anything else could
-    // work), create a genuinely empty shell company now: purely local
-    // (CompanyRepository.saveCompany() is SQLite-only, confirmed - no
-    // Firestore call happens here, so this can never produce the
-    // [cloud_firestore/not-found] error the mandatory onboarding flow
-    // used to hit). Only companyName is a required constructor
-    // parameter on CompanyModel - passed as '' here, which is a
-    // genuinely valid (if empty) value, not a placeholder/fake name;
-    // every other field keeps its own default (also empty/zero).
-    // CompanyController.saveCompany() mints a real companyId and
-    // calls TenantScope.set() itself - the exact same path Company
-    // Settings' own save button already uses, so there is genuinely
-    // no separate/duplicate creation logic here.
-    await CompanyController.instance.saveCompany(
-      const CompanyModel(companyName: ''),
-    );
-  } catch (error) {
-    // Local database genuinely unavailable for some other reason -
-    // TenantScope stays unset; the router's own !TenantScope.isReady
-    // guard is gone (see app_router.dart), so the app will still open
-    // to Dashboard, but any screen that queries a tenant table will
-    // throw TenantScope's own StateError, which is the same honest
-    // failure this project already used before this task, not a new
-    // silent-bypass risk.
-    debugPrint('Tenant not loaded at startup: $error');
   }
 }
 

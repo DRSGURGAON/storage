@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../../../core/constants/id_proof_types.dart';
 import '../../../core/document_theme/document_theme.dart';
+import '../../../core/document_theme/pdf_fonts.dart';
 import '../../../core/document_theme/pdf_page_kit.dart';
 import '../../company/models/company_model.dart';
 import '../models/storage_booking_model.dart';
@@ -71,7 +72,7 @@ class AuthorityLetterPdfService {
   }) async {
     _style = DocumentThemeStyle.of(company?.documentTheme ?? DocumentTheme.classic);
 
-    final document = pw.Document();
+    final document = await PdfFonts.document();
     final logo = await PdfPageKit.loadImage(company?.logoPath ?? '');
 
     document.addPage(

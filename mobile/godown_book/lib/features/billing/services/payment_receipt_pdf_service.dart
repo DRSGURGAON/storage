@@ -6,6 +6,7 @@ import '../../../core/constants/default_terms.dart';
 import '../../../core/document_terms/document_terms_repository.dart';
 import '../../../core/document_theme/document_theme.dart';
 import '../../../core/document_theme/pdf_box_row.dart';
+import '../../../core/document_theme/pdf_fonts.dart';
 import '../../../core/document_theme/pdf_page_kit.dart';
 import '../../../core/utils/amount_in_words.dart';
 import '../../company/models/company_model.dart';
@@ -40,7 +41,7 @@ class PaymentReceiptPdfService {
     _customTerms = await DocumentTermsRepository.instance
         .getTerms(DocumentTermsType.moneyReceipt);
 
-    final document = pw.Document();
+    final document = await PdfFonts.document();
     final logo = await PdfPageKit.loadImage(company?.logoPath ?? '');
     final signature = await PdfPageKit.loadImage(company?.signaturePath ?? '');
 

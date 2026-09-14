@@ -5,6 +5,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../../core/document_theme/document_theme.dart';
+import '../../../core/document_theme/pdf_fonts.dart';
 import '../models/company_model.dart';
 
 /// Builds a professional Company Card PDF - a single-page business-card-
@@ -53,7 +54,7 @@ class CompanyCardPdfService {
   Future<Uint8List> build(CompanyModel? company) async {
     _style = DocumentThemeStyle.of(company?.documentTheme ?? DocumentTheme.classic);
 
-    final document = pw.Document();
+    final document = await PdfFonts.document();
 
     final logo = await _loadImage(company?.logoPath ?? '');
 

@@ -6,6 +6,8 @@ import '../../../core/constants/default_terms.dart';
 import '../../../core/document_terms/document_terms_repository.dart';
 import '../../../core/subscription/document_type.dart';
 import '../../billing/repositories/billing_repository.dart';
+import '../../billing/services/storage_charge_calculator.dart';
+import '../models/storage_status.dart';
 import '../../company/controllers/company_controller.dart';
 import '../../consignment/repositories/consignment_repository.dart';
 import '../../incidents/repositories/incident_repository.dart';
@@ -205,18 +207,35 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
     return Card(
       child: Column(
         children: [
-          ListTile(
-            leading: const Icon(Icons.receipt_long_outlined),
-            title: const Text('Make Storage Bill'),
-            subtitle: Text(b.rentBilledUpto.isEmpty
-                ? 'Rent has not been billed yet'
-                : 'Billed to ${_date(b.rentBilledUpto)}'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () async {
-              await context.push('/bill-create', extra: b.id);
-              _load();
-            },
-          ),
+          // Rent stops the day the goods go out. Once a released record
+          // is billed up to that day there is nothing left to bill, so
+          // the tile says so instead of offering another bill.
+          if (StorageChargeCalculator.hasUnbilledRent(b))
+            ListTile(
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: Text(b.status == StorageStatus.released
+                  ? 'Make Final Bill'
+                  : 'Make Storage Bill'),
+              subtitle: Text(b.status == StorageStatus.released
+                  ? 'Rent up to ${_date(b.actualEndDate)} is still to be billed'
+                  : b.rentBilledUpto.isEmpty
+                      ? 'Rent has not been billed yet'
+                      : 'Billed to ${_date(b.rentBilledUpto)}'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                await context.push('/bill-create', extra: b.id);
+                _load();
+              },
+            )
+          else
+            ListTile(
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: const Text('Storage Bill'),
+              subtitle: Text(b.rentRate <= 0
+                  ? 'No rent is set on this record'
+                  : 'Rent fully billed to ${_date(b.rentBilledUpto)}'),
+              enabled: false,
+            ),
           const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.payments_outlined),

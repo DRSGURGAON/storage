@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/document_theme/document_theme.dart';
 import '../models/company_model.dart';
@@ -34,14 +35,49 @@ import '../models/company_model.dart';
 /// path) - a separate, larger integration this task's scope did not
 /// include. Every other company field (name, address, GST, bank
 /// details, prefixes, terms, etc.) IS synced.
+/// Whether the cloud has a company for an account - and, distinctly,
+/// whether that could even be determined. "Not found" and "could not
+/// look" must never be confused: one means create a company, the
+/// other means wait and retry.
+enum CloudCompanyStatus { found, notFound, failed }
+
+class CloudCompanyLookup {
+  final CloudCompanyStatus status;
+  final CompanyModel? company;
+  final String? error;
+
+  const CloudCompanyLookup(this.status, {this.company, this.error});
+}
+
 class CompanyFirestoreSyncService {
   CompanyFirestoreSyncService._();
 
   static final CompanyFirestoreSyncService instance =
       CompanyFirestoreSyncService._();
 
+  /// Tests: a fake Firestore and a pretend signed-in account.
+  static FirebaseFirestore? firestoreOverride;
+  static String? currentUidOverride;
+
+  FirebaseFirestore get _firestore =>
+      firestoreOverride ?? FirebaseFirestore.instance;
+
   CollectionReference<Map<String, dynamic>> get _companiesCollection =>
-      FirebaseFirestore.instance.collection('companies');
+      _firestore.collection('companies');
+
+  String? get _currentUid {
+    final override = currentUidOverride;
+    if (override != null) return override.isEmpty ? null : override;
+    // Reading currentUser itself throws when Firebase never initialized
+    // (a build where firebase_options.dart is still the placeholder, or
+    // a unit test).
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      return (uid == null || uid.isEmpty) ? null : uid;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// How long any single Firestore call is allowed to take before it's
   /// treated as "genuinely unreachable". Essential, not cosmetic:
@@ -61,22 +97,77 @@ class CompanyFirestoreSyncService {
   /// cloud mirror didn't happen yet", never as a reason to fail the
   /// whole save operation.
   Future<bool> pushToCloud(CompanyModel company) async {
-    // Reading currentUser itself throws when Firebase never initialized
-    // (a build where firebase_options.dart is still the placeholder, or
-    // a unit test) - a local save must never fail for that reason.
-    final String? uid;
-    try {
-      uid = FirebaseAuth.instance.currentUser?.uid;
-    } catch (_) {
-      return false;
-    }
-    if (uid == null || uid.isEmpty) return false;
+    final uid = _currentUid;
+    if (uid == null) return false;
+
+    // A company with no name yet is the empty shell a first sign-in
+    // creates. It has nothing worth mirroring, and mirroring it could
+    // only ever overwrite a real profile - so it is never pushed.
+    if (company.companyName.trim().isEmpty) return false;
 
     try {
-      await _companiesCollection.doc(uid).set(_toFirestoreMap(company)).timeout(_firestoreTimeout);
+      final doc = _companiesCollection.doc(uid);
+
+      // Never overwrite a different company: the cloud document is the
+      // account's real profile, keyed by the id all its backed-up rows
+      // carry. A local company with another id (a shell made before
+      // the cloud copy was found) must not replace it.
+      final existing = await doc.get().timeout(_firestoreTimeout);
+      final existingData = existing.data();
+      if (existing.exists && existingData != null) {
+        final cloudId = existingData['companyId'] as String? ?? '';
+        final cloudName = existingData['companyName'] as String? ?? '';
+        if (cloudId.isNotEmpty &&
+            cloudName.trim().isNotEmpty &&
+            cloudId != company.companyId) {
+          debugPrint(
+            'Refusing to overwrite cloud company $cloudId with local '
+            'company ${company.companyId}.',
+          );
+          return false;
+        }
+      }
+
+      await doc.set(_toFirestoreMap(company)).timeout(_firestoreTimeout);
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Whether [uid] (the signed-in account by default) has a company in
+  /// the cloud - with "could not look" reported as such, never as
+  /// "none".
+  Future<CloudCompanyLookup> lookup({String? uid}) async {
+    final account = uid ?? _currentUid;
+    if (account == null || account.isEmpty) {
+      return const CloudCompanyLookup(
+        CloudCompanyStatus.failed,
+        error: 'Not signed in.',
+      );
+    }
+
+    try {
+      final snapshot = await _companiesCollection
+          .doc(account)
+          .get()
+          .timeout(_firestoreTimeout);
+      final data = snapshot.data();
+      if (!snapshot.exists || data == null) {
+        return const CloudCompanyLookup(CloudCompanyStatus.notFound);
+      }
+      final company = _fromFirestoreMap(data);
+      if (company.companyId.isEmpty) {
+        // A profile written by a version that never stored the id
+        // cannot own any backed-up rows - treat it as a fresh start.
+        return const CloudCompanyLookup(CloudCompanyStatus.notFound);
+      }
+      return CloudCompanyLookup(CloudCompanyStatus.found, company: company);
+    } catch (error) {
+      return CloudCompanyLookup(
+        CloudCompanyStatus.failed,
+        error: error.toString(),
+      );
     }
   }
 
@@ -85,21 +176,12 @@ class CompanyFirestoreSyncService {
   /// (genuinely new company, or one only ever saved on a device that
   /// never got to sync), or the read genuinely fails (offline).
   /// Callers combine this with the local SQLite copy (see
-  /// _loadTenant()'s own reconciliation logic) rather than blindly
+  /// TenantBootstrap's own reconciliation logic) rather than blindly
   /// overwriting - a locally-edited-but-not-yet-synced company must
   /// never be silently discarded by an older cloud copy.
   Future<CompanyModel?> pullFromCloud() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || uid.isEmpty) return null;
-
-    try {
-      final snapshot = await _companiesCollection.doc(uid).get().timeout(_firestoreTimeout);
-      if (!snapshot.exists || snapshot.data() == null) return null;
-
-      return _fromFirestoreMap(snapshot.data()!);
-    } catch (_) {
-      return null;
-    }
+    final result = await lookup();
+    return result.company;
   }
 
   /// Firestore's own document shape - camelCase, matching this

@@ -124,10 +124,7 @@ class StorageChargeCalculator {
 
       case RentBasis.perBoxMonthly:
         final months = startedMonths(from, to).toDouble();
-        final count = boxes ??
-            (booking.totalPackages > 0
-                ? booking.totalPackages.toDouble()
-                : booking.totalQuantity);
+        final count = boxes ?? chargeableBoxes(booking);
         final quantity = months * count;
         return StorageCharge(
           quantity: quantity,
@@ -146,6 +143,46 @@ class StorageChargeCalculator {
           description: '$period - agreed storage charge',
         );
     }
+  }
+
+  /// How many boxes a per-box bill charges for: once some goods have
+  /// gone out, only what is still in the godown; before that, the
+  /// package count on the record (or the item quantities).
+  static double chargeableBoxes(StorageBookingModel booking) {
+    final released = booking.totalQuantity - booking.remainingQuantity;
+    if (released > 0) return booking.remainingQuantity;
+    return booking.totalPackages > 0
+        ? booking.totalPackages.toDouble()
+        : booking.totalQuantity;
+  }
+
+  /// The last day rent can be charged for: the day the goods went out
+  /// once the record is fully released, or null while anything is
+  /// still in storage. An old record released before the end date was
+  /// recorded falls back to the day it was last updated (which is when
+  /// the release closed it).
+  static DateTime? billingEnd(StorageBookingModel booking) {
+    if (booking.status != StorageStatus.released) return null;
+    final end = DateTime.tryParse(booking.actualEndDate) ??
+        DateTime.tryParse(booking.updatedAt);
+    return end == null ? null : DateTime(end.year, end.month, end.day);
+  }
+
+  /// [to], pulled back to the release date when the goods have already
+  /// gone out - rent never runs past the day the customer collected.
+  static DateTime clampPeriodEnd(StorageBookingModel booking, DateTime to) {
+    final end = billingEnd(booking);
+    return end != null && to.isAfter(end) ? end : to;
+  }
+
+  /// Whether there is still rent to bill on [booking]: always while the
+  /// goods are in storage (rent keeps running), and after a release only
+  /// until the period up to the release date has been billed.
+  static bool hasUnbilledRent(StorageBookingModel booking) {
+    if (booking.rentRate <= 0) return false;
+    final end = billingEnd(booking);
+    if (end == null) return true;
+    return !nextPeriodStart(booking).isAfter(end);
   }
 
   /// The storage line a bill starts with for [booking] over the period.

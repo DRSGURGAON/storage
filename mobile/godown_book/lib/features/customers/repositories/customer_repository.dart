@@ -66,6 +66,24 @@ class CustomerRepository {
     await update(existing.copyWith(isActive: true));
   }
 
+  /// The customer link a document should keep: [customerId] itself when
+  /// it names a customer that exists in this company, otherwise empty
+  /// so the caller falls back to matching by phone/name. A link to a
+  /// customer that was deactivated is still a link - the document was
+  /// theirs.
+  Future<String> resolveLink(String customerId) async {
+    final id = customerId.trim();
+    if (id.isEmpty) return '';
+    try {
+      final existing = await _dao.getById(id);
+      return existing == null ? '' : existing.id;
+    } catch (_) {
+      // If the master cannot be read the link is kept as typed rather
+      // than silently re-matched to somebody else.
+      return id;
+    }
+  }
+
   /// Finds a customer by exact phone, or by exact name when no phone
   /// is given - used by document forms to link a typed customer back
   /// to the master without creating duplicates.

@@ -56,6 +56,38 @@ class CustomerBalance {
 }
 
 
+/// Thrown when a receipt against a bill is for more than that bill
+/// still owes. Money is never quietly absorbed into a bill: the
+/// operator decides whether the excess becomes an advance (see
+/// BillingRepository.recordPaymentSplittingExcess) or corrects the
+/// amount.
+class OverpaymentException implements Exception {
+  final BillModel bill;
+  final double amount;
+
+  const OverpaymentException({required this.bill, required this.amount});
+
+  double get outstanding => bill.balanceDue;
+
+  double get excess => amount - bill.balanceDue;
+
+  @override
+  String toString() =>
+      'Amount exceeds outstanding balance. Bill ${bill.billNo} has '
+      'Rs. ${bill.balanceDue.toStringAsFixed(2)} outstanding; '
+      'Rs. ${amount.toStringAsFixed(2)} was entered.';
+}
+
+/// What recordPaymentSplittingExcess produced: the receipt that settled
+/// the bill, and the separate advance receipt for whatever was left
+/// over (null when nothing was).
+class SplitPaymentResult {
+  final PaymentModel applied;
+  final PaymentModel? advance;
+
+  const SplitPaymentResult({required this.applied, this.advance});
+}
+
 /// The deposit on one storage record: what was agreed, what actually
 /// came in, and what is still lying with the godown.
 class DepositSummary {
@@ -143,6 +175,18 @@ class BillingRepository {
   Future<List<PaymentModel>> getPaymentsForBill(String billId) =>
       _dao.getPaymentsForBill(billId);
 
+  /// Bills of [customerId] that still carry a balance, oldest first -
+  /// the order money received on account should settle them in.
+  Future<List<BillModel>> openBillsForCustomer(String customerId) async {
+    final bills = await getBillsForCustomer(customerId);
+    final open = bills.where((b) => b.balanceDue > 0.004).toList()
+      ..sort((a, b) {
+        final byDate = a.billDate.compareTo(b.billDate);
+        return byDate != 0 ? byDate : a.billNo.compareTo(b.billNo);
+      });
+    return open;
+  }
+
   Future<List<PaymentModel>> getPaymentsForCustomer(String customerId) async {
     final all = await _dao.getAllPayments();
     return all.where((p) => p.customerId == customerId).toList();
@@ -221,7 +265,12 @@ class BillingRepository {
     DateTime? upto,
   }) async {
     final from = StorageChargeCalculator.nextPeriodStart(booking);
-    final to = upto ?? DateTime.now();
+    // Rent stops the day the goods went out: a bill raised after a
+    // release covers up to the release date, never beyond it.
+    final to = StorageChargeCalculator.clampPeriodEnd(
+      booking,
+      upto ?? DateTime.now(),
+    );
     final now = DateTime.now();
 
     final lines = <BillLineModel>[];
@@ -296,19 +345,27 @@ class BillingRepository {
         customerState.isNotEmpty &&
         companyState != customerState;
 
-    var customerId = bill.customerId;
-    try {
-      customerId = await CustomerRepository.instance.ensureCustomer(
-        name: bill.customerName,
-        phone: bill.customerPhone,
-        gst: bill.customerGst,
-        address: bill.customerAddress,
-        city: bill.customerCity,
-        state: bill.customerState,
-        pincode: bill.customerPincode,
-      );
-    } catch (_) {
-      // The bill must still save even if the master write fails.
+    // An explicitly picked customer is never replaced by a phone/name
+    // match - editing the name or phone printed on a bill must not
+    // move the bill (and leave its receipts behind) on another
+    // customer. See StorageBookingRepository.save.
+    var customerId = await CustomerRepository.instance.resolveLink(
+      bill.customerId,
+    );
+    if (customerId.isEmpty) {
+      try {
+        customerId = await CustomerRepository.instance.ensureCustomer(
+          name: bill.customerName,
+          phone: bill.customerPhone,
+          gst: bill.customerGst,
+          address: bill.customerAddress,
+          city: bill.customerCity,
+          state: bill.customerState,
+          pincode: bill.customerPincode,
+        );
+      } catch (_) {
+        // The bill must still save even if the master write fails.
+      }
     }
 
     final priced =
@@ -471,9 +528,22 @@ class BillingRepository {
   /// Records money received and prints a numbered receipt for it. When
   /// the payment settles a bill, that bill's paid amount and status move
   /// with it.
+  ///
+  /// A receipt against a bill for more than the bill still owes is
+  /// refused with [OverpaymentException] - see
+  /// [recordPaymentSplittingExcess] for the way to keep the excess as
+  /// an advance instead. Deposit entries never settle a bill and are
+  /// not checked.
   Future<PaymentModel> recordPayment(PaymentModel payment) async {
     final now = DateTime.now();
     final nowIso = now.toIso8601String();
+
+    if (payment.billId.isNotEmpty && payment.paymentType.settlesDues) {
+      final bill = await _dao.getBillById(payment.billId);
+      if (bill != null && payment.amount > bill.balanceDue + 0.004) {
+        throw OverpaymentException(bill: bill, amount: payment.amount);
+      }
+    }
 
     final company = await CompanyController.instance.getCompany();
     final isCreditNote = payment.paymentType == PaymentType.creditNote;
@@ -537,6 +607,53 @@ class BillingRepository {
     }
 
     throw StateError('Could not allocate a unique receipt number.');
+  }
+
+  /// Records [payment] against its bill for exactly what the bill still
+  /// owes, and the rest as a separate advance receipt on the same
+  /// customer - so the bill closes at its own total and the extra
+  /// money stays visible on the customer's account (statement,
+  /// balance) rather than vanishing into an over-paid bill.
+  ///
+  /// When the payment does not exceed the balance it is recorded as is
+  /// and no advance is made.
+  Future<SplitPaymentResult> recordPaymentSplittingExcess(
+    PaymentModel payment,
+  ) async {
+    final bill =
+        payment.billId.isEmpty ? null : await _dao.getBillById(payment.billId);
+    final excess = bill == null ? 0.0 : payment.amount - bill.balanceDue;
+
+    if (bill == null || excess <= 0.004) {
+      return SplitPaymentResult(applied: await recordPayment(payment));
+    }
+
+    final applied = await recordPayment(payment.copyWith(
+      amount: bill.balanceDue,
+      paymentType: PaymentType.fullPayment,
+      against: payment.against.trim().isEmpty
+          ? 'Bill ${bill.billNo}'
+          : payment.against,
+    ));
+
+    final advance = await recordPayment(PaymentModel(
+      id: '',
+      billId: '',
+      customerId: applied.customerId,
+      bookingId: payment.bookingId,
+      payerName: payment.payerName,
+      payerPhone: payment.payerPhone,
+      against: 'Advance - received with bill ${bill.billNo}',
+      amount: excess,
+      mode: payment.mode,
+      paymentType: PaymentType.advance,
+      paymentDate: payment.paymentDate,
+      referenceNo: payment.referenceNo,
+      notes: payment.notes,
+      createdAt: '',
+    ));
+
+    return SplitPaymentResult(applied: applied, advance: advance);
   }
 
   Future<void> updatePayment(PaymentModel payment) async {

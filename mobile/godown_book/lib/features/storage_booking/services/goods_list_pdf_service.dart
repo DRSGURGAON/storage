@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../../../core/document_theme/document_theme.dart';
 import '../../../core/document_theme/pdf_box_row.dart';
+import '../../../core/document_theme/pdf_fonts.dart';
 import '../../../core/document_theme/pdf_page_kit.dart';
 import '../../company/models/company_model.dart';
 import '../models/storage_booking_model.dart';
@@ -26,7 +27,7 @@ class GoodsListPdfService {
   }) async {
     _style = DocumentThemeStyle.of(company?.documentTheme ?? DocumentTheme.classic);
 
-    final document = pw.Document();
+    final document = await PdfFonts.document();
     final logo = await PdfPageKit.loadImage(company?.logoPath ?? '');
     final signature = await PdfPageKit.loadImage(company?.signaturePath ?? '');
 

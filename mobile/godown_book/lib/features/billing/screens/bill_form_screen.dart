@@ -357,9 +357,12 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
   void _refreshStorageLine() {
     final booking = _booking;
     final from = _periodFrom;
-    final to = _periodTo;
+    var to = _periodTo;
     _lines.removeWhere((l) => l.chargeName == 'Storage Charge');
     if (booking == null || from == null || to == null || booking.rentRate <= 0) return;
+    // Never charge past the day the goods went out.
+    to = StorageChargeCalculator.clampPeriodEnd(booking, to);
+    _periodTo = to;
     if (to.isBefore(from)) return;
 
     _lines.insert(
@@ -423,7 +426,10 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
         _customerState = selected.customerState;
         _customerPincode = selected.customerPincode;
         _periodFrom = StorageChargeCalculator.nextPeriodStart(selected);
-        _periodTo ??= DateTime.now();
+        _periodTo = StorageChargeCalculator.clampPeriodEnd(
+          selected,
+          _periodTo ?? DateTime.now(),
+        );
         _refreshStorageLine();
       }
     });

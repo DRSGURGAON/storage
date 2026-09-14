@@ -34,6 +34,11 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
   static final _dateFormat = DateFormat('dd MMM yyyy');
 
   BillModel? _bill;
+
+  /// Bills of the customer that still owe money, when the screen was
+  /// opened for a customer rather than a bill - the operator picks
+  /// which one this receipt settles (oldest is picked for them).
+  List<BillModel> _openBills = const [];
   bool _loading = true;
   bool _saving = false;
 
@@ -76,12 +81,41 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
       final balance =
           await BillingRepository.instance.balanceForCustomer(widget.customerId!);
       _payerName.text = balance.customerName;
-      if (balance.outstanding > 0) {
+      // Money received from a customer settles their bills - oldest
+      // first - not a nameless "on account" entry that leaves every
+      // bill showing as unpaid. On account stays available when they
+      // owe nothing, or when the operator picks it deliberately.
+      _openBills =
+          await BillingRepository.instance.openBillsForCustomer(widget.customerId!);
+      if (_openBills.isNotEmpty) {
+        _applyBill(_openBills.first);
+      } else if (balance.outstanding > 0) {
         _amount.text = balance.outstanding.toStringAsFixed(2);
       }
     }
 
     if (mounted) setState(() => _loading = false);
+  }
+
+  /// Points this receipt at [bill] (or at nothing, for on account).
+  void _applyBill(BillModel? bill) {
+    _bill = bill;
+    if (bill == null) {
+      _bookingId = '';
+      _amount.clear();
+      _against.clear();
+      _type = PaymentType.advance;
+      return;
+    }
+    _customerId = bill.customerId.isEmpty ? _customerId : bill.customerId;
+    _bookingId = bill.bookingId;
+    if (_payerName.text.trim().isEmpty) _payerName.text = bill.customerName;
+    if (_payerPhone.text.trim().isEmpty) _payerPhone.text = bill.customerPhone;
+    _amount.text = bill.balanceDue.toStringAsFixed(2);
+    _type = bill.balanceDue >= bill.grandTotal
+        ? PaymentType.fullPayment
+        : PaymentType.partPayment;
+    _against.text = 'Bill ${bill.billNo}';
   }
 
   /// Puts what the operator accepted on the voice sheet into the form.
@@ -145,11 +179,19 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
       return;
     }
 
+    final bill = _bill;
+    var splitExcess = false;
+    if (bill != null && _type.settlesDues && amount > bill.balanceDue + 0.004) {
+      final choice = await _askAboutOverpayment(bill, amount);
+      if (choice != true) return;
+      splitExcess = true;
+    }
+
     setState(() => _saving = true);
     try {
-      final saved = await BillingRepository.instance.recordPayment(PaymentModel(
+      final payment = PaymentModel(
         id: IdGenerator.generateId(),
-        billId: _bill?.id ?? '',
+        billId: bill?.id ?? '',
         customerId: _customerId,
         bookingId: _bookingId,
         payerName: _payerName.text.trim(),
@@ -162,7 +204,24 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
         referenceNo: _reference.text.trim(),
         notes: _notes.text.trim(),
         createdAt: '',
-      ));
+      );
+
+      final PaymentModel saved;
+      if (splitExcess) {
+        final result =
+            await BillingRepository.instance.recordPaymentSplittingExcess(payment);
+        saved = result.applied;
+        if (result.advance != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+              'Bill settled. ₹${result.advance!.amount.toStringAsFixed(2)} '
+              'kept as advance (receipt ${result.advance!.receiptNo}).',
+            ),
+          ));
+        }
+      } else {
+        saved = await BillingRepository.instance.recordPayment(payment);
+      }
 
       if (!mounted) return;
       voiceFilled.clear();
@@ -172,6 +231,75 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
       setState(() => _saving = false);
       showSaveProblem(context, error);
     }
+  }
+
+  /// The amount is more than the bill still owes. Money is never
+  /// quietly swallowed into the bill: settle the bill at its balance
+  /// and keep the rest as an advance, or go back and change the amount.
+  Future<bool?> _askAboutOverpayment(BillModel bill, double amount) {
+    final outstanding = bill.balanceDue;
+    final excess = amount - outstanding;
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_rounded, size: 36),
+        title: const Text('Amount exceeds outstanding balance'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Bill ${bill.billNo} outstanding: ₹${outstanding.toStringAsFixed(2)}'),
+            Text('Amount entered: ₹${amount.toStringAsFixed(2)}'),
+            const SizedBox(height: 12),
+            Text(
+              'Apply ₹${outstanding.toStringAsFixed(2)} to the bill and keep '
+              '₹${excess.toStringAsFixed(2)} as an advance on the customer\'s '
+              'account? Two receipts will be made.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Change amount'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Apply and keep advance'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Which bill this receipt settles - shown only when the screen was
+  /// opened for a customer with unpaid bills.
+  Widget _billPicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Against which bill?'),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final open in _openBills)
+              ChoiceChip(
+                label: Text('${open.billNo}  ₹${open.balanceDue.toStringAsFixed(0)}'),
+                selected: _bill?.id == open.id,
+                onSelected: (_) => setState(() => _applyBill(open)),
+              ),
+            ChoiceChip(
+              label: const Text('On account / advance'),
+              selected: _bill == null,
+              onSelected: (_) => setState(() => _applyBill(null)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
   }
 
   @override
@@ -201,6 +329,7 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
                   label: const Text('Bol kar bhariye'),
                 ),
                 const SizedBox(height: 18),
+                if (_openBills.isNotEmpty) _billPicker(),
                 if (bill != null)
                   Card(
                     color: Theme.of(context).colorScheme.primaryContainer,

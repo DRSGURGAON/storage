@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_scope.dart';
+import '../../core/tenant/tenant_scope.dart';
 import '../shell/app_shell.dart';
 import '../../core/subscription/super_admin_scope.dart';
 
@@ -125,14 +126,23 @@ class AppRouter {
     // of what URL was requested, so there is no way to deep-link or
     // back-navigate around it), then "is this a Super Admin-only
     // route the signed-in user is not authorized for". Company setup
-    // is optional - main.dart's own _loadTenant() ensures a local
-    // company record (and therefore TenantScope.isReady) always exists
-    // after the first launch, so a user can go straight to Dashboard
-    // and fill in company details later from Settings.
+    // is optional - TenantBootstrap establishes the signed-in account's
+    // company (and therefore TenantScope.isReady) at sign-in, so a user
+    // can go straight to Dashboard and fill in company details later
+    // from Settings.
     redirect: (context, state) {
       final path = state.matchedLocation;
 
       if (!AuthScope.isAuthenticated) {
+        return _authFreeRoutes.contains(path) ? null : '/login';
+      }
+
+      // Signed in, but no company is active on this device (the sign-in
+      // predates the company bootstrap, or the account's company could
+      // not be established): only the sign-in screens are usable, and
+      // signing in again runs the bootstrap with the cloud reachable.
+      // Every tenant-scoped screen would fail without this.
+      if (!TenantScope.isReady) {
         return _authFreeRoutes.contains(path) ? null : '/login';
       }
 

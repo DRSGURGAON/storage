@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../../../core/document_theme/document_header.dart';
 import '../../../core/document_theme/document_theme.dart';
+import '../../../core/document_theme/pdf_fonts.dart';
 import '../../company/models/company_model.dart';
 
 /// Builds a blank professional A4 letterhead from the Company Profile.
@@ -65,7 +66,7 @@ class LetterHeadPdfService {
   }) async {
     _style = DocumentThemeStyle.of(company?.documentTheme ?? DocumentTheme.classic);
 
-    final document = pw.Document();
+    final document = await PdfFonts.document();
 
     final logo = await _loadImage(company?.logoPath ?? '');
 

@@ -28,7 +28,7 @@ class AuthScope {
   static const _authenticatedKey = 'auth_is_authenticated';
 
   /// Reads the persisted flag once at app startup, before the first route
-  /// resolves - mirrors _loadTenant() in main.dart.
+  /// resolves - mirrors TenantBootstrap.loadAtStartup() in main.dart.
   static Future<void> loadFromDisk() async {
     try {
       final prefs = await SharedPreferences.getInstance();

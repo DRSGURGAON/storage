@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_session.dart';
+import '../../core/tenant/tenant_bootstrap.dart';
 import 'services/otp_auth_service.dart';
 
 /// 6-digit OTP entry after the number was given on LoginScreen.
@@ -50,6 +51,10 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   late OtpRequest _request;
 
   bool _verifying = false;
+
+  /// True while the account's company is being fetched after the code
+  /// was accepted.
+  bool _restoring = false;
   bool _resending = false;
   bool _expired = false;
   bool _done = false;
@@ -165,11 +170,60 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       // No Firebase app in a test; the fake service decided the outcome.
     }
 
+    // The account's own company must be active before the app opens:
+    // restored from the cloud on a reinstall or a new phone, kept when
+    // it is already on this device, created only when the account has
+    // none anywhere. Never guessed while the cloud cannot be reached.
+    if (uid != null) {
+      final ready = await _establishCompany(uid);
+      if (!ready) {
+        _done = false;
+        if (mounted) setState(() => _verifying = false);
+        return;
+      }
+    }
+
     await ref
         .read(authSessionProvider.notifier)
         .markAuthenticated(widget.mobileNumber, uid: uid);
     if (!mounted) return;
     context.go('/dashboard');
+  }
+
+  /// Runs the company bootstrap, offering Retry until it succeeds or
+  /// the user gives up (which leaves them on this screen, signed out
+  /// of the app but able to try again).
+  Future<bool> _establishCompany(String uid) async {
+    while (true) {
+      if (mounted) setState(() => _restoring = true);
+      final result = await TenantBootstrap.bootstrapAfterLogin(uid);
+      if (mounted) setState(() => _restoring = false);
+      if (result.succeeded) return true;
+      if (!mounted) return false;
+
+      final retry = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Could not check your account'),
+          content: Text(
+            'Your company details could not be fetched. Check the internet '
+            'connection and try again.\n\n${result.error ?? ''}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+      if (retry != true) return false;
+    }
   }
 
   Future<void> _resendOtp() async {
@@ -240,6 +294,15 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 20),
+              if (_restoring) ...[
+                const LinearProgressIndicator(),
+                const SizedBox(height: 8),
+                const Text(
+                  'Code accepted. Fetching your company details...',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+              ],
               Text(
                 'Enter the 6-digit code sent to\n+91 ${widget.mobileNumber}',
                 style: const TextStyle(fontSize: 16),

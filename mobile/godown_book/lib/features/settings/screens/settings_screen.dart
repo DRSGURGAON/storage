@@ -63,10 +63,10 @@ class SettingsScreen extends ConsumerWidget {
 
     if (confirmed != true) return;
 
-    // Clears only the sign-in flag/mobile number - never touches
-    // TenantScope or any company/business data, so the same company's
-    // data is exactly where it was when the user (or a different user on
-    // the same device) signs back in.
+    // Backs up the latest work, then ends the session and the active
+    // tenant. The company's rows stay on this device and are active
+    // again when the same account signs back in; a different account
+    // gets its own company (see TenantBootstrap).
     await ref.read(authSessionProvider.notifier).signOut();
 
     if (!context.mounted) return;

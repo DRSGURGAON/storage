@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 import '../../../shared/widgets/save_problem.dart';
 
 import '../../billing/repositories/billing_repository.dart';
+import '../../billing/services/storage_charge_calculator.dart';
 import '../../storage_booking/models/storage_booking_model.dart';
+import '../../storage_booking/models/storage_status.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
 import '../models/goods_release_model.dart';
 import '../repositories/goods_release_repository.dart';
@@ -185,11 +187,52 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
       ));
 
       if (!mounted) return;
+      await _offerFinalBill(saved.bookingId);
+      if (!mounted) return;
       context.pop(saved.id);
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
       showSaveProblem(context, error);
+    }
+  }
+
+  /// Once the last of the goods has gone out, rent stops on that day -
+  /// and whatever ran up to it is usually still unbilled. Offer the
+  /// final bill right here so it is not forgotten; "Later" leaves the
+  /// storage record showing "Make Final Bill" until it is done.
+  Future<void> _offerFinalBill(String bookingId) async {
+    final closed = await StorageBookingRepository.instance.getById(bookingId);
+    if (closed == null ||
+        closed.status != StorageStatus.released ||
+        !StorageChargeCalculator.hasUnbilledRent(closed)) {
+      return;
+    }
+    if (!mounted) return;
+
+    final makeBill = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Make the final bill?'),
+        content: Text(
+          'All goods have gone out. Rent up to '
+          '${_dateFormat.format(DateTime.tryParse(closed.actualEndDate) ?? DateTime.now())} '
+          'has not been billed yet.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Make Final Bill'),
+          ),
+        ],
+      ),
+    );
+    if (makeBill == true && mounted) {
+      await context.push('/bill-create', extra: bookingId);
     }
   }
 
