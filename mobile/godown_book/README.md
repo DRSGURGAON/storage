@@ -216,19 +216,23 @@ Login by itself; a session that is still valid survives a restart.
 
 ### The first Super Admin
 
-Super Admins authorise subscriptions. There is no way to make one from
-inside the app. In the Firebase Console, add a document to the
-`superAdmins` collection whose **document id is that person's Firebase
-Auth uid**:
+Super Admins authorise subscriptions and review KYC. Super Admin is the
+custom claim `role: "superadmin"` on a Firebase Auth account - checked
+by the Firestore rules and by the app, and set only with the Admin SDK.
+There is no way to grant it from inside the app.
 
-```
-superAdmins/<uid>
-  mobileNumber: "+919999999999"
-  name: "Your name"
-  isActive: true
+```bash
+cd mobile/godown_book/tool/admin
+npm install
+export GOOGLE_APPLICATION_CREDENTIALS=/secure/path/service-account.json
+node set-superadmin.js grant --phone +919999999999 --name "Your name"
 ```
 
-They then see Super Admin Dashboard in Settings.
+The person must have signed in to the app once first. After the grant
+they sign out and in again, and Super Admin Dashboard appears in
+Settings. `docs/firebase-security.md` describes every collection, the
+rules and the audit log; `firestore_tests/` runs the rules against the
+emulator.
 
 ### Installing a new build over the old one
 

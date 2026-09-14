@@ -4,18 +4,41 @@
   },
   "hosting": {
     "public": "signing_web",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
     "headers": [
       {
         "source": "**",
         "headers": [
-          { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
-          { "key": "Referrer-Policy", "value": "no-referrer" }
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "no-referrer"
+          }
         ]
       }
     ],
     "rewrites": [
-      { "source": "/sign/**", "destination": "/index.html" }
+      {
+        "source": "/sign/**",
+        "destination": "/index.html"
+      }
     ]
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8085
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
   }
 }

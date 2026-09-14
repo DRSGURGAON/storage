@@ -1,0 +1,13 @@
+{
+  "name": "storagebill-admin-tools",
+  "private": true,
+  "description": "Platform-operator tooling for StorageBill Pro: grants and revokes the superadmin custom claim with the Firebase Admin SDK. Never shipped in the app.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "superadmin": "node set-superadmin.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.4.0"
+  }
+}

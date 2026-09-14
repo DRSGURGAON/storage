@@ -1,43 +1,143 @@
 rules_version = '2';
 
-// StorageBill Pro - Cloud Firestore security rules.
+// StorageBill Pro - Cloud Firestore security rules (production).
 //
-// What lives in the cloud: each company's own profile and document
-// backup under companies/{uid}, its subscription, the platform's
-// payment settings the Super Admin publishes, the App ID counter, and
-// KYC submissions. Everything operational is on the device in SQLite;
-// these rules protect only what genuinely leaves it.
+// Who is who
+//   - A company owner: any phone-verified Firebase Auth user. Their
+//     company profile and document backup live under companies/{uid},
+//     keyed by their own uid; their subscription and KYC are keyed by
+//     the company id their profile carries.
+//   - A Super Admin (platform operator): a user whose ID token carries
+//     the custom claim role == "superadmin". The claim is set only by
+//     the Admin SDK (tool/admin/set-superadmin.js), never by the app,
+//     and is mirrored in platformAdmins/{uid} for the admin panel.
+//     Nothing a client can write makes anyone a Super Admin.
+//
+// What the cloud holds: each company's own profile and backup, its
+// subscription (with the free-copy counters), its KYC, the platform's
+// settings, the App ID counter, signature links, platform admins and
+// the privileged-action audit log. Everything operational is on the
+// device in SQLite; these rules protect what leaves it.
+//
+// Every path not named below is closed.
 //
 // Deploy with:  firebase deploy --only firestore:rules
+// Test with:    cd firestore_tests && npm test   (Firestore emulator)
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ==========================
+    // Helpers
+    // ==========================
+
     function signedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.uid != null;
     }
 
-    // A Super Admin is anyone with a document under superAdmins keyed
-    // by their own uid. Nobody can write that collection from the app -
-    // the first one is created by hand in the Firebase Console.
     function isSuperAdmin() {
       return signedIn()
-        && exists(/databases/$(database)/documents/superAdmins/$(request.auth.uid));
+        && request.auth.token.get('role', '') == 'superadmin';
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function unchanged(field) {
+      return incoming()[field] == existing()[field];
+    }
+
+    function isNonEmptyString(value) {
+      return value is string && value.size() > 0;
+    }
+
+    function changedKeys() {
+      return incoming().diff(existing()).affectedKeys();
+    }
+
+    // The free-copy counters, one per document type. A company may add
+    // to its own counters (a copy was made) and never take away. The
+    // keys are DocumentType.all in lib/core/subscription/document_type.dart.
+    function counterNotLowered(before, after, key) {
+      return after.get(key, 0) is int
+        && after.get(key, 0) >= before.get(key, 0);
+    }
+
+    function countersNotLowered(before, after) {
+      return after is map
+        && counterNotLowered(before, after, 'quotation')
+        && counterNotLowered(before, after, 'storage_agreement')
+        && counterNotLowered(before, after, 'storage_receipt')
+        && counterNotLowered(before, after, 'item_list')
+        && counterNotLowered(before, after, 'bill')
+        && counterNotLowered(before, after, 'money_receipt')
+        && counterNotLowered(before, after, 'credit_note')
+        && counterNotLowered(before, after, 'statement')
+        && counterNotLowered(before, after, 'release_record')
+        && counterNotLowered(before, after, 'lorry_receipt')
+        && counterNotLowered(before, after, 'forwarding_note')
+        && counterNotLowered(before, after, 'delivery_challan')
+        && counterNotLowered(before, after, 'notice')
+        && counterNotLowered(before, after, 'incident_report')
+        && counterNotLowered(before, after, 'authority_letter')
+        && counterNotLowered(before, after, 'indemnity_bond')
+        && counterNotLowered(before, after, 'no_dues')
+        && counterNotLowered(before, after, 'rent_roll')
+        && counterNotLowered(before, after, 'aged_outstanding')
+        && counterNotLowered(before, after, 'letter_head');
     }
 
     // ==========================
     // Company profile and its document backup
     // ==========================
     //
-    // Keyed by the owner's own uid, so a company's data can only ever
-    // be read or written by the account that owns it. A Super Admin can
-    // read (to support a customer) but never write.
+    // companies/{uid}: the profile (CompanyFirestoreSyncService). Keyed
+    // by the owner's uid, so only that account can read or write it. A
+    // Super Admin may read and list (admin panel: companies). The
+    // company id inside the profile is the tenant id every backed-up
+    // row is stamped with and the subscription is keyed by, so once set
+    // it never changes - the client cannot move a profile to another
+    // tenant or point it at another company's subscription.
     match /companies/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || isSuperAdmin());
-      allow write: if signedIn() && request.auth.uid == uid;
+      allow get: if isOwner(uid) || isSuperAdmin();
+      allow list: if isSuperAdmin();
 
-      match /{collection}/{document=**} {
-        allow read: if signedIn() && (request.auth.uid == uid || isSuperAdmin());
-        allow write: if signedIn() && request.auth.uid == uid;
+      allow create: if isOwner(uid)
+        && isNonEmptyString(incoming().companyId);
+
+      allow update: if isOwner(uid)
+        && isNonEmptyString(incoming().companyId)
+        && (!('companyId' in existing())
+            || existing().companyId == ''
+            || unchanged('companyId'));
+
+      allow delete: if isOwner(uid);
+
+      // companies/{uid}/{table}/{rowId}: one document per SQLite row
+      // (DocumentCloudSyncService.syncedTables). Owner only. Every row
+      // carries company_id; when the profile exists it must be the
+      // profile's own company id, so a stale tenant's rows can never
+      // be written under this account.
+      match /{table}/{rowId} {
+        allow read: if isOwner(uid) || isSuperAdmin();
+
+        allow create, update: if isOwner(uid)
+          && isNonEmptyString(incoming().id)
+          && incoming().id == rowId
+          && isNonEmptyString(incoming().company_id)
+          && (!exists(/databases/$(database)/documents/companies/$(uid))
+              || incoming().company_id
+                  == get(/databases/$(database)/documents/companies/$(uid)).data.companyId);
+
+        allow delete: if isOwner(uid);
       }
     }
 
@@ -45,36 +145,57 @@ service cloud.firestore {
     // Subscriptions
     // ==========================
     //
-    // A company may create its own subscription record, but only in the
-    // LIMITED state and only owned by itself - so nobody can grant
-    // themselves access by writing ACTIVE directly. Afterwards a company
-    // may update only its own usage counters and the denormalised copy
-    // of its own profile; status, plan and dates are the Super Admin's
-    // alone.
+    // subscriptions/{companyId} (SubscriptionRepository). A company
+    // creates its own record in LIMITED state, owned by itself, and may
+    // afterwards update only the denormalised copy of its profile and
+    // its free-copy counters - never downwards. Status, plan, dates and
+    // owner are the Super Admin's alone. A lapsed ACTIVE record is
+    // treated as expired by the app from expiryDate; the record itself
+    // is changed only by the Super Admin.
     match /subscriptions/{companyId} {
-      allow read: if isSuperAdmin()
-        || (signedIn() && resource.data.ownerUid == request.auth.uid);
+      allow get: if isSuperAdmin()
+        || (signedIn() && existing().ownerUid == request.auth.uid);
+      allow list: if isSuperAdmin();
 
       allow create: if isSuperAdmin()
         || (signedIn()
-            && request.resource.data.ownerUid == request.auth.uid
-            && request.resource.data.status == 'LIMITED');
+            && incoming().ownerUid == request.auth.uid
+            && incoming().companyId == companyId
+            && incoming().status == 'LIMITED'
+            && !('planId' in incoming() && incoming().planId != null)
+            && !('startDate' in incoming() && incoming().startDate != null)
+            && !('expiryDate' in incoming() && incoming().expiryDate != null)
+            && (!('demoGenerationsUsed' in incoming())
+                || incoming().demoGenerationsUsed == {}));
 
       allow update: if isSuperAdmin()
         || (signedIn()
-            && resource.data.ownerUid == request.auth.uid
-            && request.resource.data.ownerUid == resource.data.ownerUid
-            && request.resource.data.status == resource.data.status
-            && request.resource.data.planId == resource.data.planId
-            && request.resource.data.startDate == resource.data.startDate
-            && request.resource.data.expiryDate == resource.data.expiryDate);
+            && existing().ownerUid == request.auth.uid
+            && unchanged('ownerUid')
+            && unchanged('companyId')
+            && unchanged('status')
+            && unchanged('planId')
+            && unchanged('startDate')
+            && unchanged('expiryDate')
+            && changedKeys().hasOnly([
+                 'companyName', 'ownerMobile', 'gstNumber',
+                 'authorizedSignatoryName', 'email', 'companyCode',
+                 'demoGenerationsUsed', 'demoGenerationsUsedJson',
+                 'updatedAt', 'id'
+               ])
+            && countersNotLowered(
+                 existing().get('demoGenerationsUsed', {}),
+                 incoming().get('demoGenerationsUsed', {})));
 
       allow delete: if isSuperAdmin();
     }
 
     // ==========================
-    // Platform settings (the payment QR the Super Admin publishes)
+    // Platform settings (payment QR, signing address, promotions)
     // ==========================
+    //
+    // platformSettings/DEFAULT and platformSettings/promotions. Every
+    // signed-in company reads them; only a Super Admin publishes.
     match /platformSettings/{document} {
       allow read: if signedIn();
       allow write: if isSuperAdmin();
@@ -84,21 +205,50 @@ service cloud.firestore {
     // App ID counter
     // ==========================
     //
-    // Incremented in a transaction when a company is first set up. Any
-    // signed-in user may do that; nobody may delete it.
-    match /counters/{counter} {
-      allow read, create, update: if signedIn();
+    // counters/company_registration: one integer, lastAssigned, taken
+    // in a transaction when a company is first set up. Any signed-in
+    // user may take the next number - exactly the next one, never a
+    // jump, never backwards - and nobody may delete it.
+    match /counters/company_registration {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && incoming().lastAssigned is int
+        && incoming().keys().hasOnly(['lastAssigned', 'updatedAt']);
+
+      allow update: if isSuperAdmin()
+        || (signedIn()
+            && incoming().lastAssigned is int
+            && incoming().lastAssigned == existing().lastAssigned + 1
+            && incoming().keys().hasOnly(['lastAssigned', 'updatedAt']));
+
       allow delete: if false;
     }
 
     // ==========================
     // KYC submissions
     // ==========================
+    //
+    // kycSubmissions/{companyId} (KycRepository). A company submits its
+    // own papers and may resubmit them while pending or after a
+    // rejection; it can never approve itself. The Super Admin reviews.
     match /kycSubmissions/{companyId} {
-      allow read: if isSuperAdmin()
-        || (signedIn() && resource.data.ownerUid == request.auth.uid);
-      allow create, update: if isSuperAdmin()
-        || (signedIn() && request.resource.data.ownerUid == request.auth.uid);
+      allow get: if isSuperAdmin()
+        || (signedIn() && existing().ownerUid == request.auth.uid);
+      allow list: if isSuperAdmin();
+
+      allow create: if signedIn()
+        && incoming().ownerUid == request.auth.uid
+        && incoming().companyId == companyId
+        && incoming().status == 'PENDING';
+
+      allow update: if isSuperAdmin()
+        || (signedIn()
+            && existing().ownerUid == request.auth.uid
+            && unchanged('ownerUid')
+            && unchanged('companyId')
+            && incoming().status == 'PENDING');
+
       allow delete: if isSuperAdmin();
     }
 
@@ -106,51 +256,90 @@ service cloud.firestore {
     // Customer signature requests
     // ==========================
     //
-    // The customer opens the link WITHOUT signing in, so this one
-    // collection is readable by anyone who holds the token - which is
-    // 32 random characters, generated on the device, never listed and
-    // never guessable from another one. Listing the collection is
-    // closed, so a token cannot be discovered by browsing.
+    // signatureRequests/{token} (SignatureRepository, signing_web). The
+    // customer opens the link WITHOUT signing in, so one document is
+    // readable by anyone who holds its token - 32 random characters,
+    // generated on the device, never listed and never guessable from
+    // another one. Listing is closed, so a token cannot be found by
+    // browsing.
     //
     // The only thing an unauthenticated visitor may write is their own
     // signature, once, on a request that is still pending and has not
-    // expired. Nothing else on the document can be changed, and the
-    // company that created it can always delete it - which the app does
-    // as soon as it has brought the signature back.
+    // expired. The company that created it owns it: it may change or
+    // delete it, but never hand it to another account or company.
     match /signatureRequests/{token} {
       allow get: if true;
       allow list: if isSuperAdmin();
 
       allow create: if signedIn()
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.status == 'PENDING';
+        && incoming().ownerUid == request.auth.uid
+        && isNonEmptyString(incoming().companyId)
+        && incoming().status == 'PENDING'
+        && incoming().expiresAt is timestamp
+        && incoming().expiresAt > request.time;
 
       allow update: if
-        // The company that owns it may change it as it likes.
-        (signedIn() && resource.data.ownerUid == request.auth.uid)
+        // The company that owns it may change it, but not its owner.
+        (signedIn()
+            && existing().ownerUid == request.auth.uid
+            && unchanged('ownerUid')
+            && unchanged('companyId'))
         // Or the customer signs it, once.
-        || (resource.data.status == 'PENDING'
-            && request.resource.data.status == 'SIGNED'
-            && resource.data.expiresAt > request.time
-            && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['status', 'signature', 'signerName', 'signedAt'])
-            && request.resource.data.signature is string
-            && request.resource.data.signature.size() < 400000
-            && request.resource.data.signerName is string
-            && request.resource.data.signerName.size() < 120);
+        || (existing().status == 'PENDING'
+            && incoming().status == 'SIGNED'
+            && existing().expiresAt > request.time
+            && changedKeys().hasOnly(['status', 'signature', 'signerName', 'signedAt'])
+            && incoming().signature is string
+            && incoming().signature.size() < 400000
+            && incoming().signerName is string
+            && incoming().signerName.size() < 120);
 
-      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow delete: if isSuperAdmin()
+        || (signedIn() && existing().ownerUid == request.auth.uid);
     }
 
     // ==========================
-    // Super Admins
+    // Platform admins
     // ==========================
     //
-    // Readable so the app can tell whether the signed-in user is one;
-    // never writable from the app.
-    match /superAdmins/{uid} {
-      allow read: if signedIn();
+    // platformAdmins/{uid}: the record of who holds the superadmin
+    // claim (uid, role, active, createdAt, updatedAt, grantedBy).
+    // Written only by the Admin SDK - no client, Super Admin included,
+    // can grant or revoke access from the app. A user may read their
+    // own record; a Super Admin may read them all.
+    match /platformAdmins/{uid} {
+      allow get: if isOwner(uid) || isSuperAdmin();
+      allow list: if isSuperAdmin();
       allow write: if false;
+    }
+
+    // The pre-claims admin registry. Kept only so old documents are not
+    // orphaned; it no longer grants anything and no client writes it.
+    match /superAdmins/{uid} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    // ==========================
+    // Privileged-action audit log
+    // ==========================
+    //
+    // platformAuditLogs/{id}: one entry per Super Admin action
+    // (PlatformAuditLogService). Only a Super Admin can write one, only
+    // about themselves, stamped by the server; nobody edits or deletes.
+    match /platformAuditLogs/{entryId} {
+      allow read: if isSuperAdmin();
+
+      allow create: if isSuperAdmin()
+        && incoming().actorUid == request.auth.uid
+        && isNonEmptyString(incoming().action)
+        && incoming().createdAt == request.time
+        && incoming().keys().hasOnly([
+             'actorUid', 'actorMobile', 'action', 'targetCompanyId',
+             'targetUid', 'metadata', 'appBuild', 'createdAt'
+           ]);
+
+      allow update, delete: if false;
     }
 
     // Anything not named above is closed.

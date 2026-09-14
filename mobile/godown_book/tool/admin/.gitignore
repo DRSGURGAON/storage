@@ -1,0 +1,5 @@
+# Service-account keys never enter the repository.
+*.json
+!package.json
+!package-lock.json
+node_modules/

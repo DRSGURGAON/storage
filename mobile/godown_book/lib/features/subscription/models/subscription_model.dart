@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../core/subscription/subscription_status.dart';
 
 /// A company's subscription (Section 1) - belongs to the
@@ -221,10 +223,38 @@ class SubscriptionModel {
       'email': email,
       'companyCode': companyCode,
       'demoGenerationsUsedJson': demoGenerationsUsedJson,
+      // The same counters as a map: this is the copy the Firestore
+      // rules can check (a company may add to its counters, never take
+      // away). The JSON string stays for readers that predate it.
+      'demoGenerationsUsed': demoGenerationsUsed,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };
   }
+
+  /// The free-copy counters, per document type.
+  Map<String, int> get demoGenerationsUsed => decodeDemoCounts(demoGenerationsUsedJson);
+
+  static Map<String, int> decodeDemoCounts(String json) {
+    try {
+      final decoded = jsonDecode(json);
+      if (decoded is! Map) return {};
+      final counts = <String, int>{};
+      for (final entry in decoded.entries) {
+        final value = entry.value;
+        if (value is int) {
+          counts[entry.key.toString()] = value;
+        } else if (value is num) {
+          counts[entry.key.toString()] = value.toInt();
+        }
+      }
+      return counts;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static String encodeDemoCounts(Map<String, int> counts) => jsonEncode(counts);
 
   /// [documentId] is the Firestore document's own id (== companyId,
   /// see toFirestore()'s own doc comment) - used as a fallback for
@@ -250,8 +280,13 @@ class SubscriptionModel {
           data['authorizedSignatoryName'] as String? ?? '',
       email: data['email'] as String? ?? '',
       companyCode: data['companyCode'] as String? ?? '',
-      demoGenerationsUsedJson:
-          data['demoGenerationsUsedJson'] as String? ?? '{}',
+      // The map is what the rules protect, so it wins when present.
+      demoGenerationsUsedJson: data['demoGenerationsUsed'] is Map
+          ? encodeDemoCounts({
+              for (final e in (data['demoGenerationsUsed'] as Map).entries)
+                if (e.value is num) e.key.toString(): (e.value as num).toInt(),
+            })
+          : data['demoGenerationsUsedJson'] as String? ?? '{}',
       createdAt: data['createdAt'] as String? ?? '',
       updatedAt: data['updatedAt'] as String? ?? '',
     );

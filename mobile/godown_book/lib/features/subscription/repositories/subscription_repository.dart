@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/subscription/subscription_status.dart';
+import '../../../core/subscription/platform_audit_log_service.dart';
 import '../../../core/subscription/super_admin_scope.dart';
 import '../../../core/utils/id_generator.dart';
 import '../../audit/repositories/security_audit_repository.dart';
@@ -492,6 +493,12 @@ class SubscriptionRepository {
     await _subscriptionsCollection.doc(companyId).set(updated.toFirestore()).timeout(_firestoreTimeout);
     await _syncFromFirestore(updated);
 
+    await PlatformAuditLogService.instance.record(
+      action: PlatformAuditAction.subscriptionSuspended,
+      targetCompanyId: companyId,
+      targetUid: current.ownerUid,
+      metadata: {'remarks': remarks},
+    );
     await SecurityAuditRepository.instance.record(
       eventType: SecurityAuditType.subscriptionSuspended,
       description: 'Subscription suspended.${remarks.isNotEmpty ? ' Reason: $remarks' : ''}',
@@ -513,6 +520,12 @@ class SubscriptionRepository {
     await _subscriptionsCollection.doc(companyId).set(updated.toFirestore()).timeout(_firestoreTimeout);
     await _syncFromFirestore(updated);
 
+    await PlatformAuditLogService.instance.record(
+      action: PlatformAuditAction.subscriptionCancelled,
+      targetCompanyId: companyId,
+      targetUid: current.ownerUid,
+      metadata: {'remarks': remarks},
+    );
     await SecurityAuditRepository.instance.record(
       eventType: SecurityAuditType.subscriptionCancelled,
       description: 'Subscription cancelled.${remarks.isNotEmpty ? ' Reason: $remarks' : ''}',

@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/subscription/platform_audit_log_service.dart';
+
 /// The Super Admin's own platform-wide payment configuration, shared
 /// with every company that installs the app.
 ///
@@ -137,6 +139,17 @@ class PlatformSettingsService {
       'signBaseUrl': signBaseUrl,
       'updatedAt': DateTime.now().toIso8601String(),
     }, SetOptions(merge: true)).timeout(_timeout);
+
+    await PlatformAuditLogService.instance.record(
+      action: PlatformAuditAction.platformSettingsPublished,
+      metadata: {
+        'upiId': upiId,
+        'merchantName': merchantName,
+        'qr1': qr1 != null,
+        'qr2': qr2 != null,
+        'signBaseUrl': signBaseUrl,
+      },
+    );
   }
 
   static Uint8List? _decode(String? encoded) {

@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/database/database_constants.dart';
 import '../../../core/database/database_helper.dart';
+import '../../../core/subscription/platform_audit_log_service.dart';
 import '../../../core/subscription/super_admin_scope.dart';
 import '../models/kyc_submission_model.dart';
 
@@ -260,5 +261,13 @@ class KycRepository {
       'rejectionReason': approve ? '' : rejectionReason,
       'updatedAt': DateTime.now().toIso8601String(),
     }).timeout(_timeout);
+
+    await PlatformAuditLogService.instance.record(
+      action: approve
+          ? PlatformAuditAction.kycApproved
+          : PlatformAuditAction.kycRejected,
+      targetCompanyId: companyId,
+      metadata: {'rejectionReason': approve ? '' : rejectionReason},
+    );
   }
 }

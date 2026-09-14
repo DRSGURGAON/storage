@@ -49,6 +49,24 @@ class SuperAdminModel {
     );
   }
 
+  /// The platform admin registry's shape, at platformAdmins/{uid}
+  /// (uid, role, active, createdAt, updatedAt, grantedBy, and the
+  /// optional mobileNumber/name the operator recorded). Written only
+  /// by tool/admin/set-superadmin.js.
+  factory SuperAdminModel.fromPlatformAdmin(
+    Map<String, dynamic> data,
+    String documentId,
+  ) {
+    return SuperAdminModel(
+      id: data['uid'] as String? ?? documentId,
+      mobileNumber: data['mobileNumber'] as String? ?? '',
+      name: data['name'] as String? ?? '',
+      isActive: (data['active'] as bool? ?? false) &&
+          (data['role'] as String? ?? '') == 'superadmin',
+      createdAt: data['createdAt']?.toString() ?? '',
+    );
+  }
+
   /// Firestore's own document shape, at superAdmins/{uid} - the uid IS
   /// the document id (see SuperAdminFirestoreService's own doc
   /// comment for why this is what a Security Rules check needs), so
