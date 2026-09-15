@@ -6,10 +6,17 @@ name: StorageBill Pro website
 # the app's own Firebase Hosting site (that one serves the customer
 # signing page at its root).
 #
-# The deploy job turns Pages on by itself the first time it runs
-# (configure-pages enablement), so there is nothing to click. If your
-# organisation blocks that, switch it on by hand: Settings -> Pages ->
-# Source: GitHub Actions.
+# TURN PAGES ON FIRST, BY HAND: Settings -> Pages -> Source: GitHub
+# Actions. Until that is done this workflow's deploy job fails with
+# "Get Pages site failed", and the privacy policy URL a Play listing
+# needs is simply dead - the check job passing says nothing about the
+# site being reachable.
+#
+# It cannot enable itself. configure-pages has an `enablement: true`
+# option, but the Actions token cannot create a Pages site on this
+# repository: it comes back "Resource not accessible by integration".
+# Enabling Pages needs repository admin, which is a person, not a
+# workflow.
 
 on:
   push:
@@ -106,13 +113,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      # enablement: true turns Pages on the first time this runs, using
-      # the pages: write permission above, instead of failing with "Get
-      # Pages site failed" until somebody clicks Settings -> Pages. It
-      # is a no-op on every run after that.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: website
