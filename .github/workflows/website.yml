@@ -6,7 +6,10 @@ name: StorageBill Pro website
 # the app's own Firebase Hosting site (that one serves the customer
 # signing page at its root).
 #
-# Turn it on once: Settings -> Pages -> Source: GitHub Actions.
+# The deploy job turns Pages on by itself the first time it runs
+# (configure-pages enablement), so there is nothing to click. If your
+# organisation blocks that, switch it on by hand: Settings -> Pages ->
+# Source: GitHub Actions.
 
 on:
   push:
@@ -103,7 +106,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # enablement: true turns Pages on the first time this runs, using
+      # the pages: write permission above, instead of failing with "Get
+      # Pages site failed" until somebody clicks Settings -> Pages. It
+      # is a no-op on every run after that.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: website
