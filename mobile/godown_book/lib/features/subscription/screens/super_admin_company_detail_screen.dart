@@ -8,6 +8,7 @@ import '../../kyc/widgets/kyc_review_card.dart';
 import '../../company/services/app_id_counter_service.dart';
 import '../models/subscription_model.dart';
 import '../repositories/subscription_repository.dart';
+import '../services/company_record_count_service.dart';
 
 /// Section 19's suspend/cancel actions, reached from
 /// SuperAdminDashboardScreen's company list. suspend()/cancel() both
@@ -64,6 +65,9 @@ class _SuperAdminCompanyDetailScreenState
 
   Map<String, int> _documentUsage = {};
 
+  CompanyRecordCounts? _recordCounts;
+  String? _recordCountError;
+
   /// Every document the app counts free copies of - a partial list here
   /// would hide exactly the usage a Super Admin is looking for.
   static const _trackedDocumentTypes = DocumentType.all;
@@ -96,10 +100,24 @@ class _SuperAdminCompanyDetailScreenState
       if (used > 0) usage[type] = used;
     }
 
+    // How much this company actually uses the app. Counted from its
+    // own cloud backup, so it keeps counting after they subscribe -
+    // unlike the free-copy counter above, which stops there.
+    CompanyRecordCounts? counts;
+    String? countError;
+    try {
+      counts = await CompanyRecordCountService.instance
+          .forOwner(_subscription.ownerUid);
+    } catch (error) {
+      countError = '$error';
+    }
+
     if (!mounted) return;
 
     setState(() {
       _documentUsage = usage;
+      _recordCounts = counts;
+      _recordCountError = countError;
       _isSuperAdmin = true;
       _loadingDetails = false;
     });
@@ -184,6 +202,73 @@ class _SuperAdminCompanyDetailScreenState
   }
 
   String _documentTypeLabel(String type) => DocumentType.label(type);
+
+  /// How many records this company has actually made, read from its own
+  /// cloud backup. Numbers only - no customer name, no amount, nothing
+  /// from inside a document.
+  Widget _recordCountCard() {
+    final counts = _recordCounts;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_recordCountError != null)
+              Text(
+                'Could not read the counts: $_recordCountError',
+                style: const TextStyle(color: Colors.grey),
+              )
+            else if (counts == null)
+              const Text('Counting...', style: TextStyle(color: Colors.grey))
+            else if (counts.isEmpty)
+              const Text(
+                'Nothing backed up yet from this company.',
+                style: TextStyle(color: Colors.grey),
+              )
+            else ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total documents',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  Text('${counts.totalDocuments}',
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                ],
+              ),
+              const Divider(height: 18),
+              for (final entry in CompanyRecordCountService.documentTables.entries)
+                _countRow(entry.value, counts.documents[entry.key] ?? 0),
+              const Divider(height: 18),
+              for (final entry in CompanyRecordCountService.masterTables.entries)
+                _countRow(entry.value, counts.masters[entry.key] ?? 0),
+              const SizedBox(height: 8),
+              const Text(
+                'Counted from this company\'s cloud backup, which runs '
+                'every few minutes while their app is open. Anything made '
+                'since their last backup is not counted yet.',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _countRow(String label, int value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          Text('$value'),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +383,14 @@ class _SuperAdminCompanyDetailScreenState
 
                 const SizedBox(height: 20),
 
-                Text('Document Usage', style: Theme.of(context).textTheme.titleMedium),
+                Text('Documents Made', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                _recordCountCard(),
+
+                const SizedBox(height: 20),
+
+                Text('Free Copies Used',
+                    style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Card(
                   child: Padding(
@@ -306,8 +398,17 @@ class _SuperAdminCompanyDetailScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'Free copies this company used before '
+                            'subscribing. It stops counting once a '
+                            'subscription is active.',
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                          ),
+                        ),
                         if (_documentUsage.isEmpty)
-                          const Text('Nothing generated yet.',
+                          const Text('No free copies used.',
                               style: TextStyle(color: Colors.grey)),
                         for (final type in _trackedDocumentTypes)
                           if ((_documentUsage[type] ?? 0) > 0)

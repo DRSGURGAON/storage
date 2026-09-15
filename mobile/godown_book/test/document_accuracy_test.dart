@@ -94,14 +94,20 @@ void main() {
       final draft = await repo.draftForBooking(booking, upto: DateTime(2026, 9, 30));
       final bill = await repo.saveBill(draft);
 
-      // Recorded at a real time of day, the way the app records it -
-      // the picker hands the statement plain midnight.
+      // Both the bill and the receipt are dated TODAY, at a real time
+      // of day - the way the app records them. The statement picker
+      // hands plain midnight as the closing date, so before the fix
+      // everything made today fell outside a window that ends today.
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
       await repo.recordPayment(PaymentModel(
         id: '',
         receiptNo: '',
         billId: bill.id,
         customerId: bill.customerId,
-        paymentDate: '2026-09-14T16:30:00',
+        paymentDate: today.add(const Duration(hours: 16, minutes: 30))
+            .toIso8601String(),
         payerName: 'Rajesh Kumar',
         amount: 500,
         createdAt: '',
@@ -109,8 +115,8 @@ void main() {
 
       final entries = await repo.statementForCustomer(
         bill.customerId,
-        from: DateTime(2026, 9, 1),
-        to: DateTime(2026, 9, 14),
+        from: today.subtract(const Duration(days: 30)),
+        to: today,
       );
 
       expect(
@@ -118,7 +124,33 @@ void main() {
         1,
         reason: 'the receipt made on the closing date belongs in the window',
       );
-      expect(entries.last.runningBalance, closeTo(3000, 0.001));
+      expect(
+        entries.where((e) => e.debit > 0).length,
+        1,
+        reason: 'so does the bill made on the closing date',
+      );
+      expect(
+        entries.last.runningBalance,
+        closeTo(bill.grandTotal - 500, 0.001),
+      );
+    });
+
+    test('still drops what happened after the closing date', () async {
+      final booking = await storedGoods();
+      final draft = await repo.draftForBooking(booking, upto: DateTime(2026, 9, 30));
+      final bill = await repo.saveBill(draft);
+
+      final now = DateTime.now();
+      final yesterday = DateTime(now.year, now.month, now.day)
+          .subtract(const Duration(days: 1));
+
+      final entries = await repo.statementForCustomer(
+        bill.customerId,
+        from: yesterday.subtract(const Duration(days: 30)),
+        to: yesterday,
+      );
+
+      expect(entries, isEmpty);
     });
   });
 

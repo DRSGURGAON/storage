@@ -4,6 +4,7 @@
 // Two companies (A and B), one platform Super Admin (claim role ==
 // superadmin), and nobody. Every collection the app touches is covered
 // with the shapes the app actually writes.
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import {
@@ -16,6 +17,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   runTransaction,
@@ -286,6 +288,17 @@ describe('7. a Super Admin reaches the platform data the admin panel needs', () 
     await assertSucceeds(getDocs(collection(db, 'platformAdmins')));
     await assertSucceeds(getDocs(collection(db, 'platformAuditLogs')));
     await assertSucceeds(setDoc(doc(db, 'platformSettings', 'DEFAULT'), { upiId: 'ops@upi', merchantName: 'StorageBill' }, { merge: true }));
+  });
+
+  it('counts a company\'s documents without reading any of them', async () => {
+    // How the Super Admin screen learns how much a subscriber uses the
+    // app: an aggregation, never the rows themselves.
+    const admin = await getCountFromServer(collection(asAdmin(), 'companies', UID_A, 'customers'));
+    assert.ok(admin.data().count > 0, 'the admin count should see the seeded rows');
+
+    // And one company still cannot count another's.
+    await assertFails(getCountFromServer(collection(asB(), 'companies', UID_A, 'customers')));
+    await assertSucceeds(getCountFromServer(collection(asA(), 'companies', UID_A, 'customers')));
   });
 
   it('activates, suspends and reviews, but never edits a company profile or its rows', async () => {
