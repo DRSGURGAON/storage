@@ -24,8 +24,9 @@ Filled in and live:
 | Detail | Value |
 | --- | --- |
 | Publisher | DRS Softech |
-| Support email | drssoftech.support@gmail.com |
+| Support email | defencerelocation@gmail.com |
 | Phone / WhatsApp | +91 70428 89134 (`tel:` link, WhatsApp link beside it) |
+| Business hours | Mon to Sun, 9 AM to 6 PM |
 | Governing law | the courts at Gurugram |
 
 There is **no postal address on the pages yet**. Play does not require
