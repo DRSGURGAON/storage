@@ -10,7 +10,7 @@ landing page people arrive on and the terms.
 | `index.html` | Landing page | Store listing → **App website** |
 | `privacy.html` | Privacy policy | Store listing → **Privacy policy URL** (required) |
 | `delete-account.html` | Account and data deletion | Data safety → **Account deletion URL** (required once an app lets people create an account) |
-| `support.html` | Support, downloads, questions | Store listing → **Support email**, and the page to link from it |
+| `support.html` | Support and questions | Store listing → **Support email**, and the page to link from it |
 | `terms.html` | Terms of use | Not required by Play, expected by most users |
 | `404.html` | Not-found page | — |
 
