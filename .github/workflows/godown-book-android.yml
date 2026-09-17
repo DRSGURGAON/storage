@@ -207,7 +207,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: storagebill-pro-aab-build-${{ github.run_number }}
-          path: mobile/godown_book/build/app/outputs/bundle/release/app-release.aab
+          path: mobile/godown_book/build/app/outputs/bundle/release/*.aab
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
@@ -216,12 +216,27 @@ jobs:
           path: mobile/godown_book/build/app/outputs/flutter-apk/storagebill-pro-build-*.apk
           if-no-files-found: error
 
+      # The bundle carries the run number in its name too, so a release
+      # page holding several builds cannot be mistaken for one.
+      - name: Rename the app bundle by build number
+        run: |
+          mv build/app/outputs/bundle/release/app-release.aab \
+             "build/app/outputs/bundle/release/storagebill-pro-build-${{ github.run_number }}.aab"
+
       # Every build is also a GitHub release, tagged by its run number,
-      # with the APK attached. The repository is public, so the app can
-      # read the latest release without a token and offer the update
-      # from its own dashboard - and a phone installs it over the old
-      # build because every build is signed with the same key.
-      - name: Publish the APK as a release
+      # with BOTH the APK and the Play bundle attached. The repository is
+      # public, so the app can read the latest release without a token
+      # and offer the update from its own dashboard - and a phone
+      # installs it over the old build because every build is signed
+      # with the same key.
+      #
+      # The .aab is attached as well so the Play upload can be fetched
+      # with a plain curl, the way the APK already can. The Actions
+      # artifact of the same bundle needs a GitHub token and a browser;
+      # this does not. Nothing secret is published by doing so: the
+      # bundle holds the same compiled code the APK beside it already
+      # does, and the signing key stays in the secrets.
+      - name: Publish the APK and app bundle as a release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
@@ -230,7 +245,9 @@ jobs:
             ${{ github.event.head_commit.message || 'Manual build' }}
 
             Branch: ${{ github.ref_name }}
-          files: mobile/godown_book/build/app/outputs/flutter-apk/storagebill-pro-build-*.apk
+          files: |
+            mobile/godown_book/build/app/outputs/flutter-apk/storagebill-pro-build-*.apk
+            mobile/godown_book/build/app/outputs/bundle/release/storagebill-pro-build-*.aab
           make_latest: true
           fail_on_unmatched_files: true
 
