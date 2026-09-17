@@ -57,7 +57,7 @@ class FirebasePhoneAuthService implements OtpAuthService {
             }
           } on FirebaseAuthException catch (error) {
             if (!completer.isCompleted) {
-              completer.completeError(AuthFailure(mapFirebaseCode(error.code)));
+              completer.completeError(_failure(error));
             } else if (!autoVerification.isCompleted) {
               // The typed code can still work; the screen stays.
               autoVerification.complete(false);
@@ -74,7 +74,7 @@ class FirebasePhoneAuthService implements OtpAuthService {
 
         verificationFailed: (FirebaseAuthException error) {
           if (!completer.isCompleted) {
-            completer.completeError(AuthFailure(mapFirebaseCode(error.code)));
+            completer.completeError(_failure(error));
           }
         },
 
@@ -95,7 +95,7 @@ class FirebasePhoneAuthService implements OtpAuthService {
         },
       );
     } on FirebaseAuthException catch (error) {
-      throw AuthFailure(mapFirebaseCode(error.code));
+      throw _failure(error);
     } catch (error) {
       debugPrint('verifyPhoneNumber failed to start: $error');
       throw const AuthFailure(AuthFailureKind.unknown);
@@ -126,9 +126,9 @@ class FirebasePhoneAuthService implements OtpAuthService {
           await FirebaseAuth.instance.signInWithCredential(credential);
       return userCredential.user != null;
     } on FirebaseAuthException catch (error) {
-      final kind = mapFirebaseCode(error.code);
-      if (kind == AuthFailureKind.invalidCode) return false;
-      throw AuthFailure(kind);
+      final failure = _failure(error);
+      if (failure.kind == AuthFailureKind.invalidCode) return false;
+      throw failure;
     } catch (error) {
       debugPrint('signInWithCredential failed: $error');
       throw const AuthFailure(AuthFailureKind.unknown);
@@ -154,10 +154,21 @@ class FirebasePhoneAuthService implements OtpAuthService {
       await user.reauthenticateWithCredential(credential);
       return true;
     } on FirebaseAuthException catch (error) {
-      final kind = mapFirebaseCode(error.code);
-      if (kind == AuthFailureKind.invalidCode) return false;
-      throw AuthFailure(kind);
+      final failure = _failure(error);
+      if (failure.kind == AuthFailureKind.invalidCode) return false;
+      throw failure;
     }
+  }
+
+  /// One place where a Firebase failure becomes ours. It keeps the
+  /// provider's code so a screen can print it, and logs the whole
+  /// exception, because a sign-in that fails for a reason nobody can
+  /// see is the hardest kind of bug to answer a customer about.
+  static AuthFailure _failure(FirebaseAuthException error) {
+    debugPrint(
+      'Phone auth failed: code=${error.code} message=${error.message}',
+    );
+    return AuthFailure(mapFirebaseCode(error.code), code: error.code);
   }
 
   /// Firebase's error codes, grouped by what the user can do about

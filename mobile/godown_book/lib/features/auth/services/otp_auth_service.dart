@@ -33,7 +33,13 @@ enum AuthFailureKind {
 class AuthFailure implements Exception {
   final AuthFailureKind kind;
 
-  const AuthFailure(this.kind);
+  /// The provider's own code, kept only so a failure the user cannot
+  /// act on can name itself. Never shown for the everyday failures
+  /// (wrong OTP, no network) - those need no reference number, and a
+  /// code beside them would only frighten people.
+  final String? code;
+
+  const AuthFailure(this.kind, {this.code});
 
   /// Plain words, fixed per kind - never a raw provider message.
   String get message => switch (kind) {
@@ -48,11 +54,16 @@ class AuthFailure implements Exception {
           'No internet connection. Check your network and try again.',
         AuthFailureKind.appNotAuthorised =>
           'This app is not set up for phone sign-in on this device. '
-              'Please update the app or contact support.',
+              'Please update the app or contact support.$_reference',
         AuthFailureKind.cancelled => 'Sign-in was cancelled. Please try again.',
         AuthFailureKind.unknown =>
-          'Something went wrong while signing in. Please try again.',
+          'Something went wrong while signing in. Please try again.$_reference',
       };
+
+  /// The two failures nobody on the phone can do anything about are the
+  /// two worth reporting, so they carry the provider's code for whoever
+  /// picks up the support call.
+  String get _reference => code == null || code!.isEmpty ? '' : '\n($code)';
 
   @override
   String toString() => message;

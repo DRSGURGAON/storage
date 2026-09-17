@@ -144,6 +144,33 @@ void main() {
         expect(message, isNot(contains('[')));
       }
     });
+
+    test('a failure nobody can act on names its code, the rest do not', () {
+      // The two the user cannot fix are the two a support call is about,
+      // so they carry the provider's own code.
+      const blocked = AuthFailure(
+        AuthFailureKind.appNotAuthorised,
+        code: 'missing-client-identifier',
+      );
+      expect(blocked.message, contains('missing-client-identifier'));
+
+      const strange = AuthFailure(
+        AuthFailureKind.unknown,
+        code: 'something-new',
+      );
+      expect(strange.message, contains('something-new'));
+
+      // An everyday failure stays plain even when a code is present.
+      const wrongOtp = AuthFailure(
+        AuthFailureKind.invalidCode,
+        code: 'invalid-verification-code',
+      );
+      expect(wrongOtp.message, isNot(contains('invalid-verification-code')));
+
+      // And no code at all reads exactly as before.
+      const plain = AuthFailure(AuthFailureKind.appNotAuthorised);
+      expect(plain.message, isNot(contains('(')));
+    });
   });
 
   group('login screen', () {
