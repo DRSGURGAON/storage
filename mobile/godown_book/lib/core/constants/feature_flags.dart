@@ -69,4 +69,24 @@ class FeatureFlags {
   /// testing, turning it back on would instantly lock out every account
   /// that had already generated a document.
   static const bool demoGenerationLimitEnforced = true;
+
+  /// Whether the app checks GitHub for a newer build and offers to
+  /// self-install it (AppUpdateService, AppUpdateBanner on the
+  /// dashboard).
+  ///
+  /// CURRENTLY FALSE - the shipping setting, because this app is
+  /// distributed through Google Play. Play's Developer Program Policy
+  /// requires that an app installed from Play be updated only through
+  /// Play; downloading and self-installing an APK from outside Play is
+  /// exactly the kind of update mechanism the policy prohibits, and it
+  /// is a real basis for rejection or suspension - not a stylistic
+  /// preference.
+  ///
+  /// Set it to `true` only for a build that will never reach Play: a
+  /// sideloaded build handed directly to testers who do not have a
+  /// Play listing to update from yet. Nothing about the mechanism is
+  /// removed while it is off - AppUpdateService and AppUpdateBanner
+  /// still exist untouched; this flag simply keeps the banner from
+  /// ever appearing and the GitHub check from ever firing.
+  static const bool selfUpdateCheckEnabled = false;
 }

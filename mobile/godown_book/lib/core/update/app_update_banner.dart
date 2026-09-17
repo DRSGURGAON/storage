@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme/brand.dart';
+import '../constants/feature_flags.dart';
 import 'app_update_service.dart';
 
 /// "A newer build is ready" on the dashboard, with the one tap that
@@ -23,6 +24,12 @@ class _AppUpdateBannerState extends State<AppUpdateBanner> {
   @override
   void initState() {
     super.initState();
+    // Play-distributed builds must update only through Play - see
+    // FeatureFlags.selfUpdateCheckEnabled's own doc comment. Skipping
+    // the GitHub check entirely (rather than just hiding the banner)
+    // means a Play build never even asks GitHub what the latest build
+    // is.
+    if (!FeatureFlags.selfUpdateCheckEnabled) return;
     AppUpdateService.instance.check().then((info) {
       if (mounted && info != null) setState(() => _update = info);
     });
