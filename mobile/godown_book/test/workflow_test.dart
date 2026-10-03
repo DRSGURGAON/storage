@@ -125,7 +125,13 @@ void main() {
       payerName: customer.customerName,
       amount: 3500,
       mode: PaymentMode.upi,
-      paymentDate: DateTime(2026, 10, 2).toIso8601String(),
+      // The money arrives after the bill is raised. saveBill dates a
+      // bill the moment it is saved, so a fixed calendar date here
+      // quietly stopped being "after" once that date went past and
+      // flipped the statement's order - take the bill's own date.
+      paymentDate: DateTime.parse(bill.billDate)
+          .add(const Duration(minutes: 1))
+          .toIso8601String(),
       createdAt: '',
     ));
     expect(receipt.receiptNo, isNotEmpty);
