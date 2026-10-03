@@ -16,6 +16,7 @@ class PlatformAuditAction {
   static const String kycApproved = 'KYC_APPROVED';
   static const String kycRejected = 'KYC_REJECTED';
   static const String platformSettingsPublished = 'PLATFORM_SETTINGS_PUBLISHED';
+  static const String platformPlansPublished = 'PLATFORM_PLANS_PUBLISHED';
 }
 
 /// Writes one entry per privileged Super Admin action to
