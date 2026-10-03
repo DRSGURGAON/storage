@@ -216,8 +216,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Payment details published to every company. Demo limit '
-            'and watermark are saved on this device only.',
+            'Payment details published to every company. Demo limit, '
+            'watermark and plan prices are saved on this device only.',
           ),
         ),
       );
@@ -292,13 +292,10 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Price published to every company.')),
-      );
       _load();
     } catch (e) {
       if (!mounted) return;
-      _reportPlanFailure(e);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     }
   }
 
@@ -309,30 +306,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
       _load();
     } catch (e) {
       if (!mounted) return;
-      _reportPlanFailure(e);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     }
-  }
-
-  /// A plan edit writes the local row first and publishes second, so a
-  /// failure here almost always means the publish - the price IS
-  /// changed on this device and asking for it again would be wrong.
-  /// The list is reloaded either way so the screen shows what the
-  /// device actually holds.
-  void _reportPlanFailure(Object error) {
-    final denied = error is SuperAdminRequiredException;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          denied
-              ? 'Only a Super Admin can change plan prices.'
-              : 'Saved on this device, but could not publish to every '
-                  'company: $error',
-        ),
-        duration: const Duration(seconds: 6),
-      ),
-    );
-    if (!denied) _load();
   }
 
   @override
@@ -364,16 +339,6 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                   children: [
                     Text('Plans', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 4),
-                    Text(
-                      'A price saved here is published to every company - '
-                      'their app picks it up the next time it opens the '
-                      'subscription screen.',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: Colors.grey),
-                    ),
                     const SizedBox(height: 8),
                     for (final plan in _plans)
                       Card(
