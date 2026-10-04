@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/widgets/save_problem.dart';
 
+import '../../../core/customer/customer_lookup_service.dart';
+import '../../../shared/widgets/customer_name_field.dart';
 import '../../billing/repositories/billing_repository.dart';
 import '../../customers/models/customer_model.dart';
 import '../../customers/repositories/customer_repository.dart';
@@ -39,10 +41,17 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
 
   final _amount = TextEditingController();
   final _note = TextEditingController();
+  final _manualCustomerName = TextEditingController();
 
   NoticeKind _kind = NoticeKind.reminder;
   StorageBookingModel? _booking;
   CustomerModel? _customer;
+
+  /// Set when the letter started with no booking or customer context
+  /// (the Notices list, the dashboard shortcut, the Document Centre) and
+  /// the operator picked someone from the customer search below -
+  /// [_whoCard] has nothing fixed to show until then.
+  CustomerSuggestion? _pickedCustomer;
   NoticeModel? _existing;
   DateTime _payBy = DateTime.now().add(const Duration(days: 7));
   bool _loading = true;
@@ -58,6 +67,7 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
   void dispose() {
     _amount.dispose();
     _note.dispose();
+    _manualCustomerName.dispose();
     super.dispose();
   }
 
@@ -119,11 +129,25 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
     });
   }
 
-  String get _customerName =>
-      _customer?.customerName ?? _booking?.customerName ?? '';
+  String get _customerName {
+    if (_customer != null) return _customer!.customerName;
+    if (_booking != null) return _booking!.customerName;
+    // Editing a letter whose customer no longer resolves (deleted from
+    // the master, no booking) still has what was typed when it was
+    // first sent - that is what the letter should keep saying.
+    if (_existing != null) return _existing!.customerName;
+    if (_pickedCustomer != null) return _pickedCustomer!.name;
+    // Typed but never matched a suggestion - still a name the operator
+    // means to use, same as any other free-text field in this app.
+    return _manualCustomerName.text.trim();
+  }
 
   String get _customerPhone =>
-      _customer?.mobileNumber ?? _booking?.customerPhone ?? '';
+      _customer?.mobileNumber ??
+      _booking?.customerPhone ??
+      _existing?.customerPhone ??
+      _pickedCustomer?.phone ??
+      '';
 
   String get _customerAddress {
     final customer = _customer;
@@ -137,10 +161,38 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
       if (parts.isNotEmpty) return parts.join(', ');
     }
     final booking = _booking;
-    if (booking == null) return '';
-    return [booking.customerAddress, booking.customerCity, booking.customerState]
+    if (booking != null) {
+      final parts = [booking.customerAddress, booking.customerCity, booking.customerState]
+          .where((p) => p.trim().isNotEmpty);
+      if (parts.isNotEmpty) return parts.join(', ');
+    }
+    if (_existing != null) return _existing!.customerAddress;
+    final picked = _pickedCustomer;
+    if (picked == null) return '';
+    return [picked.address, picked.city, picked.state, picked.pincode]
         .where((p) => p.trim().isNotEmpty)
         .join(', ');
+  }
+
+  /// A customer picked from the search below, with no booking or master
+  /// record already fixing the letter's recipient.
+  Future<void> _pickCustomer(CustomerSuggestion suggestion) async {
+    setState(() => _pickedCustomer = suggestion);
+    if (suggestion.customerId.isEmpty || _amount.text.trim().isNotEmpty) return;
+
+    // Same "fill in what is owed" convenience _load gives a letter that
+    // starts from a booking or customer page - a manually-picked
+    // customer deserves it too.
+    final balance =
+        await BillingRepository.instance.balanceForCustomer(suggestion.customerId);
+    if (!mounted || _amount.text.trim().isNotEmpty) return;
+    if (balance.outstanding > 0.004) {
+      setState(() {
+        _amount.text = balance.outstanding == balance.outstanding.roundToDouble()
+            ? balance.outstanding.toStringAsFixed(0)
+            : balance.outstanding.toStringAsFixed(2);
+      });
+    }
   }
 
   void _pickKind(NoticeKind kind) {
@@ -199,15 +251,48 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
   }
 
   Widget _whoCard() {
+    // A booking, a resolved customer, or editing a letter already sent
+    // all fix who this is for - nothing to pick, just show it. Only a
+    // fresh letter with none of those (started from the Notices list,
+    // the dashboard, or the Document Centre) needs the search below.
+    if (_booking != null || _customer != null || _existing != null) {
+      return Card(
+        child: ListTile(
+          leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+          title: Text(_customerName.isEmpty ? 'No customer' : _customerName,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text([
+            if (_customerPhone.isNotEmpty) _customerPhone,
+            if ((_booking?.bookingNo ?? '').isNotEmpty) 'Storage ${_booking!.bookingNo}',
+          ].join('  ·  ')),
+        ),
+      );
+    }
+
     return Card(
-      child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-        title: Text(_customerName.isEmpty ? 'No customer' : _customerName,
-            style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text([
-          if (_customerPhone.isNotEmpty) _customerPhone,
-          if ((_booking?.bookingNo ?? '').isNotEmpty) 'Storage ${_booking!.bookingNo}',
-        ].join('  ·  ')),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CustomerNameField(
+              controller: _manualCustomerName,
+              label: 'Customer *',
+              onSelected: _pickCustomer,
+              onChanged: (_) {
+                // The operator is correcting what they typed - a stale
+                // pick from before must not be saved against the new
+                // text.
+                if (_pickedCustomer != null) setState(() => _pickedCustomer = null);
+              },
+            ),
+            if (_pickedCustomer?.phone.isNotEmpty ?? false) ...[
+              const SizedBox(height: 4),
+              Text(_pickedCustomer!.phone,
+                  style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -322,7 +407,10 @@ class _NoticeFormScreenState extends State<NoticeFormScreen> {
         id: '',
         noticeDate: DateTime.now().toIso8601String(),
         kind: _kind,
-        customerId: _customer?.id ?? _booking?.customerId ?? '',
+        customerId: _customer?.id ??
+            _booking?.customerId ??
+            _pickedCustomer?.customerId ??
+            '',
         bookingId: _booking?.id ?? '',
         customerName: _customerName,
         customerPhone: _customerPhone,
