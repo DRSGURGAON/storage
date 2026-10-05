@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/subscription/subscription_status.dart';
 import '../../../core/subscription/super_admin_scope.dart';
@@ -7,6 +8,7 @@ import '../models/payment_transaction_model.dart';
 import '../models/subscription_model.dart';
 import '../repositories/payment_transaction_repository.dart';
 import '../repositories/subscription_repository.dart';
+import '../utils/signup_counts.dart';
 
 /// Section 14's Super Admin Dashboard.
 ///
@@ -31,6 +33,8 @@ class SuperAdminDashboardScreen extends StatefulWidget {
 
 class _SuperAdminDashboardScreenState
     extends State<SuperAdminDashboardScreen> {
+  static final _joinedFormat = DateFormat('dd MMM yyyy');
+
   List<SubscriptionModel> _subscriptions = [];
   List<PaymentTransactionModel> _pendingPayments = [];
   bool _loading = true;
@@ -145,6 +149,10 @@ class _SuperAdminDashboardScreenState
 
                   const SizedBox(height: 16),
 
+                  _signupsCard(SignupCounts.from(_subscriptions)),
+
+                  const SizedBox(height: 16),
+
                   GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -244,12 +252,18 @@ class _SuperAdminDashboardScreenState
                     for (final subscription in _subscriptions)
                       Card(
                         child: ListTile(
+                          // A company that signed in but has not filled
+                          // its profile yet has no name - its internal
+                          // id told the Super Admin nothing.
                           title: Text(
                             subscription.companyName.isNotEmpty
                                 ? subscription.companyName
-                                : subscription.companyId,
+                                : 'Company name not set yet',
+                            style: subscription.companyName.isNotEmpty
+                                ? null
+                                : const TextStyle(fontStyle: FontStyle.italic),
                           ),
-                          subtitle: Text(subscription.status.label),
+                          subtitle: Text(_companySubtitle(subscription)),
                           onTap: () => context.push(
                             '/super-admin/company-detail',
                             extra: subscription,
@@ -259,6 +273,68 @@ class _SuperAdminDashboardScreenState
                 ],
               ),
             ),
+    );
+  }
+
+  String _companySubtitle(SubscriptionModel subscription) {
+    final joined = SignupCounts.joinedOn(subscription);
+    return [
+      subscription.status.label,
+      if (subscription.ownerMobile.isNotEmpty) subscription.ownerMobile,
+      if (joined != null) 'Joined ${_joinedFormat.format(joined)}',
+    ].join('  ·  ');
+  }
+
+  Widget _signupsCard(SignupCounts counts) {
+    Widget figure(String value, String label) => Expanded(
+          child: Column(
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Sign-ups',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                figure('${counts.total}', 'Total'),
+                figure('${counts.today}', 'Today'),
+                figure('${counts.last7Days}', 'Last 7 days'),
+                figure('${counts.last30Days}', 'Last 30 days'),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Counts everyone who installed the app and signed in. '
+              'Play Store downloads, including people who never signed '
+              'in, are in Play Console > Statistics.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
