@@ -153,8 +153,14 @@ service cloud.firestore {
     // treated as expired by the app from expiryDate; the record itself
     // is changed only by the Super Admin.
     match /subscriptions/{companyId} {
+      // resource == null: the app reads its record before creating it,
+      // and a read of a record that does not exist yet must answer "not
+      // there" - refusing it left every new company local-only, never
+      // created in the cloud. It reveals nothing: companyId is a random
+      // UUID and the answer is only that no such record exists.
       allow get: if isSuperAdmin()
-        || (signedIn() && existing().ownerUid == request.auth.uid);
+        || (signedIn()
+            && (resource == null || existing().ownerUid == request.auth.uid));
       allow list: if isSuperAdmin();
 
       allow create: if isSuperAdmin()

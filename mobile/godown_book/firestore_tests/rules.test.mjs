@@ -257,6 +257,20 @@ describe('5. a company cannot change its own entitlement', () => {
     await assertSucceeds(setDoc(doc(db, 'subscriptions', fresh), subscriptionDoc(fresh, UID_B)));
     await assertFails(deleteDoc(doc(db, 'subscriptions', fresh)));
   });
+
+  // SubscriptionRepository.getOrCreateForCompany READS before it
+  // creates. If that first read of a record that does not exist yet is
+  // refused, the app falls back to a local-only LIMITED record and the
+  // company never reaches the cloud - invisible to the Super Admin,
+  // impossible to authorise.
+  it('a new company can look for its record before creating it', async () => {
+    const db = asB();
+    const fresh = 'company-d-uuid';
+    const missing = await assertSucceeds(getDoc(doc(db, 'subscriptions', fresh)));
+    assert.equal(missing.exists(), false);
+    await assertSucceeds(setDoc(doc(db, 'subscriptions', fresh), subscriptionDoc(fresh, UID_B)));
+    await assertSucceeds(getDoc(doc(db, 'subscriptions', fresh)));
+  });
 });
 
 describe('6. nobody can make themselves a Super Admin from a client', () => {
