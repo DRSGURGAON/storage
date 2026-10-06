@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
+
 import '../../../core/subscription/subscription_status.dart';
 
 /// A company's subscription (Section 1) - belongs to the
@@ -261,6 +263,17 @@ class SubscriptionModel {
   /// companyId only if the field itself is somehow genuinely absent
   /// from the document body (defensive; every document this app
   /// writes always includes it).
+  /// Dates are written by the app as ISO strings, but a record edited in
+  /// the Firebase Console or by an Admin SDK script can hold a
+  /// Timestamp instead - reading that with a String cast threw, and one
+  /// such record failed the Super Admin's whole company list.
+  static String? _firestoreDate(Object? value) {
+    if (value == null) return null;
+    if (value is String) return value;
+    if (value is Timestamp) return value.toDate().toIso8601String();
+    return value.toString();
+  }
+
   factory SubscriptionModel.fromFirestore(
     Map<String, dynamic> data,
     String documentId,
@@ -270,8 +283,8 @@ class SubscriptionModel {
       companyId: data['companyId'] as String? ?? documentId,
       planId: data['planId'] as String?,
       status: SubscriptionStatus.fromCode(data['status'] as String?),
-      startDate: data['startDate'] as String?,
-      expiryDate: data['expiryDate'] as String?,
+      startDate: _firestoreDate(data['startDate']),
+      expiryDate: _firestoreDate(data['expiryDate']),
       ownerUid: data['ownerUid'] as String? ?? '',
       companyName: data['companyName'] as String? ?? '',
       ownerMobile: data['ownerMobile'] as String? ?? '',
@@ -287,8 +300,8 @@ class SubscriptionModel {
                 if (e.value is num) e.key.toString(): (e.value as num).toInt(),
             })
           : data['demoGenerationsUsedJson'] as String? ?? '{}',
-      createdAt: data['createdAt'] as String? ?? '',
-      updatedAt: data['updatedAt'] as String? ?? '',
+      createdAt: _firestoreDate(data['createdAt']) ?? '',
+      updatedAt: _firestoreDate(data['updatedAt']) ?? '',
     );
   }
 }

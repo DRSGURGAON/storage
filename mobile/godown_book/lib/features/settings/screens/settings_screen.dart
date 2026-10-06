@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_session.dart';
 import '../../../core/subscription/super_admin_scope.dart';
+import '../../subscription/repositories/subscription_repository.dart';
 
 /// App-wide Settings, reachable independently of whether the Company
 /// Profile is complete - the dashboard's incomplete-profile banner is a
@@ -265,7 +266,17 @@ class SettingsScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.info_outline),
                   title: const Text('App version'),
-                  subtitle: Text(AppBuild.label),
+                  subtitle: ValueListenableBuilder<String?>(
+                    valueListenable: SubscriptionRepository.lastCloudError,
+                    builder: (context, error, _) => Text(
+                      error == null
+                          ? AppBuild.label
+                          : '${AppBuild.label}\nAccount not synced to cloud ($error)',
+                      style: error == null
+                          ? null
+                          : const TextStyle(color: Colors.red),
+                    ),
+                  ),
                 ),
                 ListTile(
                   leading: const Icon(Icons.logout, color: Colors.red),

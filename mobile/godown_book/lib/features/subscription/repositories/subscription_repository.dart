@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/subscription/subscription_status.dart';
 import '../../../core/subscription/platform_audit_log_service.dart';
@@ -53,6 +55,13 @@ class SubscriptionRepository {
 
   /// Test seam for the signed-in user, for the same reason.
   static String? currentUidOverride;
+
+  /// Why the last cloud read/create of this company's subscription
+  /// failed, or null once it succeeded. Before this, the failure fell
+  /// through to the local cache silently - the company kept working
+  /// and simply never reached the Super Admin, with nothing anywhere
+  /// saying so. Settings shows it.
+  static final ValueNotifier<String?> lastCloudError = ValueNotifier(null);
 
   FirebaseFirestore get _firestore =>
       firestoreOverride ?? FirebaseFirestore.instance;
@@ -183,6 +192,7 @@ class SubscriptionRepository {
         }
 
         await _syncFromFirestore(subscription);
+        lastCloudError.value = null;
         return await _expireIfLapsed(subscription);
       }
 
@@ -227,9 +237,16 @@ class SubscriptionRepository {
 
       await docRef.set(created.toFirestore()).timeout(_firestoreTimeout);
       await _syncFromFirestore(created);
+      lastCloudError.value = null;
 
       return created;
     } catch (error) {
+      lastCloudError.value = error is FirebaseException
+          ? error.code
+          : error is TimeoutException
+              ? 'timeout'
+              : error.runtimeType.toString();
+      debugPrint('Subscription not reached in the cloud: $error');
       // Genuinely offline (or Firestore otherwise unreachable) - fall
       // back to the last-synced local cache, defaulting to a fresh
       // LIMITED record only if genuinely nothing was ever cached
@@ -272,12 +289,17 @@ class SubscriptionRepository {
   /// doc comment) - a Super Admin on any device now sees every real
   /// company's real status.
   Future<List<SubscriptionModel>> getAllAcrossCompanies() async {
+    // No orderBy: Firestore leaves out of an ordered query every
+    // document that lacks the ordered field, so a record written
+    // without updatedAt silently disappeared from the dashboard and its
+    // counts. Sorted here instead, newest first, missing dates last.
     final snapshot =
-        await _subscriptionsCollection.orderBy('updatedAt', descending: true).get().timeout(_firestoreTimeout);
+        await _subscriptionsCollection.get().timeout(_firestoreTimeout);
 
     return snapshot.docs
         .map((doc) => SubscriptionModel.fromFirestore(doc.data(), doc.id))
-        .toList();
+        .toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   }
 
   /// Super Admin's search-by-mobile-number flow (the customer sends
