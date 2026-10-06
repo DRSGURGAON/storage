@@ -8,6 +8,7 @@ import '../models/payment_transaction_model.dart';
 import '../models/subscription_model.dart';
 import '../repositories/payment_transaction_repository.dart';
 import '../repositories/subscription_repository.dart';
+import '../services/app_user_presence_service.dart';
 import '../utils/signup_counts.dart';
 
 /// Section 14's Super Admin Dashboard.
@@ -37,6 +38,9 @@ class _SuperAdminDashboardScreenState
 
   List<SubscriptionModel> _subscriptions = [];
   List<PaymentTransactionModel> _pendingPayments = [];
+
+  /// Null when the list could not be read - shown as unknown, not 0.
+  List<AppUserRecord>? _appUsers;
   bool _loading = true;
   bool _isSuperAdmin = false;
 
@@ -60,6 +64,12 @@ class _SuperAdminDashboardScreenState
 
     final subscriptions =
         await SubscriptionRepository.instance.getAllAcrossCompanies();
+    List<AppUserRecord>? appUsers;
+    try {
+      appUsers = await AppUserPresenceService.instance.getAll();
+    } catch (error) {
+      debugPrint('Sign-in records not read: $error');
+    }
     final pending =
         await PaymentTransactionRepository.instance.getAllUnderReview();
 
@@ -68,6 +78,7 @@ class _SuperAdminDashboardScreenState
     setState(() {
       _subscriptions = subscriptions;
       _pendingPayments = pending;
+      _appUsers = appUsers;
       _isSuperAdmin = true;
       _loading = false;
     });
@@ -149,7 +160,7 @@ class _SuperAdminDashboardScreenState
 
                   const SizedBox(height: 16),
 
-                  _signupsCard(SignupCounts.from(_subscriptions)),
+                  _loginsCard(),
 
                   const SizedBox(height: 16),
 
@@ -285,7 +296,18 @@ class _SuperAdminDashboardScreenState
     ].join('  ·  ');
   }
 
-  Widget _signupsCard(SignupCounts counts) {
+  Widget _loginsCard() {
+    final users = _appUsers;
+    final joined = users == null
+        ? null
+        : SignupCounts.fromDates(
+            users.map((u) => SignupCounts.parseDate(u.firstSignInAt)));
+    final seen = users == null
+        ? null
+        : SignupCounts.fromDates(
+            users.map((u) => SignupCounts.parseDate(u.lastSeenAt)));
+    String show(int? value) => value == null ? '-' : '$value';
+
     Widget figure(String value, String label) => Expanded(
           child: Column(
             children: [
@@ -313,24 +335,28 @@ class _SuperAdminDashboardScreenState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Sign-ups',
+              'Logins',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                figure('${counts.total}', 'Total'),
-                figure('${counts.today}', 'Today'),
-                figure('${counts.last7Days}', 'Last 7 days'),
-                figure('${counts.last30Days}', 'Last 30 days'),
+                figure(show(joined?.total), 'Logged in'),
+                figure(show(joined?.today), 'New today'),
+                figure(show(joined?.last7Days), 'New, 7 days'),
+                figure(show(seen?.today), 'Active today'),
               ],
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Counts everyone who installed the app and signed in. '
-              'Play Store downloads, including people who never signed '
-              'in, are in Play Console > Statistics.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+            Text(
+              users == null
+                  ? 'Could not read the login list. Pull down to try again.'
+                  : 'Everyone who downloaded the app and logged in with OTP, '
+                      'whether or not they set up a company. Someone who '
+                      'logged in on an older version is counted the next '
+                      'time they open the app. Downloads without a login '
+                      'are only in Play Console > Statistics.',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
         ),

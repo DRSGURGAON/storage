@@ -197,6 +197,35 @@ service cloud.firestore {
     }
 
     // ==========================
+    // Signed-in accounts
+    // ==========================
+    //
+    // appUsers/{uid} (AppUserPresenceService): written by the account
+    // itself at sign-in and at each launch, so the Super Admin can count
+    // who signed in - including people who never set up a company. A
+    // uid, two dates and the build; no phone number. Only the account
+    // writes its own record, it can never move its first sign-in date,
+    // and only a Super Admin can list them.
+    match /appUsers/{uid} {
+      allow get: if isOwner(uid) || isSuperAdmin();
+      allow list: if isSuperAdmin();
+
+      allow create: if isOwner(uid)
+        && incoming().keys().hasOnly(['uid', 'firstSignInAt', 'lastSeenAt', 'appBuild'])
+        && incoming().uid == uid
+        && isNonEmptyString(incoming().firstSignInAt)
+        && incoming().lastSeenAt is string
+        && incoming().appBuild is string;
+
+      allow update: if isOwner(uid)
+        && changedKeys().hasOnly(['lastSeenAt', 'appBuild'])
+        && incoming().lastSeenAt is string
+        && incoming().appBuild is string;
+
+      allow delete: if isOwner(uid) || isSuperAdmin();
+    }
+
+    // ==========================
     // Platform settings (payment QR, signing address, promotions)
     // ==========================
     //

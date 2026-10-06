@@ -411,3 +411,47 @@ describe('the App ID counter and KYC follow the app', () => {
     await assertSucceeds(deleteDoc(fresh));
   });
 });
+
+describe('signed-in accounts (appUsers) are counted, not exposed', () => {
+  const record = (uid, extra = {}) => ({
+    uid,
+    firstSignInAt: '2026-10-06T10:00:00.000',
+    lastSeenAt: '2026-10-06T10:00:00.000',
+    appBuild: '66',
+    ...extra,
+  });
+
+  it('an account records itself, reads its own record, and nobody else\'s', async () => {
+    const db = asA();
+    const missing = await assertSucceeds(getDoc(doc(db, 'appUsers', UID_A)));
+    assert.equal(missing.exists(), false);
+    await assertSucceeds(setDoc(doc(db, 'appUsers', UID_A), record(UID_A)));
+    await assertSucceeds(updateDoc(doc(db, 'appUsers', UID_A), {
+      lastSeenAt: '2026-10-07T09:00:00.000', appBuild: '67',
+    }));
+
+    await assertFails(setDoc(doc(db, 'appUsers', UID_B), record(UID_B)));
+    await assertFails(getDoc(doc(asB(), 'appUsers', UID_A)));
+    await assertFails(getDocs(collection(db, 'appUsers')));
+  });
+
+  it('cannot move its first sign-in or carry anything else', async () => {
+    const db = asA();
+    await assertFails(setDoc(doc(db, 'appUsers', UID_A), record(UID_A, { phone: '9999999999' })));
+    await assertFails(setDoc(doc(db, 'appUsers', UID_A), record(UID_B)));
+    await assertSucceeds(setDoc(doc(db, 'appUsers', UID_A), record(UID_A)));
+    await assertFails(updateDoc(doc(db, 'appUsers', UID_A), { firstSignInAt: '2020-01-01T00:00:00' }));
+  });
+
+  it('the Super Admin lists them; nobody signed in gets nothing', async () => {
+    await assertSucceeds(setDoc(doc(asA(), 'appUsers', UID_A), record(UID_A)));
+    await assertSucceeds(getDocs(collection(asAdmin(), 'appUsers')));
+    await assertFails(getDoc(doc(asNobody(), 'appUsers', UID_A)));
+    await assertFails(setDoc(doc(asNobody(), 'appUsers', 'x'), record('x')));
+  });
+
+  it('account deletion takes the record with it', async () => {
+    await assertSucceeds(setDoc(doc(asA(), 'appUsers', UID_A), record(UID_A)));
+    await assertSucceeds(deleteDoc(doc(asA(), 'appUsers', UID_A)));
+  });
+});

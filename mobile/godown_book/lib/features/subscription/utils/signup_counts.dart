@@ -24,16 +24,20 @@ class SignupCounts {
   factory SignupCounts.from(
     Iterable<SubscriptionModel> subscriptions, {
     DateTime? now,
-  }) {
+  }) =>
+      SignupCounts.fromDates(subscriptions.map(joinedOn), now: now);
+
+  /// The same windows over any list of dates - one per account or
+  /// company; a null date counts in [total] only.
+  factory SignupCounts.fromDates(Iterable<DateTime?> dates, {DateTime? now}) {
     final clock = now ?? DateTime.now();
     final startOfToday = DateTime(clock.year, clock.month, clock.day);
     final sevenDaysAgo = startOfToday.subtract(const Duration(days: 6));
     final thirtyDaysAgo = startOfToday.subtract(const Duration(days: 29));
 
     var total = 0, today = 0, week = 0, month = 0;
-    for (final subscription in subscriptions) {
+    for (final joined in dates) {
       total += 1;
-      final joined = joinedOn(subscription);
       if (joined == null) continue;
       if (!joined.isBefore(startOfToday)) today += 1;
       if (!joined.isBefore(sevenDaysAgo)) week += 1;
@@ -51,8 +55,9 @@ class SignupCounts {
   /// Local date-time the company joined, or null when the record has
   /// no usable createdAt (a very old record) - such a company still
   /// counts in [total], just not in any recent window.
-  static DateTime? joinedOn(SubscriptionModel subscription) {
-    final parsed = DateTime.tryParse(subscription.createdAt);
-    return parsed?.toLocal();
-  }
+  static DateTime? joinedOn(SubscriptionModel subscription) =>
+      parseDate(subscription.createdAt);
+
+  static DateTime? parseDate(String value) =>
+      DateTime.tryParse(value)?.toLocal();
 }

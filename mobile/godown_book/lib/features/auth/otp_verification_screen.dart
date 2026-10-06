@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_session.dart';
 import '../../core/tenant/tenant_bootstrap.dart';
+import '../subscription/services/app_user_presence_service.dart';
 import 'services/otp_auth_service.dart';
 
 /// 6-digit OTP entry after the number was given on LoginScreen.
@@ -175,6 +176,11 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     // it is already on this device, created only when the account has
     // none anywhere. Never guessed while the cloud cannot be reached.
     if (uid != null) {
+      // Counted at sign-in itself, before any company exists, so the
+      // Super Admin sees everyone who signed in - not only those who
+      // went on to set up a company.
+      unawaited(AppUserPresenceService.instance.record(uid));
+
       final ready = await _establishCompany(uid);
       if (!ready) {
         _done = false;

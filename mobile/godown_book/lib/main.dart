@@ -19,6 +19,7 @@ import 'core/permissions/permission_service.dart';
 import 'core/subscription/super_admin_scope.dart';
 import 'core/tenant/tenant_bootstrap.dart';
 import 'features/signature/repositories/signature_repository.dart';
+import 'features/subscription/services/app_user_presence_service.dart';
 import 'features/subscription/services/platform_settings_service.dart';
 import 'firebase_options.dart';
 
@@ -66,6 +67,14 @@ Future<void> main() async {
   await TenantBootstrap.loadAtStartup();
 
   runApp(const ProviderScope(child: GodownBookApp()));
+
+  // Each launch by a signed-in account refreshes its last-seen date -
+  // and records accounts that signed in before this existed. Not
+  // awaited: a network call must not hold the first frame.
+  final signedInUid = FirebaseAuth.instance.currentUser?.uid;
+  if (signedInUid != null) {
+    unawaited(AppUserPresenceService.instance.record(signedInUid));
+  }
 
   // From here on Firebase's own session is watched live: if it ends
   // while the app is open, the local session clears and the router

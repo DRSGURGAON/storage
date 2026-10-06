@@ -8,6 +8,7 @@ import '../cloud_sync/document_cloud_sync_service.dart';
 import '../permissions/permission_service.dart';
 import '../subscription/super_admin_scope.dart';
 import '../tenant/tenant_bootstrap.dart';
+import '../../features/subscription/services/app_user_presence_service.dart';
 import 'auth_scope.dart';
 
 /// Whether the app has a completed mobile+OTP sign-in on this device,
@@ -224,6 +225,9 @@ class AuthSessionNotifier extends StateNotifier<AuthSessionState> {
         debugPrint('Failed to delete company cloud doc: $error');
       }
     }
+
+    // While still signed in: the sign-in record goes with the account.
+    await AppUserPresenceService.instance.deleteOwn(user.uid);
 
     // Deletes the actual Firebase Auth account - this is the
     // genuinely destructive, unrecoverable step Google's policy
