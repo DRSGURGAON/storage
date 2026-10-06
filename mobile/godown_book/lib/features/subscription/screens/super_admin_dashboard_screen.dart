@@ -298,64 +298,28 @@ class _SuperAdminDashboardScreenState
 
   Widget _loginsCard() {
     final users = _appUsers;
-    final joined = users == null
-        ? null
-        : SignupCounts.fromDates(
-            users.map((u) => SignupCounts.parseDate(u.firstSignInAt)));
-    final seen = users == null
-        ? null
-        : SignupCounts.fromDates(
-            users.map((u) => SignupCounts.parseDate(u.lastSeenAt)));
-    String show(int? value) => value == null ? '-' : '$value';
-
-    Widget figure(String value, String label) => Expanded(
-          child: Column(
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
-          ),
-        );
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Logins',
+              users == null ? '-' : '${users.length}',
+              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Downloaded and logged in',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                figure(show(joined?.total), 'Logged in'),
-                figure(show(joined?.today), 'New today'),
-                figure(show(joined?.last7Days), 'New, 7 days'),
-                figure(show(seen?.today), 'Active today'),
-              ],
-            ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
               users == null
                   ? 'Could not read the login list. Pull down to try again.'
-                  : 'Everyone who downloaded the app and logged in with OTP, '
-                      'whether or not they set up a company. Someone who '
-                      'logged in on an older version is counted the next '
-                      'time they open the app. Downloads without a login '
-                      'are only in Play Console > Statistics.',
+                  : 'Someone who logged in on an older version is counted '
+                      'the next time they open the app.',
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
