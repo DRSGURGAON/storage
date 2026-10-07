@@ -49,6 +49,10 @@ class DocumentPdfView extends StatefulWidget {
 class _DocumentPdfViewState extends State<DocumentPdfView> {
   bool _loading = true;
   bool? _isActive;
+
+  /// The paid period has ended: every copy is made, watermarked and
+  /// never counted, with a renew banner above it.
+  bool _expired = false;
   int? _remaining;
   bool _confirmed = false;
 
@@ -91,6 +95,7 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
     // One read of the subscription answers both questions.
     final access = await SubscriptionAccessService.instance.currentState();
     final active = access?.isActive ?? false;
+    final expired = access?.hasPaidPeriodEnded ?? false;
     final remaining = access == null || active
         ? 0
         : access.remainingDemoGenerations(widget.documentType);
@@ -98,6 +103,7 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
     if (!mounted) return;
     setState(() {
       _isActive = active;
+      _expired = expired;
       _remaining = remaining;
       _loading = false;
     });
@@ -132,6 +138,7 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
 
     if (FeatureFlags.demoGenerationLimitEnforced &&
         _isActive == false &&
+        !_expired &&
         !_confirmed &&
         !_showingSample) {
       if ((_remaining ?? 0) <= 0) {
@@ -153,6 +160,43 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
 
     if (_showingSample) return _samplePreview();
 
+    if (_expired) {
+      return Column(
+        children: [
+          _expiredBanner(),
+          Expanded(child: _preview(showWatermark: showWatermark, count: false)),
+        ],
+      );
+    }
+
+    return _preview(showWatermark: showWatermark, count: isFreeCopy);
+  }
+
+  Widget _expiredBanner() {
+    return Container(
+      width: double.infinity,
+      color: Theme.of(context).colorScheme.errorContainer,
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Your subscription has ended. Documents carry a watermark '
+              'until you renew.',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+          TextButton(
+            onPressed: () => context.push('/subscription'),
+            child: const Text('Renew'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// [count]: whether producing this copy uses up a free one.
+  Widget _preview({required bool showWatermark, required bool count}) {
     return PdfPreview(
       key: widget.rebuildKey == null ? null : ValueKey(widget.rebuildKey),
       build: (_) async {
@@ -160,7 +204,7 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
           final bytes = await widget.build(showWatermark: showWatermark);
           widget.onBytes?.call(bytes);
 
-          if (FeatureFlags.demoGenerationLimitEnforced && isFreeCopy && !_counted) {
+          if (FeatureFlags.demoGenerationLimitEnforced && count && !_counted) {
             _counted = true;
             await SubscriptionAccessService.instance
                 .recordDemoGeneration(widget.documentType);

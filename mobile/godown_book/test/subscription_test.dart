@@ -335,4 +335,37 @@ void main() {
     await repo.getOrCreateForCompany(TenantScope.companyId);
     expect(await access.getRemainingDemoGenerations(DocumentType.bill), 4);
   });
+
+  test('once a paid period ends, copies are watermarked rather than blocked',
+      () async {
+    await repo.getOrCreateForCompany(TenantScope.companyId);
+    // Never paid: the free copies, then the subscribe prompt.
+    expect((await access.currentState())!.hasPaidPeriodEnded, isFalse);
+
+    // A period that ran out long ago.
+    await repo.activate(
+      companyId: TenantScope.companyId,
+      plan: _quarterly,
+      paymentReference: 'UTR12',
+      paymentMethod: 'MANUAL_UPI',
+      authorizedByMobileNumber: '9999999999',
+      explicitStartDate: DateTime(2024, 1, 1),
+    );
+    final lapsed = (await access.currentState())!;
+    expect(lapsed.isActive, isFalse);
+    expect(lapsed.hasPaidPeriodEnded, isTrue);
+
+    // Renewed: clean copies again.
+    await repo.activate(
+      companyId: TenantScope.companyId,
+      plan: _quarterly,
+      paymentReference: 'UTR13',
+      paymentMethod: 'MANUAL_UPI',
+      authorizedByMobileNumber: '9999999999',
+      explicitStartDate: DateTime.now(),
+    );
+    final renewed = (await access.currentState())!;
+    expect(renewed.isActive, isTrue);
+    expect(renewed.hasPaidPeriodEnded, isFalse);
+  });
 }

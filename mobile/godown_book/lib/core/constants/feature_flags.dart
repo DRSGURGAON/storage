@@ -20,7 +20,9 @@ class FeatureFlags {
   // Net effect: an unsubscribed company gets 2 WATERMARKED documents
   // per document type, then DemoLimitReached prompts them to
   // subscribe. Subscribed companies (status ACTIVE/EXPIRING_SOON) get
-  // unlimited, clean documents.
+  // unlimited, clean documents. Once a paid period ends, every copy is
+  // watermarked - never blocked, never counted - until the company
+  // renews (SubscriptionAccessState.hasPaidPeriodEnded).
   //
   // Testers are handled WITHOUT any flag: the Super Admin simply
   // activates that company's subscription from the Super Admin

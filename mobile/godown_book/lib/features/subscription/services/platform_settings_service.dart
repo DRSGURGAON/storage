@@ -240,13 +240,10 @@ class PlatformSettingsService {
       'signBaseUrl': signBaseUrl,
       'whatsappNumber': whatsappNumber,
       'supportPhoneNumber': supportPhoneNumber,
-      if (paymentInstructions != null)
-        'paymentInstructions': paymentInstructions,
-      if (demoGenerationLimit != null)
-        'demoGenerationLimit': demoGenerationLimit,
-      if (watermarkText != null) 'watermarkText': watermarkText,
-      if (expiryWarningDaysCsv != null)
-        'expiryWarningDaysCsv': expiryWarningDaysCsv,
+      'paymentInstructions': ?paymentInstructions,
+      'demoGenerationLimit': ?demoGenerationLimit,
+      'watermarkText': ?watermarkText,
+      'expiryWarningDaysCsv': ?expiryWarningDaysCsv,
       'updatedAt': DateTime.now().toIso8601String(),
     }, SetOptions(merge: true)).timeout(_timeout);
 
@@ -260,11 +257,9 @@ class PlatformSettingsService {
         'signBaseUrl': signBaseUrl,
         'whatsappNumber': whatsappNumber,
         'supportPhoneNumber': supportPhoneNumber,
-        if (demoGenerationLimit != null)
-          'demoGenerationLimit': demoGenerationLimit,
-        if (watermarkText != null) 'watermarkText': watermarkText,
-        if (expiryWarningDaysCsv != null)
-          'expiryWarningDaysCsv': expiryWarningDaysCsv,
+        'demoGenerationLimit': ?demoGenerationLimit,
+        'watermarkText': ?watermarkText,
+        'expiryWarningDaysCsv': ?expiryWarningDaysCsv,
       },
     );
   }

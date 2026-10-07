@@ -38,6 +38,18 @@ class SubscriptionAccessState {
     required this.isExpiringSoon,
   });
 
+  /// A paid period that has ended - EXPIRED, or ACTIVE past its last
+  /// day. Such a company keeps making documents, every copy
+  /// watermarked, until it renews: its records are its own, and a
+  /// watermark asks for the renewal without locking them out. A
+  /// company that never paid (LIMITED) is not this - it gets the free
+  /// copies, then the subscribe prompt. Suspended and cancelled are a
+  /// Super Admin's decision and are not this either.
+  bool get hasPaidPeriodEnded =>
+      !isActive &&
+      (subscription.status == SubscriptionStatus.expired ||
+          (subscription.status.grantsFullAccess && subscription.hasLapsed));
+
   /// Free copies of [documentType] still left - see
   /// SubscriptionAccessService.getRemainingDemoGenerations.
   int remainingDemoGenerations(String documentType) {
