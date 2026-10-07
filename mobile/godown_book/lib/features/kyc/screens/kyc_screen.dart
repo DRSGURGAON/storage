@@ -43,16 +43,18 @@ class _KycScreenState extends State<KycScreen> {
     // Local first, then pull any review verdict the Super Admin has
     // since recorded in the cloud.
     var submission = await KycRepository.instance.getLocal(companyId);
-    if (submission != null && submission.status == KycStatus.pending) {
+    if (submission == null || submission.status == KycStatus.pending) {
       // A submission made offline (or before the server rules were
       // published) may never have reached the server - retry silently
       // so pending submissions upload themselves on every visit.
       final company = await CompanyController.instance.getCompany();
-      await KycRepository.instance.ensureUploaded(
-        submission,
-        companyName: company?.companyName ?? '',
-        companyCode: company?.companyCode ?? '',
-      );
+      if (submission != null) {
+        await KycRepository.instance.ensureUploaded(
+          submission,
+          companyName: company?.companyName ?? '',
+          companyCode: company?.companyCode ?? '',
+        );
+      }
 
       submission = await KycRepository.instance.refreshStatus(companyId);
     }

@@ -116,6 +116,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       final company = await CompanyController.instance.getCompany();
       if (company == null) return;
 
+      // Every load until it is there: the profile is what a new phone
+      // or a reinstall restores this company from.
+      await CompanyFirestoreSyncService.instance.ensureInCloud(company);
+
       // An unassigned company carries either nothing or the old
       // placeholder; both mean "no App ID has ever been minted".
       if (AppIdCounterService.isAssigned(company.companyCode)) return;

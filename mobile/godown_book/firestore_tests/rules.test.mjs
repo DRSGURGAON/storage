@@ -183,6 +183,13 @@ describe('2 and 3. a company can neither read nor write another company', () => 
     await assertFails(getDoc(doc(db, 'subscriptions', COMPANY_B)));
     await assertFails(getDocs(collection(db, 'subscriptions')));
     await assertFails(updateDoc(doc(db, 'subscriptions', COMPANY_B), { companyName: 'x' }));
+    // B has submitted KYC: A cannot read it. (A record that does not
+    // exist answers only "not there" - see the KYC block below.)
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'kycSubmissions', COMPANY_B), {
+        companyId: COMPANY_B, ownerUid: UID_B, status: 'PENDING', submittedAt: '2026-09-01T00:00:00',
+      });
+    });
     await assertFails(getDoc(doc(db, 'kycSubmissions', COMPANY_B)));
     await assertFails(getDocs(collection(db, 'kycSubmissions')));
     await assertFails(getDocs(collection(db, 'signatureRequests')));
@@ -453,5 +460,41 @@ describe('signed-in accounts (appUsers) are counted, not exposed', () => {
   it('account deletion takes the record with it', async () => {
     await assertSucceeds(setDoc(doc(asA(), 'appUsers', UID_A), record(UID_A)));
     await assertSucceeds(deleteDoc(doc(asA(), 'appUsers', UID_A)));
+  });
+});
+
+describe('KYC: looking before submitting, and deleting an account with none', () => {
+  it('a company can look for, and delete, a KYC record that does not exist', async () => {
+    const db = asB();
+    const missing = await assertSucceeds(getDoc(doc(db, 'kycSubmissions', 'company-without-kyc')));
+    assert.equal(missing.exists(), false);
+    await assertSucceeds(deleteDoc(doc(db, 'kycSubmissions', 'company-without-kyc')));
+  });
+
+  it("but never reads or deletes another company's KYC", async () => {
+    await assertFails(getDoc(doc(asB(), 'kycSubmissions', COMPANY_A)));
+    await assertFails(deleteDoc(doc(asB(), 'kycSubmissions', COMPANY_A)));
+  });
+});
+
+describe('subscription updates the app sends', () => {
+  it("the owner's profile refresh and counter update pass; a status change does not", async () => {
+    const db = asA();
+    const ref = doc(db, 'subscriptions', COMPANY_A);
+    await assertSucceeds(updateDoc(ref, { companyName: 'Sharma Packers', ownerMobile: '9876500001', updatedAt: 'now' }));
+    await assertSucceeds(updateDoc(ref, {
+      demoGenerationsUsed: { bill: 2 }, demoGenerationsUsedJson: '{"bill":2}', updatedAt: 'now',
+    }));
+    await assertFails(updateDoc(ref, { status: 'EXPIRED', updatedAt: 'now' }));
+  });
+
+  it("a Super Admin's activation changes only plan, status and dates", async () => {
+    const ref = doc(asAdmin(), 'subscriptions', COMPANY_A);
+    await assertSucceeds(updateDoc(ref, {
+      planId: 'PLAN_QUARTERLY', status: 'ACTIVE',
+      startDate: '2026-10-07T00:00:00', expiryDate: '2027-01-06T00:00:00', updatedAt: 'now',
+    }));
+    const after = await getDoc(doc(asA(), 'subscriptions', COMPANY_A));
+    assert.equal(after.data().ownerUid, UID_A);
   });
 });

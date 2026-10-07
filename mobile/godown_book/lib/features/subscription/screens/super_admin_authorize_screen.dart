@@ -79,20 +79,32 @@ class _SuperAdminAuthorizeScreenState
     // dashboard) - a 10-digit number is tried as a phone first, and
     // anything else (or a phone that matches nothing) is tried as an
     // App ID. Both lookups tolerate natural formatting.
-    var subscription =
-        await SubscriptionRepository.instance.getByMobileNumber(query);
-    subscription ??=
-        await SubscriptionRepository.instance.getByCompanyCode(query);
+    final SubscriptionModel? subscription;
+    final List<SubscriptionHistoryModel> history;
+    try {
+      subscription =
+          await SubscriptionRepository.instance.getByMobileNumber(query) ??
+              await SubscriptionRepository.instance.getByCompanyCode(query);
+      history = subscription == null
+          ? const []
+          : await SubscriptionRepository.instance
+              .getHistory(subscription.companyId);
+    } catch (error) {
+      // Offline or refused: without this the spinner never stopped and
+      // the Search button stayed disabled until the screen was left.
+      if (!mounted) return;
+      setState(() => _searching = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Search failed: $error')),
+      );
+      return;
+    }
 
     if (subscription == null) {
       if (!mounted) return;
       setState(() => _searching = false);
       return;
     }
-
-    final history = await SubscriptionRepository.instance.getHistory(
-      subscription.companyId,
-    );
 
     if (!mounted) return;
 
@@ -480,6 +492,8 @@ class _AuthorizeDialogState extends State<_AuthorizeDialog> {
       content: SizedBox(
         width: double.maxFinite,
         child: SingleChildScrollView(
+          // Room for the first field's floating label.
+          padding: const EdgeInsets.only(top: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,

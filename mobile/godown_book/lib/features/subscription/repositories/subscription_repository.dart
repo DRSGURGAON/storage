@@ -78,6 +78,33 @@ class SubscriptionRepository {
     }
   }
 
+  /// The phone number the owner signed in with - what they will tell
+  /// the Super Admin when asking to be activated, and filled in long
+  /// before (or without) a mobile number on the company profile.
+  static String? currentPhoneOverride;
+
+  String get _signedInPhone {
+    final override = currentPhoneOverride;
+    if (override != null) return override;
+    try {
+      return FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// Per document type, the larger of two free-copy counts.
+  static Map<String, int> _higherCounts(
+    Map<String, int> a,
+    Map<String, int> b,
+  ) {
+    final merged = Map<String, int>.from(a);
+    b.forEach((key, value) {
+      if (value > (merged[key] ?? 0)) merged[key] = value;
+    });
+    return merged;
+  }
+
   /// One document per company, at subscriptions/{companyId} - matches
   /// SubscriptionModel.toFirestore()'s own doc comment.
   CollectionReference<Map<String, dynamic>> get _subscriptionsCollection =>
@@ -113,82 +140,66 @@ class SubscriptionRepository {
         var subscription =
             SubscriptionModel.fromFirestore(snapshot.data()!, companyId);
 
-        var needsWrite = false;
+        // The owner may only change the profile copy and the counters
+        // (firestore.rules). So only fields that actually differ are
+        // sent, with update() - rewriting the whole document with set()
+        // also resent dates and fields the rules compare, and one
+        // refused write threw away this successful read.
+        final changes = <String, dynamic>{};
 
-        // Backfill for a subscription created before ownerUid existed
-        // (pre-v37) - never reassigns an ALREADY-owned document, only
-        // fills in a genuinely empty one, and only with the currently
-        // signed-in user (never a guess).
-        if (subscription.ownerUid.isEmpty && currentUid.isNotEmpty) {
-          subscription = subscription.copyWith(ownerUid: currentUid);
-          needsWrite = true;
-        }
-
-        // Backfill/refresh the denormalized company name (pre-v48
-        // records, or a name that changed since the last sync) -
-        // ONLY when THIS device's own local company genuinely matches
-        // the subscription being read (never writes a name onto a
-        // different company's subscription document - e.g. if this
-        // method is ever called for a company other than the one
-        // physically installed on this device) and has a real,
-        // non-empty name to offer. Never overwrites with an empty
-        // value, so a Super Admin browsing another company's
-        // subscription (whose own local company differs) can never
-        // blank out that company's already-correct name.
+        // The profile copy, refreshed from this device's own company
+        // only - never written onto another company's record (a Super
+        // Admin reading someone else's), and never blanked.
         final localCompany = await CompanyController.instance.getCompany();
-        if (localCompany != null && localCompany.companyId == companyId) {
-          if (localCompany.companyName.isNotEmpty &&
-              localCompany.companyName != subscription.companyName) {
-            subscription = subscription.copyWith(
-              companyName: localCompany.companyName,
-            );
-            needsWrite = true;
+        final ownDevice =
+            localCompany != null && localCompany.companyId == companyId;
+        if (ownDevice) {
+          void refresh(String field, String local, String cloud) {
+            if (local.isNotEmpty && local != cloud) changes[field] = local;
           }
 
-          // Same backfill/refresh pattern as companyName above,
-          // applied to the 5 more profile fields
-          // SuperAdminCompanyDetailScreen needs (see
-          // database_constants.dart's own v49 comment) - each field
-          // only overwrites when the local value is genuinely
-          // non-empty and different, so a Super Admin on another
-          // company's device can never blank these out either.
-          if (localCompany.mobile1.isNotEmpty &&
-              _normalizePhone(localCompany.mobile1) !=
-                  subscription.ownerMobile) {
-            subscription = subscription.copyWith(
-              ownerMobile: _normalizePhone(localCompany.mobile1),
+          final mobile = localCompany.mobile1.isNotEmpty
+              ? _normalizePhone(localCompany.mobile1)
+              : _normalizePhone(_signedInPhone);
+          refresh('companyName', localCompany.companyName, subscription.companyName);
+          refresh('ownerMobile', mobile, subscription.ownerMobile);
+          refresh('gstNumber', localCompany.gstNumber, subscription.gstNumber);
+          refresh('authorizedSignatoryName',
+              localCompany.authorizedSignatoryName,
+              subscription.authorizedSignatoryName);
+          refresh('email', localCompany.email, subscription.email);
+          refresh('companyCode', localCompany.companyCode, subscription.companyCode);
+
+          // Free copies made while offline were counted on this device;
+          // the cloud must never take them back.
+          final cached = await _dao.getByCompanyId(companyId);
+          if (cached != null) {
+            final merged = _higherCounts(
+              subscription.demoGenerationsUsed,
+              cached.demoGenerationsUsed,
             );
-            needsWrite = true;
-          }
-          if (localCompany.gstNumber.isNotEmpty &&
-              localCompany.gstNumber != subscription.gstNumber) {
-            subscription =
-                subscription.copyWith(gstNumber: localCompany.gstNumber);
-            needsWrite = true;
-          }
-          if (localCompany.authorizedSignatoryName.isNotEmpty &&
-              localCompany.authorizedSignatoryName !=
-                  subscription.authorizedSignatoryName) {
-            subscription = subscription.copyWith(
-              authorizedSignatoryName: localCompany.authorizedSignatoryName,
-            );
-            needsWrite = true;
-          }
-          if (localCompany.email.isNotEmpty &&
-              localCompany.email != subscription.email) {
-            subscription = subscription.copyWith(email: localCompany.email);
-            needsWrite = true;
-          }
-          if (localCompany.companyCode.isNotEmpty &&
-              localCompany.companyCode != subscription.companyCode) {
-            subscription =
-                subscription.copyWith(companyCode: localCompany.companyCode);
-            needsWrite = true;
+            if (!mapEquals(merged, subscription.demoGenerationsUsed)) {
+              changes['demoGenerationsUsed'] = merged;
+              changes['demoGenerationsUsedJson'] =
+                  SubscriptionModel.encodeDemoCounts(merged);
+            }
           }
         }
 
-        if (needsWrite) {
-          await docRef.set(subscription.toFirestore()).timeout(_firestoreTimeout);
+        if (changes.isNotEmpty) {
+          subscription = SubscriptionModel.fromFirestore(
+            {...snapshot.data()!, ...changes},
+            companyId,
+          );
+          try {
+            await docRef.update({
+              ...changes,
+              'updatedAt': DateTime.now().toIso8601String(),
+            }).timeout(_firestoreTimeout);
+          } catch (error) {
+            // The read stands; only the refresh is retried next time.
+            debugPrint('Subscription profile not refreshed: $error');
+          }
         }
 
         await _syncFromFirestore(subscription);
@@ -211,10 +222,11 @@ class SubscriptionRepository {
             localCompany?.companyId == companyId
                 ? (localCompany?.companyName ?? '')
                 : '',
-        ownerMobile:
-            localCompany?.companyId == companyId
-                ? _normalizePhone(localCompany?.mobile1 ?? '')
-                : '',
+        ownerMobile: localCompany?.companyId == companyId
+            ? _normalizePhone((localCompany?.mobile1 ?? '').isNotEmpty
+                ? localCompany!.mobile1
+                : _signedInPhone)
+            : '',
         gstNumber:
             localCompany?.companyId == companyId
                 ? (localCompany?.gstNumber ?? '')
@@ -426,7 +438,7 @@ class SubscriptionRepository {
   }) async {
     await _requireSuperAdmin();
 
-    final current = await getOrCreateForCompany(companyId);
+    final current = await _readForAdmin(companyId);
     final now = DateTime.now();
 
     final currentExpiry = current.expiryDate != null
@@ -472,8 +484,26 @@ class SubscriptionRepository {
       updatedAt: now.toIso8601String(),
     );
 
-    await _subscriptionsCollection.doc(companyId).set(updated.toFirestore()).timeout(_firestoreTimeout);
+    await _subscriptionsCollection.doc(companyId).update({
+      'planId': updated.planId,
+      'status': updated.status.code,
+      'startDate': updated.startDate,
+      'expiryDate': updated.expiryDate,
+      'updatedAt': updated.updatedAt,
+    }).timeout(_firestoreTimeout);
     await _syncFromFirestore(updated);
+
+    await PlatformAuditLogService.instance.record(
+      action: PlatformAuditAction.subscriptionActivated,
+      targetCompanyId: companyId,
+      targetUid: current.ownerUid,
+      metadata: {
+        'planId': plan.id,
+        'startDate': updated.startDate,
+        'expiryDate': updated.expiryDate,
+        'paymentReference': paymentReference ?? '',
+      },
+    );
 
     await _historyDao.insert(
       SubscriptionHistoryModel(
@@ -500,15 +530,14 @@ class SubscriptionRepository {
   Future<void> suspend(String companyId, {String remarks = ''}) async {
     await _requireSuperAdmin();
 
-    final current = await getOrCreateForCompany(companyId);
+    final current = await _readForAdmin(companyId);
 
     final updated = current.copyWith(
       status: SubscriptionStatus.suspended,
       updatedAt: DateTime.now().toIso8601String(),
     );
 
-    await _subscriptionsCollection.doc(companyId).set(updated.toFirestore()).timeout(_firestoreTimeout);
-    await _syncFromFirestore(updated);
+    await _writeStatus(updated);
 
     await PlatformAuditLogService.instance.record(
       action: PlatformAuditAction.subscriptionSuspended,
@@ -527,15 +556,14 @@ class SubscriptionRepository {
   Future<void> cancel(String companyId, {String remarks = ''}) async {
     await _requireSuperAdmin();
 
-    final current = await getOrCreateForCompany(companyId);
+    final current = await _readForAdmin(companyId);
 
     final updated = current.copyWith(
       status: SubscriptionStatus.cancelled,
       updatedAt: DateTime.now().toIso8601String(),
     );
 
-    await _subscriptionsCollection.doc(companyId).set(updated.toFirestore()).timeout(_firestoreTimeout);
-    await _syncFromFirestore(updated);
+    await _writeStatus(updated);
 
     await PlatformAuditLogService.instance.record(
       action: PlatformAuditAction.subscriptionCancelled,
@@ -549,6 +577,35 @@ class SubscriptionRepository {
       entityType: 'subscription',
       entityId: current.id,
     );
+  }
+
+  /// What every Super Admin action starts from: the record as the
+  /// server holds it right now. Never getOrCreateForCompany's offline
+  /// fallback - that is built with the ADMIN's uid as owner and blank
+  /// counters, and writing it back took the record away from its own
+  /// company. No record, or no server: the action stops here.
+  Future<SubscriptionModel> _readForAdmin(String companyId) async {
+    final snapshot = await _subscriptionsCollection
+        .doc(companyId)
+        .get(const GetOptions(source: Source.server))
+        .timeout(_firestoreTimeout);
+    final data = snapshot.data();
+    if (!snapshot.exists || data == null) {
+      throw StateError(
+        'This company has no subscription record in the cloud yet. '
+        'Ask them to open the app once while online.',
+      );
+    }
+    return SubscriptionModel.fromFirestore(data, companyId);
+  }
+
+  /// A Super Admin status change: only the status and its date move.
+  Future<void> _writeStatus(SubscriptionModel updated) async {
+    await _subscriptionsCollection.doc(updated.companyId).update({
+      'status': updated.status.code,
+      'updatedAt': updated.updatedAt,
+    }).timeout(_firestoreTimeout);
+    await _syncFromFirestore(updated);
   }
 
   Future<void> _requireSuperAdmin() async {
@@ -568,17 +625,16 @@ class SubscriptionRepository {
   /// another payment from this same LIMITED state, exactly as Section
   /// 17 requires.
   Future<void> returnToLimitedAfterRejection(String companyId) async {
-    final current = await getOrCreateForCompany(companyId);
+    await _requireSuperAdmin();
+
+    final current = await _readForAdmin(companyId);
 
     if (current.status == SubscriptionStatus.active) return;
 
-    final updated = current.copyWith(
+    await _writeStatus(current.copyWith(
       status: SubscriptionStatus.limited,
       updatedAt: DateTime.now().toIso8601String(),
-    );
-
-    await _subscriptionsCollection.doc(companyId).set(updated.toFirestore()).timeout(_firestoreTimeout);
-    await _syncFromFirestore(updated);
+    ));
   }
 
   Future<List<SubscriptionHistoryModel>> getHistory(String companyId) async {
@@ -603,15 +659,10 @@ class SubscriptionRepository {
       updatedAt: DateTime.now().toIso8601String(),
     );
 
-    try {
-      await _subscriptionsCollection
-          .doc(subscription.companyId)
-          .set(expired.toFirestore())
-          .timeout(_firestoreTimeout);
-    } catch (_) {
-      // Offline - the local cache below still records it.
-    }
-
+    // Not written to the cloud: the rules let only a Super Admin change
+    // a status, so the owner's write was always refused. Lapse is read
+    // from expiryDate wherever it matters - here, in the access check
+    // and on the Super Admin dashboard.
     await _syncFromFirestore(expired);
     return expired;
   }
@@ -654,7 +705,15 @@ class SubscriptionRepository {
     );
 
     try {
-      await _subscriptionsCollection.doc(companyId).set(updated.toFirestore()).timeout(_firestoreTimeout);
+      // Only the counters: the rules let the owner raise them and
+      // nothing else here. Resending the whole record (a lapsed
+      // subscription carries status EXPIRED on this device) was
+      // refused every time, so free copies were never counted.
+      await _subscriptionsCollection.doc(companyId).update({
+        'demoGenerationsUsed': updated.demoGenerationsUsed,
+        'demoGenerationsUsedJson': updated.demoGenerationsUsedJson,
+        'updatedAt': updated.updatedAt,
+      }).timeout(_firestoreTimeout);
     } catch (_) {
       // Offline - the demo count still needs to be recorded locally so
       // the company can't bypass the limit by staying offline; it will

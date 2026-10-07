@@ -313,7 +313,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
           _load();
         }),
         button(Icons.inventory_2_outlined, 'Storage', () async {
-          await context.push('/storage-create');
+          await context.push('/storage-create',
+              extra: {'customerId': customer.id});
           _load();
         }),
         button(Icons.receipt_long_outlined, 'Bill', () async {

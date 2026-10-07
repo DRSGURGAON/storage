@@ -7,6 +7,7 @@ import '../../../core/utils/id_generator.dart';
 import '../../../shared/widgets/customer_name_field.dart';
 import '../../../shared/widgets/state_autocomplete_field.dart';
 import '../../../shared/widgets/save_problem.dart';
+import '../../customers/repositories/customer_repository.dart';
 import '../../master/models/storage_location_model.dart';
 import '../../master/repositories/storage_location_repository.dart';
 import '../../voice_entry/models/voice_entry_draft.dart';
@@ -30,10 +31,14 @@ class StorageBookingFormScreen extends StatefulWidget {
   /// tab lands here.
   final bool openVoice;
 
+  /// A new entry for this customer - opened from their page.
+  final String? customerId;
+
   const StorageBookingFormScreen({
     super.key,
     this.editBookingId,
     this.openVoice = false,
+    this.customerId,
   });
 
   @override
@@ -106,7 +111,25 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _fillByVoice();
       });
+    } else if (widget.customerId != null) {
+      _loadCustomer(widget.customerId!);
     }
+  }
+
+  Future<void> _loadCustomer(String id) async {
+    final customer = await CustomerRepository.instance.getById(id);
+    if (!mounted || customer == null) return;
+    setState(() {
+      _customerId = customer.id;
+      _customerName.text = customer.customerName;
+      _customerPhone.text = customer.mobileNumber;
+      _customerGst.text = customer.gstNumber;
+      _customerAddress.text = customer.address;
+      _customerCity.text = customer.city;
+      _customerState.text = customer.state;
+      _customerPincode.text = customer.pincode;
+      nameSeed++;
+    });
   }
 
   Future<void> _loadLocations() async {

@@ -8,6 +8,7 @@ import '../models/payment_transaction_model.dart';
 import '../models/subscription_model.dart';
 import '../repositories/payment_transaction_repository.dart';
 import '../repositories/subscription_repository.dart';
+import '../repositories/subscription_settings_repository.dart';
 import '../services/app_user_presence_service.dart';
 import '../utils/signup_counts.dart';
 
@@ -41,6 +42,8 @@ class _SuperAdminDashboardScreenState
 
   /// Null when the list could not be read - shown as unknown, not 0.
   List<AppUserRecord>? _appUsers;
+
+  int _warningDays = 30;
   bool _loading = true;
   bool _isSuperAdmin = false;
 
@@ -70,6 +73,8 @@ class _SuperAdminDashboardScreenState
     } catch (error) {
       debugPrint('Sign-in records not read: $error');
     }
+    final settings = await SubscriptionSettingsRepository.instance.get();
+    final warning = settings.expiryWarningDays;
     final pending =
         await PaymentTransactionRepository.instance.getAllUnderReview();
 
@@ -79,25 +84,42 @@ class _SuperAdminDashboardScreenState
       _subscriptions = subscriptions;
       _pendingPayments = pending;
       _appUsers = appUsers;
+      if (warning.isNotEmpty) {
+        _warningDays = warning.reduce((a, b) => a > b ? a : b);
+      }
       _isSuperAdmin = true;
       _loading = false;
     });
   }
 
-  int get _activeCount =>
-      _subscriptions.where((s) => s.status.grantsFullAccess).length;
+  // From expiryDate, not only the stored status: a lapsed record keeps
+  // status ACTIVE in the cloud (only a Super Admin may change a status),
+  // and EXPIRING_SOON is never stored at all.
+  bool _isLive(SubscriptionModel s) =>
+      s.status.grantsFullAccess && !s.hasLapsed;
+
+  int get _activeCount => _subscriptions.where(_isLive).length;
 
   int get _trialCount => _subscriptions
       .where((s) => s.status == SubscriptionStatus.limited)
       .length;
 
   int get _expiredCount => _subscriptions
-      .where((s) => s.status == SubscriptionStatus.expired)
+      .where((s) =>
+          s.status == SubscriptionStatus.expired ||
+          (s.status.grantsFullAccess && s.hasLapsed))
       .length;
 
-  int get _expiringSoonCount => _subscriptions
-      .where((s) => s.status == SubscriptionStatus.expiringSoon)
-      .length;
+  /// Live, with the last day within the largest expiry-warning window.
+  int get _expiringSoonCount {
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day);
+    return _subscriptions.where((s) {
+      final last = s.expiresOn;
+      if (!_isLive(s) || last == null) return false;
+      return last.difference(start).inDays <= _warningDays;
+    }).length;
+  }
 
   @override
   Widget build(BuildContext context) {

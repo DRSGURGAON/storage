@@ -350,9 +350,13 @@ class AppRouter {
 
       GoRoute(
         path: '/storage-create',
-        builder: (context, state) => StorageBookingFormScreen(
-          openVoice: state.extra == 'voice',
-        ),
+        builder: (context, state) {
+          final extra = state.extra;
+          return StorageBookingFormScreen(
+            openVoice: extra == 'voice',
+            customerId: extra is Map ? extra['customerId'] as String? : null,
+          );
+        },
       ),
 
       GoRoute(

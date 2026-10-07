@@ -135,6 +135,32 @@ class CompanyFirestoreSyncService {
     }
   }
 
+  /// Makes sure the signed-in account has its profile in the cloud,
+  /// even before a name is entered. Writes only when none exists.
+  ///
+  /// Without it a company whose name was never filled in had no cloud
+  /// profile, so signing in on a new phone or after a reinstall found
+  /// "no company", started a new one with a new id, and left the old
+  /// backup and subscription behind. The rules make the id permanent
+  /// once written, and a profile already there is never touched here.
+  Future<bool> ensureInCloud(CompanyModel company) async {
+    final uid = _currentUid;
+    if (uid == null || company.companyId.isEmpty) return false;
+
+    try {
+      final doc = _companiesCollection.doc(uid);
+      final existing = await doc.get().timeout(_firestoreTimeout);
+      if (existing.exists) {
+        return (existing.data()?['companyId'] as String? ?? '') ==
+            company.companyId;
+      }
+      await doc.set(_toFirestoreMap(company)).timeout(_firestoreTimeout);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Whether [uid] (the signed-in account by default) has a company in
   /// the cloud - with "could not look" reported as such, never as
   /// "none".

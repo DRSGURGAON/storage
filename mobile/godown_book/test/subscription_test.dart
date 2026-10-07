@@ -105,6 +105,7 @@ void main() {
   });
 
   test('renewing runs from the day after the current expiry', () async {
+    await repo.getOrCreateForCompany(TenantScope.companyId);
     await repo.activate(
       companyId: TenantScope.companyId,
       plan: _quarterly,
@@ -134,6 +135,7 @@ void main() {
 
   test('a lapsed subscription stops granting access and is marked expired',
       () async {
+    await repo.getOrCreateForCompany(TenantScope.companyId);
     await repo.activate(
       companyId: TenantScope.companyId,
       plan: _quarterly,
@@ -148,6 +150,73 @@ void main() {
 
     final reloaded = await repo.getOrCreateForCompany(TenantScope.companyId);
     expect(reloaded.status, SubscriptionStatus.expired);
+  });
+
+  test('a Super Admin cannot activate a company with no cloud record',
+      () async {
+    // Before: the offline fallback (owner = the admin, counters zero) was
+    // written over the company's record. Now nothing is written at all.
+    await expectLater(
+      repo.activate(
+        companyId: 'company-never-synced',
+        plan: _quarterly,
+        paymentReference: 'UTR9',
+        paymentMethod: 'MANUAL_UPI',
+        authorizedByMobileNumber: '9999999999',
+      ),
+      throwsStateError,
+    );
+    final doc = await SubscriptionRepository.firestoreOverride!
+        .collection('subscriptions')
+        .doc('company-never-synced')
+        .get();
+    expect(doc.exists, isFalse);
+  });
+
+  test('activation keeps the owner and the free copies already used',
+      () async {
+    await repo.getOrCreateForCompany(TenantScope.companyId);
+    await access.recordDemoGeneration(DocumentType.bill);
+
+    // The Super Admin acts from another account.
+    SubscriptionRepository.currentUidOverride = 'uid-admin';
+    await repo.activate(
+      companyId: TenantScope.companyId,
+      plan: _quarterly,
+      paymentReference: 'UTR10',
+      paymentMethod: 'MANUAL_UPI',
+      authorizedByMobileNumber: '9999999999',
+    );
+
+    final data = (await SubscriptionRepository.firestoreOverride!
+            .collection('subscriptions')
+            .doc(TenantScope.companyId)
+            .get())
+        .data()!;
+    expect(data['ownerUid'], 'uid-test');
+    expect(data['status'], 'ACTIVE');
+    expect(data['demoGenerationsUsed'], {'bill': 1});
+  });
+
+  test('free copies counted offline are never taken back by the cloud',
+      () async {
+    await repo.getOrCreateForCompany(TenantScope.companyId);
+    final cloud = SubscriptionRepository.firestoreOverride!;
+
+    // The cloud is behind this device: it still says no copies used.
+    await access.recordDemoGeneration(DocumentType.bill);
+    await cloud.collection('subscriptions').doc(TenantScope.companyId).update({
+      'demoGenerationsUsed': <String, int>{},
+      'demoGenerationsUsedJson': '{}',
+    });
+
+    expect(await access.getRemainingDemoGenerations(DocumentType.bill), 1);
+    final data = (await cloud
+            .collection('subscriptions')
+            .doc(TenantScope.companyId)
+            .get())
+        .data()!;
+    expect(data['demoGenerationsUsed'], {'bill': 1});
   });
 
   group('samples', () {

@@ -189,13 +189,22 @@ class KycRepository {
       final doc = await _collection.doc(companyId).get().timeout(_timeout);
       final data = doc.data();
 
-      if (data == null || local == null) return local;
+      if (data == null) return local;
 
-      final refreshed = local.copyWith(
-        status: data['status'] as String? ?? local.status,
-        reviewedAt: data['reviewedAt'] as String? ?? local.reviewedAt,
+      // A new phone or a reinstall has no local record, but the
+      // submission and its verdict are in the cloud - take them from
+      // there, or the screen says "not submitted" for an approved KYC.
+      final base = local ??
+          KycSubmissionModel(companyId: companyId).copyWith(
+            secondDocType: data['secondDocType'] as String? ?? '',
+            submittedAt: data['submittedAt'] as String? ?? '',
+          );
+
+      final refreshed = base.copyWith(
+        status: data['status'] as String? ?? base.status,
+        reviewedAt: data['reviewedAt'] as String? ?? base.reviewedAt,
         rejectionReason:
-            data['rejectionReason'] as String? ?? local.rejectionReason,
+            data['rejectionReason'] as String? ?? base.rejectionReason,
       );
 
       await saveLocal(refreshed);

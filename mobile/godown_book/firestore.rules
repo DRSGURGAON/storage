@@ -268,8 +268,11 @@ service cloud.firestore {
     // own papers and may resubmit them while pending or after a
     // rejection; it can never approve itself. The Super Admin reviews.
     match /kycSubmissions/{companyId} {
+      // resource == null: the app looks before it uploads, and account
+      // deletion deletes whether or not anything was ever submitted.
       allow get: if isSuperAdmin()
-        || (signedIn() && existing().ownerUid == request.auth.uid);
+        || (signedIn()
+            && (resource == null || existing().ownerUid == request.auth.uid));
       allow list: if isSuperAdmin();
 
       allow create: if signedIn()
@@ -290,7 +293,8 @@ service cloud.firestore {
       // the app stores in the cloud, and account deletion has to take
       // them with it.
       allow delete: if isSuperAdmin()
-        || (signedIn() && existing().ownerUid == request.auth.uid);
+        || (signedIn()
+            && (resource == null || existing().ownerUid == request.auth.uid));
     }
 
     // ==========================
