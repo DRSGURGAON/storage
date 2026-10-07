@@ -82,7 +82,6 @@ import '../../features/users/screens/users_roles_screen.dart';
 
 // Subscription
 import '../../features/subscription/models/subscription_model.dart';
-import '../../features/subscription/screens/payment_verification_queue_screen.dart';
 import '../../features/subscription/screens/subscription_history_screen.dart';
 import '../../features/subscription/screens/subscription_screen.dart';
 import '../../features/subscription/screens/super_admin_authorize_screen.dart';
@@ -108,7 +107,6 @@ class AppRouter {
   /// every other case (already-admin, another-admin-exists).
   static const Set<String> _superAdminRoutes = {
     '/super-admin',
-    '/super-admin/payment-queue',
     '/super-admin/authorize',
     '/super-admin/settings',
     '/super-admin/company-detail',
@@ -619,11 +617,6 @@ class AppRouter {
       GoRoute(
         path: '/super-admin',
         builder: (context, state) => const SuperAdminDashboardScreen(),
-      ),
-
-      GoRoute(
-        path: '/super-admin/payment-queue',
-        builder: (context, state) => const PaymentVerificationQueueScreen(),
       ),
 
       GoRoute(

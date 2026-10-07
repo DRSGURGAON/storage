@@ -110,6 +110,13 @@ class SubscriptionRepository {
   CollectionReference<Map<String, dynamic>> get _subscriptionsCollection =>
       _firestore.collection('subscriptions');
 
+  /// The company's own copy of its subscription periods - the local
+  /// table only ever held what was activated on the Super Admin's
+  /// phone, so the company itself saw an empty history.
+  CollectionReference<Map<String, dynamic>> _historyCollection(
+          String companyId) =>
+      _subscriptionsCollection.doc(companyId).collection('history');
+
   /// Fetches the company's subscription from Firestore (creating a
   /// LIMITED one on first access if none exists yet - Section 4:
   /// "When a new company registers: Default status: LIMITED /
@@ -429,6 +436,9 @@ class SubscriptionRepository {
     String? paymentMethod,
     String? authorizedByMobileNumber,
     String remarks = '',
+    // What the company actually paid, when the Super Admin typed it -
+    // otherwise the plan's own price.
+    double? amount,
     /// Super Admin's explicit start date (new document's own "Set
     /// subscription start date" requirement) - only meaningful for a
     /// fresh authorization; a genuine renewal (isStillActive true)
@@ -505,24 +515,35 @@ class SubscriptionRepository {
       },
     );
 
-    await _historyDao.insert(
-      SubscriptionHistoryModel(
-        id: IdGenerator.generateId(),
-        companyId: companyId,
-        subscriptionId: current.id,
-        planId: plan.id,
-        planName: plan.name,
-        amount: plan.finalAmount,
-        startDate: updated.startDate!,
-        endDate: updated.expiryDate!,
-        paymentReference: paymentReference,
-        paymentMethod: paymentMethod,
-        authorizedByMobileNumber: authorizedByMobileNumber,
-        authorizationDate: now.toIso8601String(),
-        status: SubscriptionStatus.active,
-        remarks: remarks,
-      ),
+    final period = SubscriptionHistoryModel(
+      id: IdGenerator.generateId(),
+      companyId: companyId,
+      subscriptionId: current.id,
+      planId: plan.id,
+      planName: plan.name,
+      amount: amount ?? plan.finalAmount,
+      startDate: updated.startDate!,
+      endDate: updated.expiryDate!,
+      paymentReference: paymentReference,
+      paymentMethod: paymentMethod,
+      authorizedByMobileNumber: authorizedByMobileNumber,
+      authorizationDate: now.toIso8601String(),
+      status: SubscriptionStatus.active,
+      remarks: remarks,
     );
+    await _historyDao.insert(period);
+
+    // The activation itself is done; a failed history copy must not
+    // report it as failed.
+    try {
+      await _historyCollection(companyId).doc(period.id).set({
+        ...period.toMap(),
+        // The Super Admin's own number stays off the company's copy.
+        'authorized_by_mobile_number': null,
+      }).timeout(_firestoreTimeout);
+    } catch (error) {
+      debugPrint('Subscription history not copied to the cloud: $error');
+    }
 
     return updated;
   }
@@ -637,8 +658,32 @@ class SubscriptionRepository {
     ));
   }
 
+  /// Every period of [companyId]'s subscription, newest first: the
+  /// cloud copy (so the company sees periods activated on the Super
+  /// Admin's phone) merged with this phone's own. Offline, this
+  /// phone's own.
   Future<List<SubscriptionHistoryModel>> getHistory(String companyId) async {
-    return _historyDao.getByCompanyId(companyId);
+    final local = await _historyDao.getByCompanyId(companyId);
+
+    try {
+      final snapshot = await _historyCollection(companyId)
+          .get()
+          .timeout(_firestoreTimeout);
+      final byId = {for (final period in local) period.id: period};
+
+      for (final doc in snapshot.docs) {
+        if (byId.containsKey(doc.id)) continue;
+        final period =
+            SubscriptionHistoryModel.fromMap({...doc.data(), 'id': doc.id});
+        byId[doc.id] = period;
+        await _historyDao.insert(period);
+      }
+
+      return byId.values.toList()
+        ..sort((a, b) => b.authorizationDate.compareTo(a.authorizationDate));
+    } catch (_) {
+      return local;
+    }
   }
 
   /// How many demo generations have already been used for
@@ -672,9 +717,7 @@ class SubscriptionRepository {
     String documentType,
   ) async {
     final current = await getOrCreateForCompany(companyId);
-    final counts = _decodeDemoCounts(current.demoGenerationsUsedJson);
-
-    return counts[documentType] ?? 0;
+    return demoGenerationsUsedIn(current, documentType);
   }
 
   /// Increments the demo-generation counter for one document type
@@ -723,7 +766,16 @@ class SubscriptionRepository {
     await _syncFromFirestore(updated);
   }
 
-  Map<String, int> _decodeDemoCounts(String json) {
+  /// Free copies of [documentType] already used, from a subscription
+  /// already in hand - no second read.
+  static int demoGenerationsUsedIn(
+    SubscriptionModel subscription,
+    String documentType,
+  ) =>
+      _decodeDemoCounts(subscription.demoGenerationsUsedJson)[documentType] ??
+      0;
+
+  static Map<String, int> _decodeDemoCounts(String json) {
     try {
       final decoded = jsonDecode(json);
       if (decoded is! Map) return {};
@@ -741,5 +793,6 @@ class SubscriptionRepository {
     }
   }
 
-  String _encodeDemoCounts(Map<String, int> counts) => jsonEncode(counts);
+  static String _encodeDemoCounts(Map<String, int> counts) =>
+      jsonEncode(counts);
 }

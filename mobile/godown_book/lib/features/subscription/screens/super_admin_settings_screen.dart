@@ -84,6 +84,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
     }
 
     final plans = await SubscriptionPlanRepository.instance.getAllPlans();
+    // What every company has, not just this phone's last edit.
+    await SubscriptionSettingsRepository.instance.syncPublished();
     final settings = await SubscriptionSettingsRepository.instance.get();
     // The signing address lives in the published platform settings,
     // not the local row - it is the same for every company.
@@ -200,6 +202,10 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
           qrLabel1: _qrLabel1Controller.text.trim(),
           qrLabel2: _qrLabel2Controller.text.trim(),
           signBaseUrl: _signBaseUrlController.text.trim(),
+          paymentInstructions: _paymentInstructionsController.text.trim(),
+          demoGenerationLimit: demoLimit,
+          watermarkText: _watermarkTextController.text.trim(),
+          expiryWarningDaysCsv: _expiryWarningDaysController.text.trim(),
         );
         final signAddress = _signBaseUrlController.text.trim();
         SignatureRepository.signBaseUrl = signAddress.isEmpty
@@ -223,8 +229,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Payment details published to every company. Demo limit '
-            'and watermark are saved on this device only.',
+            'Settings published to every company. Their app picks them '
+            'up the next time it opens.',
           ),
         ),
       );

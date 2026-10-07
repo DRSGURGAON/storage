@@ -1,3 +1,5 @@
+import 'package:sqflite/sqflite.dart';
+
 import '../../../core/database/database_helper.dart';
 import '../models/subscription_history_model.dart';
 
@@ -11,7 +13,12 @@ class SubscriptionHistoryDao {
   Future<void> insert(SubscriptionHistoryModel history) async {
     final db = await _db.database;
 
-    await db.insert('subscription_history', history.toMap());
+    // Replace: a period read back from the cloud may already be here.
+    await db.insert(
+      'subscription_history',
+      history.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<SubscriptionHistoryModel>> getByCompanyId(

@@ -498,3 +498,23 @@ describe('subscription updates the app sends', () => {
     assert.equal(after.data().ownerUid, UID_A);
   });
 });
+
+describe('subscription history', () => {
+  const period = { id: 'period-1', company_id: COMPANY_A, plan_name: 'Quarterly', amount: 599 };
+
+  it('the Super Admin adds a period; the owner reads it; nobody edits it', async () => {
+    const adminRef = doc(asAdmin(), 'subscriptions', COMPANY_A, 'history', 'period-1');
+    await assertSucceeds(setDoc(adminRef, period));
+
+    await assertSucceeds(getDocs(collection(asA(), 'subscriptions', COMPANY_A, 'history')));
+    await assertFails(updateDoc(doc(asA(), 'subscriptions', COMPANY_A, 'history', 'period-1'), { amount: 0 }));
+    await assertFails(updateDoc(adminRef, { amount: 0 }));
+    await assertFails(deleteDoc(adminRef));
+  });
+
+  it('a company cannot write its own history or read another company\'s', async () => {
+    await assertFails(setDoc(doc(asA(), 'subscriptions', COMPANY_A, 'history', 'fake'), period));
+    await assertFails(getDocs(collection(asB(), 'subscriptions', COMPANY_A, 'history')));
+    await assertFails(getDocs(collection(asNobody(), 'subscriptions', COMPANY_A, 'history')));
+  });
+});

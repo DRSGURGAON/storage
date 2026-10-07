@@ -7,9 +7,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/tenant/tenant_scope.dart';
 import '../../company/controllers/company_controller.dart';
+import '../../subscription/services/platform_settings_service.dart';
 import '../data/signature_request_dao.dart';
 import '../models/signature_request_model.dart';
 
@@ -46,6 +48,41 @@ class SignatureRepository {
   /// The project's own Firebase Hosting address, where CI deploys
   /// signing_web. A Super Admin can still publish a different one.
   static const String defaultSignBaseUrl = 'https://storagebill-pro.web.app/sign';
+
+  static const String _cachedBaseUrlKey = 'signature_base_url';
+
+  /// At startup: the last known address first (works offline), then
+  /// whatever the Super Admin has published.
+  static Future<void> loadSigningAddress() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_cachedBaseUrlKey);
+      if (cached != null && cached.isNotEmpty) signBaseUrl = cached;
+    } catch (_) {
+      // No cache - the default stands until the fetch below.
+    }
+    await refreshSigningAddress();
+  }
+
+  /// Takes the published signing address, if there is one. Also run
+  /// before each new link, so an address the Super Admin changes
+  /// while this app is open is used without a restart. Never throws:
+  /// on failure the address already known stays.
+  static Future<void> refreshSigningAddress() async {
+    try {
+      final platform = await PlatformSettingsService.instance
+          .fetch()
+          .timeout(const Duration(seconds: 5));
+      final published = platform?.signBaseUrl.trim() ?? '';
+      if (published.isEmpty) return;
+
+      signBaseUrl = published;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cachedBaseUrlKey, published);
+    } catch (_) {
+      // Offline or no published address - keep the known one.
+    }
+  }
 
   /// How long a link stays usable.
   static const Duration linkLife = Duration(days: 14);
@@ -134,6 +171,7 @@ class SignatureRepository {
     String consentText = 'I confirm the details above are correct and I agree '
         'to the terms shown.',
   }) async {
+    await refreshSigningAddress();
     if (signBaseUrl.trim().isEmpty) {
       throw const SigningNotConfigured();
     }

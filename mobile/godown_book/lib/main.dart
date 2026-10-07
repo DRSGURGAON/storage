@@ -19,8 +19,8 @@ import 'core/permissions/permission_service.dart';
 import 'core/subscription/super_admin_scope.dart';
 import 'core/tenant/tenant_bootstrap.dart';
 import 'features/signature/repositories/signature_repository.dart';
+import 'features/subscription/repositories/subscription_settings_repository.dart';
 import 'features/subscription/services/app_user_presence_service.dart';
-import 'features/subscription/services/platform_settings_service.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -97,7 +97,15 @@ Future<void> main() async {
   // cached - offline, the last known address is used, and when nothing
   // is known the signature buttons say so rather than sending a link
   // that opens on nothing.
-  unawaited(_loadSigningAddress());
+  unawaited(SignatureRepository.loadSigningAddress());
+
+  // The free-copy limit, watermark and expiry-warning days the Super
+  // Admin published, copied into this phone's own settings.
+  unawaited(SubscriptionSettingsRepository.instance
+      .syncPublished()
+      .catchError((Object error) {
+    debugPrint('Published settings not synced at startup: $error');
+  }));
 
   // Periodic document cloud backup - one pass shortly after launch,
   // then every few minutes while the app is open. Entirely
@@ -209,27 +217,6 @@ class _FirebaseInitErrorApp extends StatelessWidget {
     );
   }
 }
-
-Future<void> _loadSigningAddress() async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final cached = prefs.getString(_signBaseUrlKey);
-    if (cached != null && cached.isNotEmpty) {
-      SignatureRepository.signBaseUrl = cached;
-    }
-
-    final platform = await PlatformSettingsService.instance.fetch();
-    final published = platform?.signBaseUrl.trim() ?? '';
-    if (published.isNotEmpty) {
-      SignatureRepository.signBaseUrl = published;
-      await prefs.setString(_signBaseUrlKey, published);
-    }
-  } catch (error) {
-    debugPrint('Signing address not loaded at startup: $error');
-  }
-}
-
-const String _signBaseUrlKey = 'signature_base_url';
 
 /// Reconciles the locally-persisted "signed in" flag (AuthScope/
 /// AuthSessionNotifier's own SharedPreferences cache) against

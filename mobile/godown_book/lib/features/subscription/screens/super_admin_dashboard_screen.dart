@@ -4,9 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/subscription/subscription_status.dart';
 import '../../../core/subscription/super_admin_scope.dart';
-import '../models/payment_transaction_model.dart';
 import '../models/subscription_model.dart';
-import '../repositories/payment_transaction_repository.dart';
 import '../repositories/subscription_repository.dart';
 import '../repositories/subscription_settings_repository.dart';
 import '../services/app_user_presence_service.dart';
@@ -16,9 +14,7 @@ import '../utils/signup_counts.dart';
 ///
 /// WHERE THE FIGURES COME FROM: the company tiles are genuinely
 /// cross-company, read from Firestore through SubscriptionRepository.
-/// getAllAcrossCompanies(). "Pending Payments" is the exception - it
-/// reads payment_transactions from THIS device's local SQLite, so it
-/// counts only in-app submissions made on this phone.
+/// getAllAcrossCompanies().
 ///
 /// SECURITY NOTE: the router's own redirect guard (AppRouter's
 /// _superAdminRoutes) is the primary protection against a normal user
@@ -38,7 +34,6 @@ class _SuperAdminDashboardScreenState
   static final _joinedFormat = DateFormat('dd MMM yyyy');
 
   List<SubscriptionModel> _subscriptions = [];
-  List<PaymentTransactionModel> _pendingPayments = [];
 
   /// Null when the list could not be read - shown as unknown, not 0.
   List<AppUserRecord>? _appUsers;
@@ -75,14 +70,11 @@ class _SuperAdminDashboardScreenState
     }
     final settings = await SubscriptionSettingsRepository.instance.get();
     final warning = settings.expiryWarningDays;
-    final pending =
-        await PaymentTransactionRepository.instance.getAllUnderReview();
 
     if (!mounted) return;
 
     setState(() {
       _subscriptions = subscriptions;
-      _pendingPayments = pending;
       _appUsers = appUsers;
       if (warning.isNotEmpty) {
         _warningDays = warning.reduce((a, b) => a > b ? a : b);
@@ -169,9 +161,7 @@ class _SuperAdminDashboardScreenState
                           Expanded(
                             child: Text(
                               'Company figures are live for every company, '
-                              'read from the cloud. Pull down to refresh. '
-                              'Pending Payments counts only submissions made '
-                              'on this device.',
+                              'read from the cloud. Pull down to refresh.',
                               style: TextStyle(fontSize: 12),
                             ),
                           ),
@@ -218,11 +208,6 @@ class _SuperAdminDashboardScreenState
                         '$_expiredCount',
                         color: Colors.red,
                       ),
-                      _statTile(
-                        'Pending Payments',
-                        '${_pendingPayments.length}',
-                        color: Colors.orange,
-                      ),
                     ],
                   ),
 
@@ -238,21 +223,6 @@ class _SuperAdminDashboardScreenState
                       ),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => context.push('/super-admin/authorize'),
-                    ),
-                  ),
-
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.pending_actions),
-                      title: const Text('Payment Verification Queue'),
-                      subtitle: Text(
-                        'Optional internal reference • '
-                        '${_pendingPayments.length} payment'
-                        '${_pendingPayments.length == 1 ? '' : 's'} awaiting review',
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () =>
-                          context.push('/super-admin/payment-queue'),
                     ),
                   ),
 

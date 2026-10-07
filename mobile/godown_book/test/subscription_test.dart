@@ -9,6 +9,8 @@ import 'package:godown_book/core/tenant/tenant_scope.dart';
 import 'package:godown_book/features/subscription/repositories/subscription_repository.dart';
 import 'package:godown_book/features/subscription/repositories/subscription_settings_repository.dart';
 import 'package:godown_book/features/subscription/models/subscription_plan_model.dart';
+import 'package:godown_book/features/subscription/services/platform_settings_service.dart';
+import 'package:godown_book/core/document_theme/pdf_page_kit.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'support/test_database.dart';
@@ -254,5 +256,83 @@ void main() {
       // And no free copy was used.
       expect(await access.getRemainingDemoGenerations(DocumentType.bill), 2);
     });
+  });
+
+  test('history keeps the amount typed and is read back from the cloud',
+      () async {
+    await repo.getOrCreateForCompany(TenantScope.companyId);
+    await repo.activate(
+      companyId: TenantScope.companyId,
+      plan: _quarterly,
+      paymentReference: 'UTR11',
+      paymentMethod: 'MANUAL_UPI',
+      authorizedByMobileNumber: '9999999999',
+      amount: 599,
+    );
+
+    final cloud = await SubscriptionRepository.firestoreOverride!
+        .collection('subscriptions')
+        .doc(TenantScope.companyId)
+        .collection('history')
+        .get();
+    expect(cloud.docs.length, 1);
+    expect(cloud.docs.single.data()['amount'], 599);
+    // The Super Admin's own number is not on the company's copy.
+    expect(cloud.docs.single.data()['authorized_by_mobile_number'], isNull);
+
+    // A phone that never ran the activation (no local row) still
+    // shows the period.
+    await db.delete('subscription_history');
+    final history = await repo.getHistory(TenantScope.companyId);
+    expect(history.single.amount, 599);
+    expect(history.single.paymentReference, 'UTR11');
+  });
+
+  test('one read answers every subscription question a screen asks',
+      () async {
+    await repo.getOrCreateForCompany(TenantScope.companyId);
+    await access.recordDemoGeneration(DocumentType.bill);
+
+    final state = (await access.currentState())!;
+    expect(state.isActive, await access.isSubscriptionActive());
+    expect(state.isExpiringSoon, await access.isExpiringSoon());
+    expect(state.daysUntilExpiry, await access.daysUntilExpiry());
+    expect(state.remainingDemoGenerations(DocumentType.bill),
+        await access.getRemainingDemoGenerations(DocumentType.bill));
+    expect(state.remainingDemoGenerations(DocumentType.bill), 1);
+  });
+
+  test("the Super Admin's published Limited-mode rules reach every phone",
+      () async {
+    final cloud = FakeFirebaseFirestore();
+    PlatformSettingsService.firestoreOverride = cloud;
+    addTearDown(() {
+      PlatformSettingsService.firestoreOverride = null;
+      PdfPageKit.demoWatermarkText = 'DEMO - UNLICENSED COPY';
+    });
+
+    // Nothing published: this phone keeps what it has.
+    await SubscriptionSettingsRepository.instance.syncPublished();
+    expect((await SubscriptionSettingsRepository.instance.get())
+        .demoGenerationLimit, 2);
+
+    await cloud.doc('platformSettings/DEFAULT').set({
+      'upiId': 'ops@upi',
+      'demoGenerationLimit': 4,
+      'watermarkText': 'TRIAL COPY',
+      'expiryWarningDaysCsv': '10,5',
+      'paymentInstructions': 'Send the screenshot on WhatsApp.',
+    });
+    await SubscriptionSettingsRepository.instance.syncPublished();
+
+    final settings = await SubscriptionSettingsRepository.instance.get();
+    expect(settings.demoGenerationLimit, 4);
+    expect(settings.watermarkText, 'TRIAL COPY');
+    expect(settings.expiryWarningDays, [10, 5]);
+    expect(settings.paymentInstructions, 'Send the screenshot on WhatsApp.');
+    expect(PdfPageKit.demoWatermark, 'TRIAL COPY');
+
+    await repo.getOrCreateForCompany(TenantScope.companyId);
+    expect(await access.getRemainingDemoGenerations(DocumentType.bill), 4);
   });
 }

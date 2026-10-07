@@ -462,6 +462,15 @@ class _AuthorizeDialogState extends State<_AuthorizeDialog> {
       return;
     }
 
+    final typedAmount = _amountController.text.trim();
+    final amount = typedAmount.isEmpty ? null : double.tryParse(typedAmount);
+    if (typedAmount.isNotEmpty && (amount == null || amount < 0)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid payment amount.')),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
 
     try {
@@ -474,6 +483,7 @@ class _AuthorizeDialogState extends State<_AuthorizeDialog> {
             PermissionService.currentMobileNumberOverride,
         remarks: _remarksController.text.trim(),
         explicitStartDate: _startDate,
+        amount: amount,
       );
 
       if (!mounted) return;

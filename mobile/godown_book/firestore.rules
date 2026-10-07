@@ -194,6 +194,19 @@ service cloud.firestore {
                  incoming().get('demoGenerationsUsed', {})));
 
       allow delete: if isSuperAdmin();
+
+      // Each paid period, written when a Super Admin activates the
+      // company - read back by the company's own owner so their
+      // history is not empty on a phone the activation never ran on.
+      // Append-only: a past period is never edited or removed.
+      match /history/{entryId} {
+        allow read: if isSuperAdmin()
+          || (signedIn()
+              && get(/databases/$(database)/documents/subscriptions/$(companyId))
+                   .data.ownerUid == request.auth.uid);
+        allow create: if isSuperAdmin();
+        allow update, delete: if false;
+      }
     }
 
     // ==========================

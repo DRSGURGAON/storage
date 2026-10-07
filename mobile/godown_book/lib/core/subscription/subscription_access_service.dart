@@ -1,3 +1,4 @@
+import '../../features/subscription/models/subscription_model.dart';
 import '../../features/subscription/models/subscription_settings_model.dart';
 import '../../features/subscription/repositories/subscription_repository.dart';
 import '../../features/subscription/repositories/subscription_settings_repository.dart';
@@ -18,6 +19,35 @@ import 'subscription_status.dart';
 /// getAllAcrossCompanies() for that); this service answers "can THIS
 /// company, right now, generate THIS document" for the ordinary,
 /// signed-in, single-tenant user.
+/// Everything a screen shows about the current company's subscription,
+/// worked out from one read of it. Screens that asked for each answer
+/// separately read the subscription four times in a row - each one a
+/// cloud round trip, which held the dashboard on a spinner.
+class SubscriptionAccessState {
+  final SubscriptionModel subscription;
+  final SubscriptionSettingsModel settings;
+  final bool isActive;
+  final int? daysUntilExpiry;
+  final bool isExpiringSoon;
+
+  const SubscriptionAccessState({
+    required this.subscription,
+    required this.settings,
+    required this.isActive,
+    required this.daysUntilExpiry,
+    required this.isExpiringSoon,
+  });
+
+  /// Free copies of [documentType] still left - see
+  /// SubscriptionAccessService.getRemainingDemoGenerations.
+  int remainingDemoGenerations(String documentType) {
+    final remaining = settings.demoGenerationLimit -
+        SubscriptionRepository.demoGenerationsUsedIn(
+            subscription, documentType);
+    return remaining > 0 ? remaining : 0;
+  }
+}
+
 class SubscriptionAccessService {
   SubscriptionAccessService._();
 
@@ -42,15 +72,36 @@ class SubscriptionAccessService {
     final subscription = await _subscriptionRepository.getOrCreateForCompany(
       TenantScope.companyId,
     );
-
-    // The stored status alone is not enough: nothing flips ACTIVE to
-    // EXPIRED on its own (a Super Admin would have to do it by hand on
-    // every lapsed company), so a subscription whose last day has
-    // passed must be treated as lapsed here - otherwise one payment
-    // would buy unlimited documents forever.
-    if (!subscription.status.grantsFullAccess) return false;
-    return !subscription.hasLapsed;
+    return _grantsAccess(subscription);
   }
+
+  /// The current company's subscription and every answer about it, from
+  /// a single read. Null before a company exists (onboarding).
+  Future<SubscriptionAccessState?> currentState() async {
+    if (!TenantScope.isReady) return null;
+
+    final subscription = await _subscriptionRepository.getOrCreateForCompany(
+      TenantScope.companyId,
+    );
+    final settings = await _settingsRepository.get();
+    final days = _daysLeft(subscription);
+
+    return SubscriptionAccessState(
+      subscription: subscription,
+      settings: settings,
+      isActive: _grantsAccess(subscription),
+      daysUntilExpiry: days,
+      isExpiringSoon: _expiringSoon(days, settings),
+    );
+  }
+
+  // The stored status alone is not enough: nothing flips ACTIVE to
+  // EXPIRED on its own (a Super Admin would have to do it by hand on
+  // every lapsed company), so a subscription whose last day has
+  // passed must be treated as lapsed here - otherwise one payment
+  // would buy unlimited documents forever.
+  static bool _grantsAccess(SubscriptionModel subscription) =>
+      subscription.status.grantsFullAccess && !subscription.hasLapsed;
 
   /// Days remaining until the current company's subscription expires -
   /// null if there is no subscription, no expiry date, or the
@@ -63,7 +114,10 @@ class SubscriptionAccessService {
     final subscription = await _subscriptionRepository.getOrCreateForCompany(
       TenantScope.companyId,
     );
+    return _daysLeft(subscription);
+  }
 
+  static int? _daysLeft(SubscriptionModel subscription) {
     if (subscription.status != SubscriptionStatus.active) return null;
 
     final expiry = DateTime.tryParse(subscription.expiryDate ?? '');
@@ -92,7 +146,12 @@ class SubscriptionAccessService {
     final days = await daysUntilExpiry();
     if (days == null || days < 0) return false;
 
-    final settings = await _settingsRepository.get();
+    return _expiringSoon(days, await _settingsRepository.get());
+  }
+
+  static bool _expiringSoon(int? days, SubscriptionSettingsModel settings) {
+    if (days == null || days < 0) return false;
+
     final thresholds = settings.expiryWarningDays;
     if (thresholds.isEmpty) return false;
 

@@ -14,6 +14,11 @@ import 'document_theme.dart';
 /// document service only lays out what is specific to it, and every
 /// document in the app looks like it came from the same office.
 class PdfPageKit {
+  /// What a free copy's watermark says when the caller passes no text
+  /// of its own - the Super Admin's published wording, kept here by
+  /// SubscriptionSettingsRepository.syncPublished.
+  static String demoWatermarkText = 'DEMO - UNLICENSED COPY';
+
   PdfPageKit._();
 
   static const PdfColor black = PdfColors.black;
@@ -29,6 +34,10 @@ class PdfPageKit {
       return null;
     }
   }
+
+  static String get demoWatermark => demoWatermarkText.trim().isEmpty
+      ? 'DEMO - UNLICENSED COPY'
+      : demoWatermarkText;
 
   /// A4 page with a thin full-page frame and, for unsubscribed
   /// copies, the diagonal demo watermark.
@@ -66,7 +75,7 @@ class PdfPageKit {
                 child: pw.Opacity(
                   opacity: watermarkOpacity,
                   child: pw.Watermark.text(
-                    watermarkText.isEmpty ? 'DEMO - UNLICENSED COPY' : watermarkText,
+                    watermarkText.isEmpty ? demoWatermark : watermarkText,
                     style: pw.TextStyle(
                       fontSize: 40,
                       fontWeight: pw.FontWeight.bold,

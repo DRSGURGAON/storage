@@ -22,7 +22,6 @@ import '../models/subscription_plan_model.dart';
 import '../models/subscription_settings_model.dart';
 import '../services/platform_settings_service.dart';
 import '../repositories/subscription_plan_repository.dart';
-import '../repositories/subscription_repository.dart';
 import '../repositories/subscription_settings_repository.dart';
 
 /// Subscription status, pricing plans, and a scannable UPI QR - the
@@ -86,15 +85,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       return;
     }
 
-    final subscription = await SubscriptionRepository.instance
-        .getOrCreateForCompany(TenantScope.companyId);
     final plans = await SubscriptionPlanRepository.instance.getActivePlans();
-    final settings = await SubscriptionSettingsRepository.instance.get();
+    await SubscriptionSettingsRepository.instance.syncPublished();
     final company = await CompanyController.instance.getCompany();
-    final isExpiringSoon =
-        await SubscriptionAccessService.instance.isExpiringSoon();
-    final daysUntilExpiry =
-        await SubscriptionAccessService.instance.daysUntilExpiry();
+    // One read of the subscription for every answer below.
+    final access = (await SubscriptionAccessService.instance.currentState())!;
+    final subscription = access.subscription;
+    final settings = access.settings;
+    final isExpiringSoon = access.isExpiringSoon;
+    final daysUntilExpiry = access.daysUntilExpiry;
 
     if (!mounted) return;
 

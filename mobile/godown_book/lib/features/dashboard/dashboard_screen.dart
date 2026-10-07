@@ -12,7 +12,6 @@ import '../../core/contact/contact_launcher.dart';
 import '../../core/subscription/subscription_access_service.dart';
 import '../../core/subscription/subscription_status.dart';
 import '../../core/tenant/tenant_provider.dart';
-import '../../core/tenant/tenant_scope.dart';
 import '../../core/update/app_update_banner.dart';
 import '../company/controllers/company_controller.dart';
 import '../company/models/company_model.dart';
@@ -23,7 +22,6 @@ import '../subscription/services/platform_settings_service.dart';
 import '../promo/promo_banner.dart';
 import '../subscription/models/subscription_model.dart';
 import '../subscription/models/subscription_settings_model.dart';
-import '../subscription/repositories/subscription_repository.dart';
 import '../subscription/repositories/subscription_settings_repository.dart';
 import 'services/dashboard_stats_service.dart';
 
@@ -75,12 +73,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     var isExpiringSoon = false;
     int? daysUntilExpiry;
 
-    if (TenantScope.isReady) {
-      subscription = await SubscriptionRepository.instance
-          .getOrCreateForCompany(TenantScope.companyId);
-      isActive = await SubscriptionAccessService.instance.isSubscriptionActive();
-      isExpiringSoon = await SubscriptionAccessService.instance.isExpiringSoon();
-      daysUntilExpiry = await SubscriptionAccessService.instance.daysUntilExpiry();
+    // One read of the subscription for every answer below.
+    final access = await SubscriptionAccessService.instance.currentState();
+    if (access != null) {
+      subscription = access.subscription;
+      isActive = access.isActive;
+      isExpiringSoon = access.isExpiringSoon;
+      daysUntilExpiry = access.daysUntilExpiry;
     }
 
     final supportSettings = await SubscriptionSettingsRepository.instance.get();

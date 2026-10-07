@@ -55,6 +55,14 @@ class PlatformSettings {
   final String whatsappNumber;
   final String supportPhoneNumber;
 
+  /// Limited-mode rules and the payment note, the same for every
+  /// company. Blank (or a null limit) means "never published" - the
+  /// company keeps what it already has.
+  final String paymentInstructions;
+  final int? demoGenerationLimit;
+  final String watermarkText;
+  final String expiryWarningDaysCsv;
+
   const PlatformSettings({
     this.upiId = '',
     this.merchantName = '',
@@ -65,6 +73,10 @@ class PlatformSettings {
     this.signBaseUrl = '',
     this.whatsappNumber = '',
     this.supportPhoneNumber = '',
+    this.paymentInstructions = '',
+    this.demoGenerationLimit,
+    this.watermarkText = '',
+    this.expiryWarningDaysCsv = '',
   });
 
   bool get hasAnyQr => qr1 != null || qr2 != null;
@@ -115,6 +127,10 @@ class PlatformSettingsService {
         signBaseUrl: data['signBaseUrl'] as String? ?? '',
         whatsappNumber: data['whatsappNumber'] as String? ?? '',
         supportPhoneNumber: data['supportPhoneNumber'] as String? ?? '',
+        paymentInstructions: data['paymentInstructions'] as String? ?? '',
+        demoGenerationLimit: (data['demoGenerationLimit'] as num?)?.toInt(),
+        watermarkText: data['watermarkText'] as String? ?? '',
+        expiryWarningDaysCsv: data['expiryWarningDaysCsv'] as String? ?? '',
       );
     } catch (_) {
       // Offline, permission denied, or no document yet - all mean the
@@ -172,6 +188,10 @@ class PlatformSettingsService {
       supportPhoneNumber: cloud.supportPhoneNumber.isNotEmpty
           ? cloud.supportPhoneNumber
           : shipped.supportPhoneNumber,
+      paymentInstructions: cloud.paymentInstructions,
+      demoGenerationLimit: cloud.demoGenerationLimit,
+      watermarkText: cloud.watermarkText,
+      expiryWarningDaysCsv: cloud.expiryWarningDaysCsv,
     );
   }
 
@@ -192,6 +212,10 @@ class PlatformSettingsService {
     String signBaseUrl = '',
     String whatsappNumber = '',
     String supportPhoneNumber = '',
+    String? paymentInstructions,
+    int? demoGenerationLimit,
+    String? watermarkText,
+    String? expiryWarningDaysCsv,
   }) async {
     if (qr1 != null && qr1.length > maxQrBytes) {
       throw ArgumentError(
@@ -216,6 +240,13 @@ class PlatformSettingsService {
       'signBaseUrl': signBaseUrl,
       'whatsappNumber': whatsappNumber,
       'supportPhoneNumber': supportPhoneNumber,
+      if (paymentInstructions != null)
+        'paymentInstructions': paymentInstructions,
+      if (demoGenerationLimit != null)
+        'demoGenerationLimit': demoGenerationLimit,
+      if (watermarkText != null) 'watermarkText': watermarkText,
+      if (expiryWarningDaysCsv != null)
+        'expiryWarningDaysCsv': expiryWarningDaysCsv,
       'updatedAt': DateTime.now().toIso8601String(),
     }, SetOptions(merge: true)).timeout(_timeout);
 
@@ -229,6 +260,11 @@ class PlatformSettingsService {
         'signBaseUrl': signBaseUrl,
         'whatsappNumber': whatsappNumber,
         'supportPhoneNumber': supportPhoneNumber,
+        if (demoGenerationLimit != null)
+          'demoGenerationLimit': demoGenerationLimit,
+        if (watermarkText != null) 'watermarkText': watermarkText,
+        if (expiryWarningDaysCsv != null)
+          'expiryWarningDaysCsv': expiryWarningDaysCsv,
       },
     );
   }

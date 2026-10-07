@@ -88,10 +88,12 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
   }
 
   Future<void> _load() async {
-    final service = SubscriptionAccessService.instance;
-    final active = await service.isSubscriptionActive();
-    final remaining =
-        active ? 0 : await service.getRemainingDemoGenerations(widget.documentType);
+    // One read of the subscription answers both questions.
+    final access = await SubscriptionAccessService.instance.currentState();
+    final active = access?.isActive ?? false;
+    final remaining = access == null || active
+        ? 0
+        : access.remainingDemoGenerations(widget.documentType);
 
     if (!mounted) return;
     setState(() {
