@@ -113,8 +113,12 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
       _demoLimitController.text = '${settings.demoGenerationLimit}';
       _watermarkTextController.text = settings.watermarkText;
       _expiryWarningDaysController.text = settings.expiryWarningDaysCsv;
+      // A blank published address means "none chosen", not "links off":
+      // show the address actually in use.
       _signBaseUrlController.text =
-          platform?.signBaseUrl ?? SignatureRepository.signBaseUrl;
+          (platform?.signBaseUrl.trim().isNotEmpty ?? false)
+              ? platform!.signBaseUrl
+              : SignatureRepository.signBaseUrl;
       _isSuperAdmin = true;
       _loading = false;
     });
@@ -197,7 +201,10 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
           qrLabel2: _qrLabel2Controller.text.trim(),
           signBaseUrl: _signBaseUrlController.text.trim(),
         );
-        SignatureRepository.signBaseUrl = _signBaseUrlController.text.trim();
+        final signAddress = _signBaseUrlController.text.trim();
+        SignatureRepository.signBaseUrl = signAddress.isEmpty
+            ? SignatureRepository.defaultSignBaseUrl
+            : signAddress;
       } catch (error) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -539,10 +546,9 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Signing page web address',
                         hintText: 'https://storagebill-pro.web.app/sign',
-                        helperText: 'Where the signature link opens. Deploy '
-                            'signing_web to Firebase Hosting and put its '
-                            'address here. Blank means signature links are '
-                            'switched off.',
+                        helperText: 'Where the signature link opens. Leave '
+                            'it as it is unless the signing page is hosted '
+                            'somewhere else.',
                         helperMaxLines: 3,
                       ),
                     ),

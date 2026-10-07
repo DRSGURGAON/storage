@@ -43,7 +43,9 @@ class SignatureRepository {
   /// per-company value.
   static String signBaseUrl = defaultSignBaseUrl;
 
-  static const String defaultSignBaseUrl = '';
+  /// The project's own Firebase Hosting address, where CI deploys
+  /// signing_web. A Super Admin can still publish a different one.
+  static const String defaultSignBaseUrl = 'https://storagebill-pro.web.app/sign';
 
   /// How long a link stays usable.
   static const Duration linkLife = Duration(days: 14);

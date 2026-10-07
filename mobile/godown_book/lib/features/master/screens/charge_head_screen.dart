@@ -33,6 +33,9 @@ class ChargeHeadScreen extends ConsumerWidget {
         builder: (dialogContext, setDialogState) => AlertDialog(
           title: Text(existing == null ? 'New Charge Head' : 'Edit Charge Head'),
           content: SingleChildScrollView(
+            // Room for the first field's floating label, which the
+            // scroll view would otherwise clip.
+            padding: const EdgeInsets.only(top: 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,

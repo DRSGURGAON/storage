@@ -325,6 +325,9 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
         builder: (dialogContext, setDialogState) => AlertDialog(
           title: Text(existing == null ? 'Add Service' : 'Edit Service'),
           content: SingleChildScrollView(
+            // Room for the first field's floating label, which the
+            // scroll view would otherwise clip.
+            padding: const EdgeInsets.only(top: 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,

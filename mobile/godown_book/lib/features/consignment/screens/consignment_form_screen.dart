@@ -459,6 +459,9 @@ class _ConsignmentFormScreenState extends State<ConsignmentFormScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Add item'),
         content: SingleChildScrollView(
+          // Room for the first field's floating label, which the
+          // scroll view would otherwise clip.
+          padding: const EdgeInsets.only(top: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

@@ -255,6 +255,63 @@ jobs:
         if: always()
         run: rm -f android/godown-book.jks android/key.properties
 
+  # The customer signing page (signing_web) on Firebase Hosting, at
+  # https://storagebill-pro.web.app/sign - the address the app sends in
+  # every signature link. Its Firebase settings are taken from the
+  # android block of the same firebase_options.dart secret the app is
+  # built with (project id and API key - public values that ship in
+  # every APK), so nothing extra has to be configured.
+  signing-page:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile/godown_book
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Write the signing page's Firebase settings
+        env:
+          FIREBASE_OPTIONS_DART: ${{ secrets.GODOWN_BOOK_FIREBASE_OPTIONS_DART }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys
+          options = os.environ.get('FIREBASE_OPTIONS_DART', '')
+          block = re.search(r'android\s*=\s*FirebaseOptions\((.*?)\);', options, re.S)
+          if not block:
+              print('::error::No android FirebaseOptions block in GODOWN_BOOK_FIREBASE_OPTIONS_DART')
+              sys.exit(1)
+          def field(name):
+              m = re.search(name + r"\s*:\s*'([^']+)'", block.group(1))
+              return m.group(1) if m else ''
+          project, key = field('projectId'), field('apiKey')
+          if project != 'storagebill-pro' or not key or 'REPLACE' in key:
+              print(f'::error::Unexpected Firebase settings (project {project!r})')
+              sys.exit(1)
+          config = {'apiKey': key, 'authDomain': f'{project}.firebaseapp.com', 'projectId': project}
+          with open('signing_web/firebase-config.js', 'w') as f:
+              f.write('window.GODOWN_BOOK_FIREBASE_CONFIG = ' + json.dumps(config) + ';\n')
+          print(f'Signing page configured for {project}')
+          PY
+
+      - name: Deploy the signing page
+        env:
+          SERVICE_ACCOUNT: ${{ secrets.GODOWN_BOOK_FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SERVICE_ACCOUNT" ]; then
+            echo "::error::GODOWN_BOOK_FIREBASE_SERVICE_ACCOUNT is not set; the signing page cannot be deployed."
+            exit 1
+          fi
+          trap 'rm -f "$RUNNER_TEMP/firebase-sa.json"' EXIT
+          printf '%s' "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+          npx --yes firebase-tools@15 deploy --only hosting --project storagebill-pro --non-interactive
+          echo "Signing page live at https://storagebill-pro.web.app/sign"
+
   # The rules are tested against the Firestore emulator on every push:
   # a company can only reach its own data, entitlements cannot be
   # changed by a client, platform collections are closed to normal

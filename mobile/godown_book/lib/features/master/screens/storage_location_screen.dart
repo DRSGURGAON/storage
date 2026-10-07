@@ -47,6 +47,9 @@ class _StorageLocationScreenState extends State<StorageLocationScreen> {
       builder: (dialogContext) => AlertDialog(
         title: Text(existing == null ? 'New Location' : 'Edit Location'),
         content: SingleChildScrollView(
+          // Room for the first field's floating label, which the
+          // scroll view would otherwise clip.
+          padding: const EdgeInsets.only(top: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

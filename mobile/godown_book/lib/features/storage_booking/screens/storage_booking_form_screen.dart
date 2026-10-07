@@ -359,6 +359,9 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
       builder: (dialogContext) => AlertDialog(
         title: Text(existing == null ? 'Add Item' : 'Edit Item'),
         content: SingleChildScrollView(
+          // Room for the first field's floating label, which the
+          // scroll view would otherwise clip.
+          padding: const EdgeInsets.only(top: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

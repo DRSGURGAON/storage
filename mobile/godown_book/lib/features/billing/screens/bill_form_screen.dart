@@ -242,6 +242,9 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
         builder: (dialogContext, setDialogState) => AlertDialog(
           title: const Text('Charge details'),
           content: SingleChildScrollView(
+            // Room for the first field's floating label, which the
+            // scroll view would otherwise clip.
+            padding: const EdgeInsets.only(top: 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -457,6 +460,9 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
         builder: (dialogContext, setDialogState) => AlertDialog(
           title: const Text('Add Charge'),
           content: SingleChildScrollView(
+            // Room for the first field's floating label, which the
+            // scroll view would otherwise clip.
+            padding: const EdgeInsets.only(top: 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
