@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 import '../../../core/subscription/super_admin_scope.dart';
 import '../data/subscription_plan_dao.dart';
 import '../models/subscription_plan_model.dart';
@@ -12,15 +10,6 @@ class SubscriptionPlanRepository {
       SubscriptionPlanRepository._();
 
   final SubscriptionPlanDao _dao = SubscriptionPlanDao.instance;
-
-  /// One sync attempt per app run, like the update check - a price the
-  /// Super Admin changes is not something every rebuild of a list needs
-  /// to go to the network for, and a device that is offline now should
-  /// not stall the subscription screen again on the next tap.
-  bool _synced = false;
-
-  @visibleForTesting
-  static void resetPublishedPriceSync() => instance._synced = false;
 
   /// Every company reads active plans - no restriction, this is what
   /// the Subscription screen shows to any signed-in user.
@@ -73,14 +62,16 @@ class SubscriptionPlanRepository {
   }
 
   /// Takes whatever the Super Admin has published and writes it onto
-  /// this device's rows. Nothing published, nothing reachable, or a
+  /// this device's rows - on every read, not once per app run. With a
+  /// once-per-run guard a company whose app was already open (or whose
+  /// first read failed) kept quoting the old price until the app was
+  /// killed, so a Super Admin's change looked like it had not gone out.
+  /// It is one small document; offline, Firestore answers from its
+  /// cache or fails fast and the local prices stand. Nothing published, nothing reachable, or a
   /// plan this install has never seeded all leave the local prices
   /// alone - the seeded launch prices are a sane thing to show, zero
   /// is not.
   Future<void> _applyPublishedPrices() async {
-    if (_synced) return;
-    _synced = true; // one attempt per run, whether or not it succeeds
-
     final published = await PlatformPlansService.instance.fetch();
     if (published == null) return;
 

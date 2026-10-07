@@ -26,7 +26,6 @@ void main() {
     PlatformAuditLogService.firestoreOverride = cloud;
     PlatformAuditLogService.currentUidOverride = 'uid-admin';
     SuperAdminScope.overrideForTesting(true);
-    SubscriptionPlanRepository.resetPublishedPriceSync();
   });
 
   tearDown(() async {
@@ -94,6 +93,22 @@ void main() {
       final quarterly = (await repo.getAllPlans())
           .firstWhere((p) => p.code == 'PLAN_QUARTERLY');
       expect(quarterly.taxPercent, 18);
+    });
+
+    test('a price changed while the app is open reaches the next read',
+        () async {
+      // The other company's app is already open and has read once.
+      expect(await priceOf('PLAN_QUARTERLY'), 699);
+
+      // The Super Admin then publishes a new price.
+      await cloud.doc(PlatformPlansService.docPath).set({
+        'plans': [
+          {'code': 'PLAN_QUARTERLY', 'price': 299},
+        ],
+      });
+
+      // Reopening the subscription screen - same app run - shows it.
+      expect(await priceOf('PLAN_QUARTERLY'), 299);
     });
 
     test('nothing published: the seeded launch prices stand', () async {
