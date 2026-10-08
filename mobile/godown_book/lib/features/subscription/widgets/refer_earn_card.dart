@@ -8,9 +8,9 @@ import '../repositories/subscription_repository.dart';
 
 /// "Refer & Earn" - the same card as Bill N Bilty's: a company's App ID
 /// is its referral code. When a company that entered it is activated on
-/// a plan of 12 months or more, the referrer gets one month free
-/// (given on activation by the Super Admin - see
-/// SubscriptionRepository._rewardReferrer).
+/// a plan of 12 months or more, the referrer gets one month free, once
+/// the Super Admin has verified the referral is genuine
+/// (ReferralReviewDialog).
 ///
 /// Also lets a new company enter the App ID of whoever referred them, once.
 class ReferEarnCard extends StatefulWidget {
@@ -296,8 +296,9 @@ class _ReferEarnCardState extends State<ReferEarnCard> {
             const Padding(
               padding: EdgeInsets.only(top: 6),
               child: Text(
-                'Can be added once. Your friend gets their free month when '
-                'your 1-year (or longer) plan is activated.',
+                'The code can be added only once. Referrals are verified by '
+                'our team before the bonus is given; an incorrect code will '
+                'not earn any bonus.',
                 style: TextStyle(fontSize: 11.5, color: _muted),
               ),
             ),

@@ -108,7 +108,7 @@ class _SuperAdminDashboardScreenState
       _subscriptions.where((s) => s.referredBy.isNotEmpty).toList();
 
   List<SubscriptionModel> get _pendingReferrals =>
-      _referred.where((s) => !s.referralRewarded).toList();
+      _referred.where((s) => s.referralPending).toList();
 
   static String _label(SubscriptionModel s) {
     final name = s.companyName.trim();
@@ -133,7 +133,7 @@ class _SuperAdminDashboardScreenState
 
     final rows = [
       ..._pendingReferrals,
-      ..._referred.where((s) => s.referralRewarded),
+      ..._referred.where((s) => !s.referralPending),
     ];
 
     showModalBottomSheet<void>(
@@ -158,9 +158,9 @@ class _SuperAdminDashboardScreenState
             ),
             const SizedBox(height: 4),
             const Text(
-              'The bonus is given automatically when you activate a 1-year '
-              '(or longer) plan for the referred company. "Pending" ones '
-              'can also be given by hand from the company details.',
+              'Every referral is verified before a bonus is given. Open a '
+              'pending referral, confirm it with the referring company, '
+              'then approve or reject it.',
               style: TextStyle(fontSize: 12.5, color: Colors.grey),
             ),
             const SizedBox(height: 12),
@@ -175,11 +175,12 @@ class _SuperAdminDashboardScreenState
                   child: ListTile(
                     title: Text(_label(friend)),
                     subtitle: Text(
-                      'Referred by ${referrerOf(friend) == null ? 'App ID ${friend.referredBy}' : _label(referrerOf(friend)!)}\n'
+                      'Referred by ${referrerOf(friend) == null ? 'App ID ${friend.referredBy} (not registered)' : _label(referrerOf(friend)!)}'
+                      '${(referrerOf(friend)?.ownerMobile ?? '').isEmpty ? '' : ' • ${referrerOf(friend)!.ownerMobile}'}\n'
                       '${friend.status.label}',
                     ),
                     isThreeLine: true,
-                    trailing: _referralChip(friend.referralRewarded),
+                    trailing: _referralChip(friend),
                     onTap: () {
                       Navigator.pop(sheetContext);
                       context.push(
@@ -195,19 +196,24 @@ class _SuperAdminDashboardScreenState
     );
   }
 
-  Widget _referralChip(bool given) {
+  Widget _referralChip(SubscriptionModel friend) {
+    final (text, color) = friend.referralRewarded
+        ? ('Given', Colors.green.shade700)
+        : friend.referralRejected
+            ? ('Rejected', Colors.red.shade700)
+            : ('Pending', Colors.orange.shade800);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: (given ? Colors.green : Colors.orange).withValues(alpha: 0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        given ? 'Given' : 'Pending',
+        text,
         style: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
-          color: given ? Colors.green.shade700 : Colors.orange.shade800,
+          color: color,
         ),
       ),
     );
@@ -346,7 +352,7 @@ class _SuperAdminDashboardScreenState
                       title: const Text('Refer & Earn'),
                       subtitle: Text(
                         '${_referred.length} referred • '
-                        '${_pendingReferrals.length} bonus pending',
+                        '${_pendingReferrals.length} awaiting verification',
                       ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -437,7 +443,7 @@ class _SuperAdminDashboardScreenState
       if (joined != null) 'Joined ${_joinedFormat.format(joined)}',
       if (subscription.referredBy.isNotEmpty)
         'Referred by ${subscription.referredBy}'
-            '${subscription.referralRewarded ? '' : ' (bonus pending)'}',
+            '${subscription.referralPending ? ' (to verify)' : ''}',
     ].join('  ·  ');
   }
 

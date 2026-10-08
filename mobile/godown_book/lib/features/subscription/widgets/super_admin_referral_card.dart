@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import '../../company/services/app_id_counter_service.dart';
 import '../models/subscription_model.dart';
 import '../repositories/subscription_repository.dart';
+import 'referral_review_dialog.dart';
 
 /// Super Admin > company details: everything about Refer & Earn for one
-/// company - who referred it and whether that bonus was given, whom it
-/// referred, the free months it earned - plus the two manual actions:
-/// "Give bonus now" and "Add 1 month free".
+/// company - who referred it and the status of that referral, whom it
+/// referred, the free months it earned - plus "Verify referral" (see
+/// ReferralReviewDialog) and "Add 1 month free".
 class SuperAdminReferralCard extends StatefulWidget {
   const SuperAdminReferralCard({
     super.key,
@@ -31,6 +32,7 @@ class _SuperAdminReferralCardState extends State<SuperAdminReferralCard> {
 
   bool _loading = true;
   bool _acting = false;
+  bool _loadFailed = false;
   SubscriptionModel? _referrer;
   List<SubscriptionModel> _referred = [];
 
@@ -57,6 +59,7 @@ class _SuperAdminReferralCardState extends State<SuperAdminReferralCard> {
     final repo = SubscriptionRepository.instance;
     SubscriptionModel? referrer;
     var referred = <SubscriptionModel>[];
+    var failed = false;
     try {
       if (_sub.referredBy.isNotEmpty) {
         referrer = await repo.getByCompanyCode(_sub.referredBy);
@@ -64,9 +67,11 @@ class _SuperAdminReferralCardState extends State<SuperAdminReferralCard> {
       if (_appId.isNotEmpty) referred = await repo.getReferredBy(_appId);
     } catch (_) {
       // Offline: the card still shows what the subscription itself holds.
+      failed = true;
     }
     if (!mounted) return;
     setState(() {
+      _loadFailed = failed;
       _referrer = referrer;
       _referred = referred;
       _loading = false;
@@ -100,33 +105,9 @@ class _SuperAdminReferralCardState extends State<SuperAdminReferralCard> {
     widget.onChanged();
   }
 
-  Future<void> _giveBonusNow() async {
-    final referrerName = _referrer == null
-        ? 'App ID ${_sub.referredBy}'
-        : _label(_referrer!);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Give referral bonus?'),
-        content: Text(
-          '$referrerName gets 1 month free for referring this company. '
-          'This can be given only once for this company.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Give 1 month'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    await _run(() => SubscriptionRepository.instance
-        .giveReferralBonusNow(_sub.companyId));
+  Future<void> _review() async {
+    final decided = await ReferralReviewDialog.showIfPending(context, _sub);
+    if (decided) widget.onChanged();
   }
 
   Future<void> _addFreeMonth() async {
@@ -184,7 +165,12 @@ class _SuperAdminReferralCardState extends State<SuperAdminReferralCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final pending = _sub.referredBy.isNotEmpty && !_sub.referralRewarded;
+    final pending = _sub.referralPending;
+    final (statusText, statusColor) = _sub.referralRewarded
+        ? ('Verified - bonus given', _green)
+        : _sub.referralRejected
+            ? ('Not genuine - no bonus', Colors.red)
+            : ('Awaiting verification', _orange);
 
     return Card(
       child: Padding(
@@ -226,25 +212,33 @@ class _SuperAdminReferralCardState extends State<SuperAdminReferralCard> {
                     : _label(_referrer!),
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
+              if (_referrer != null &&
+                  _referrer!.ownerMobile.trim().isNotEmpty)
+                Text(
+                  'Mobile: ${_referrer!.ownerMobile.trim()}',
+                  style: const TextStyle(fontSize: 12.5),
+                ),
+              if (!_loading && !_loadFailed && _referrer == null)
+                const Text(
+                  'No company is registered with this App ID.',
+                  style: TextStyle(fontSize: 12.5, color: Colors.red),
+                ),
               const SizedBox(height: 6),
-              _statusChip(
-                pending ? 'Bonus pending' : 'Bonus given',
-                pending ? _orange : _green,
-              ),
+              _statusChip(statusText, statusColor),
               if (pending) ...[
                 const SizedBox(height: 6),
                 const Text(
-                  'Given automatically when you activate a 1-year (or '
-                  'longer) plan for this company. Or give it now:',
+                  'Confirm the referral with the referring company, then '
+                  'approve it to give them 1 month free.',
                   style: TextStyle(fontSize: 12.5, color: Colors.grey),
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: _acting ? null : _giveBonusNow,
-                    icon: const Icon(Icons.redeem, size: 18),
-                    label: const Text('Give bonus now (1 month)'),
+                    onPressed: _acting ? null : _review,
+                    icon: const Icon(Icons.verified_user_outlined, size: 18),
+                    label: const Text('Verify referral'),
                     style: FilledButton.styleFrom(backgroundColor: _gold),
                   ),
                 ),
@@ -272,8 +266,16 @@ class _SuperAdminReferralCardState extends State<SuperAdminReferralCard> {
                     children: [
                       Expanded(child: Text(_label(friend))),
                       _statusChip(
-                        friend.referralRewarded ? 'Given' : 'Pending',
-                        friend.referralRewarded ? _green : _orange,
+                        friend.referralRewarded
+                            ? 'Given'
+                            : friend.referralRejected
+                                ? 'Rejected'
+                                : 'Pending',
+                        friend.referralRewarded
+                            ? _green
+                            : friend.referralRejected
+                                ? Colors.red
+                                : _orange,
                       ),
                     ],
                   ),

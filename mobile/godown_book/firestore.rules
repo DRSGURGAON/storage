@@ -175,6 +175,7 @@ service cloud.firestore {
                 || incoming().demoGenerationsUsed == {})
             // Refer & Earn rewards are never self-granted.
             && incoming().get('referralRewarded', false) == false
+            && incoming().get('referralRejected', false) == false
             && incoming().get('referralBonusDays', 0) == 0
             && incoming().get('referralCount', 0) == 0);
 
@@ -199,7 +200,8 @@ service cloud.firestore {
             // Refer & Earn: who referred this company is set once, by
             // its owner, and never to its own App ID. The rewards
             // (referralRewarded, referralBonusDays, referralCount) are
-            // not in the list above - Super Admin only.
+            // not in the list above - Super Admin only, as is the
+            // verdict on a referral (referralRejected).
             && (!changedKeys().hasAny(['referredBy'])
                 || (existing().get('referredBy', '') == ''
                     && incoming().referredBy is string

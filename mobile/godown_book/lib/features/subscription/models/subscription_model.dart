@@ -92,12 +92,20 @@ class SubscriptionModel {
   /// True once the referrer got their month for this company.
   final bool referralRewarded;
 
+  /// True when the Super Admin checked the referral and found it not
+  /// genuine - no bonus is given for it. Super Admin only.
+  final bool referralRejected;
+
   /// Free days earned while no plan was running - added on top of the
   /// next activation. Super Admin only.
   final int referralBonusDays;
 
   /// Free months this company has earned by referring others.
   final int referralCount;
+
+  /// A referral still waiting for the Super Admin's decision.
+  bool get referralPending =>
+      referredBy.isNotEmpty && !referralRewarded && !referralRejected;
 
   final String createdAt;
   final String updatedAt;
@@ -119,6 +127,7 @@ class SubscriptionModel {
     this.demoGenerationsUsedJson = '{}',
     this.referredBy = '',
     this.referralRewarded = false,
+    this.referralRejected = false,
     this.referralBonusDays = 0,
     this.referralCount = 0,
     required this.createdAt,
@@ -202,6 +211,7 @@ class SubscriptionModel {
     String? demoGenerationsUsedJson,
     String? referredBy,
     bool? referralRewarded,
+    bool? referralRejected,
     int? referralBonusDays,
     int? referralCount,
     String? updatedAt,
@@ -225,6 +235,7 @@ class SubscriptionModel {
           demoGenerationsUsedJson ?? this.demoGenerationsUsedJson,
       referredBy: referredBy ?? this.referredBy,
       referralRewarded: referralRewarded ?? this.referralRewarded,
+      referralRejected: referralRejected ?? this.referralRejected,
       referralBonusDays: referralBonusDays ?? this.referralBonusDays,
       referralCount: referralCount ?? this.referralCount,
       createdAt: createdAt,
@@ -333,6 +344,7 @@ class SubscriptionModel {
           : data['demoGenerationsUsedJson'] as String? ?? '{}',
       referredBy: data['referredBy'] as String? ?? '',
       referralRewarded: data['referralRewarded'] as bool? ?? false,
+      referralRejected: data['referralRejected'] as bool? ?? false,
       referralBonusDays: (data['referralBonusDays'] as num?)?.toInt() ?? 0,
       referralCount: (data['referralCount'] as num?)?.toInt() ?? 0,
       createdAt: _firestoreDate(data['createdAt']) ?? '',

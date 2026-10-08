@@ -510,11 +510,12 @@ class SubscriptionRepository {
     }).timeout(_firestoreTimeout);
     await _syncFromFirestore(updated);
 
-    lastReferralMessage = [
-      if (bonusDays > 0)
-        'Referral bonus: $bonusDays extra days added to this plan.',
-      ?await _rewardReferrer(current, plan),
-    ].join('\n');
+    // The referrer's own month is not given here: App IDs run in
+    // sequence, so a made-up code often belongs to a real company. The
+    // Super Admin confirms the referral first (ReferralReviewDialog).
+    lastReferralMessage = bonusDays > 0
+        ? 'Referral bonus: $bonusDays extra days added to this plan.'
+        : '';
 
     await PlatformAuditLogService.instance.record(
       action: PlatformAuditAction.subscriptionActivated,
@@ -618,12 +619,13 @@ class SubscriptionRepository {
   // ==========================
   //
   // A company's App ID is its referral code. When a company that
-  // entered it is activated on a plan of [referralMinPlanMonths] or
-  // more, the referrer gets one month free - added to a running plan,
-  // or kept as 30 days for its next one.
+  // entered it takes a plan of [referralMinPlanMonths] or more and the
+  // Super Admin confirms the referral is genuine, the referrer gets one
+  // month free - added to a running plan, or kept as 30 days for its
+  // next one.
 
-  /// What the last [activate] did about referrals, for the Super Admin
-  /// to see ('' = nothing).
+  /// Saved bonus days the last [activate] added, for the Super Admin to
+  /// see ('' = none).
   String lastReferralMessage = '';
 
   static const int referralMinPlanMonths = 12;
@@ -658,32 +660,9 @@ class SubscriptionRepository {
     }).timeout(_firestoreTimeout);
   }
 
-  /// On activation: the referrer's month, when [friend] was referred
-  /// and took a long enough plan. Never fails the activation - says
-  /// what happened instead.
-  Future<String?> _rewardReferrer(
-    SubscriptionModel friend,
-    SubscriptionPlanModel plan,
-  ) async {
-    final code = friend.referredBy.trim();
-    if (code.isEmpty || friend.referralRewarded) return null;
-    if (plan.durationMonths < referralMinPlanMonths) {
-      return 'Referred by App ID $code - no bonus yet: the plan is shorter '
-          'than $referralMinPlanMonths months. It is given when they take a '
-          '1-year plan, or with "Give bonus now" in the company details.';
-    }
-
-    try {
-      return 'Referral bonus: ${await _payReferralBonus(friend)}';
-    } catch (error) {
-      return 'Referral bonus for App ID $code could not be given: '
-          '${error is StateError ? error.message : error}. Use "Give bonus '
-          'now" in the company details to try again.';
-    }
-  }
-
-  /// Super Admin: the referrer of [friendCompanyId] gets their month
-  /// now, whatever plan the friend took. Still only once.
+  /// Super Admin, after confirming the referral is genuine: the
+  /// referrer of [friendCompanyId] gets one month. Once per referred
+  /// company.
   Future<String> giveReferralBonusNow(String friendCompanyId) async {
     await _requireSuperAdmin();
 
@@ -692,9 +671,38 @@ class SubscriptionRepository {
       throw StateError('This company has no referral code.');
     }
     if (friend.referralRewarded) {
-      throw StateError('The referral bonus was already given.');
+      throw StateError('The referral bonus has already been given.');
     }
     return _payReferralBonus(friend);
+  }
+
+  /// Super Admin: the referral of [friendCompanyId] is not genuine - no
+  /// bonus is given for it. Recorded in the audit log.
+  Future<void> rejectReferral(
+    String friendCompanyId, {
+    String reason = '',
+  }) async {
+    await _requireSuperAdmin();
+
+    final friend = await _readForAdmin(friendCompanyId);
+    if (friend.referredBy.trim().isEmpty) {
+      throw StateError('This company has no referral code.');
+    }
+    if (friend.referralRewarded) {
+      throw StateError('The referral bonus has already been given.');
+    }
+
+    await _subscriptionsCollection.doc(friendCompanyId).update({
+      'referralRejected': true,
+      'updatedAt': DateTime.now().toIso8601String(),
+    }).timeout(_firestoreTimeout);
+
+    await PlatformAuditLogService.instance.record(
+      action: PlatformAuditAction.referralRejected,
+      targetCompanyId: friendCompanyId,
+      targetUid: friend.ownerUid,
+      metadata: {'referredBy': friend.referredBy, 'reason': reason},
+    );
   }
 
   /// Super Admin: one month free for any company - goodwill, a referral
@@ -749,6 +757,7 @@ class SubscriptionRepository {
 
     await _subscriptionsCollection.doc(friend.companyId).update({
       'referralRewarded': true,
+      'referralRejected': false,
     }).timeout(_firestoreTimeout);
 
     await PlatformAuditLogService.instance.record(

@@ -560,3 +560,16 @@ describe('Refer & Earn', () => {
     await assertSucceeds(getDocs(query(collection(asAdmin(), 'subscriptions'), where('referredBy', '==', 'SW4838'))));
   });
 });
+
+describe('Refer & Earn verification', () => {
+  it('only the Super Admin records a referral as not genuine', async () => {
+    await assertFails(updateDoc(doc(asA(), 'subscriptions', COMPANY_A), { referralRejected: true }));
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'subscriptions', COMPANY_A), { referralRejected: true }));
+  });
+
+  it('a new record cannot arrive already judged', async () => {
+    const db = env.authenticatedContext('uid-new').firestore();
+    await assertFails(setDoc(doc(db, 'subscriptions', 'company-new'),
+      { ...subscriptionDoc('company-new', 'uid-new'), referralRejected: true }));
+  });
+});

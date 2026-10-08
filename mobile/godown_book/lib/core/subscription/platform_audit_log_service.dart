@@ -19,6 +19,7 @@ class PlatformAuditAction {
   static const String platformPlansPublished = 'PLATFORM_PLANS_PUBLISHED';
   static const String referralBonusGiven = 'REFERRAL_BONUS_GIVEN';
   static const String freeMonthAdded = 'FREE_MONTH_ADDED';
+  static const String referralRejected = 'REFERRAL_REJECTED';
 }
 
 /// Writes one entry per privileged Super Admin action to

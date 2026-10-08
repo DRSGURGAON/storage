@@ -10,6 +10,7 @@ import '../models/subscription_model.dart';
 import '../models/subscription_plan_model.dart';
 import '../repositories/subscription_plan_repository.dart';
 import '../repositories/subscription_repository.dart';
+import '../widgets/referral_review_dialog.dart';
 
 /// V1's corrected Super Admin flow (payment is fully off-app): Super
 /// Admin searches the customer's registered mobile number (the
@@ -490,7 +491,15 @@ class _AuthorizeDialogState extends State<_AuthorizeDialog> {
 
       if (!mounted) return;
 
-      // Refer & Earn: what happened for whoever referred this company.
+      // Refer & Earn: a pending referral is verified now.
+      await ReferralReviewDialog.showIfPending(
+        context,
+        widget.subscription,
+        plan: plan,
+      );
+      if (!mounted) return;
+
+      // Bonus days this company itself had saved, now added to its plan.
       final referral = SubscriptionRepository.instance.lastReferralMessage;
       if (referral.isNotEmpty) {
         await showDialog<void>(
@@ -543,9 +552,12 @@ class _AuthorizeDialogState extends State<_AuthorizeDialog> {
                     widget.subscription.referralRewarded
                         ? 'Referred by App ID ${widget.subscription.referredBy} '
                             '(referral bonus already given).'
-                        : 'Referred by App ID ${widget.subscription.referredBy}. '
-                            'A plan of 12 months or more gives them 1 month '
-                            'free automatically.',
+                        : widget.subscription.referralRejected
+                            ? 'Referred by App ID ${widget.subscription.referredBy} '
+                                '(marked not genuine - no bonus).'
+                            : 'Referred by App ID ${widget.subscription.referredBy}. '
+                                'You will be asked to verify this referral '
+                                'after saving.',
                     style: const TextStyle(fontSize: 12.5),
                   ),
                 ),
