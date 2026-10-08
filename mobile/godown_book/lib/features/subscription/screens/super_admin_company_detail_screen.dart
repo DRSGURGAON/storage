@@ -9,6 +9,7 @@ import '../../company/services/app_id_counter_service.dart';
 import '../models/subscription_model.dart';
 import '../repositories/subscription_repository.dart';
 import '../services/company_record_count_service.dart';
+import '../widgets/super_admin_referral_card.dart';
 
 /// Section 19's suspend/cancel actions, reached from
 /// SuperAdminDashboardScreen's company list. suspend()/cancel() both
@@ -77,6 +78,18 @@ class _SuperAdminCompanyDetailScreenState
     super.initState();
     _subscription = widget.subscription;
     _loadDetails();
+  }
+
+  /// After a Refer & Earn action: the new expiry and bonus figures.
+  Future<void> _reloadSubscription() async {
+    try {
+      final fresh =
+          await SubscriptionRepository.instance.readLive(_subscription.companyId);
+      if (!mounted) return;
+      setState(() => _subscription = fresh);
+    } catch (_) {
+      // Offline - the old figures stay on screen.
+    }
   }
 
   Future<void> _loadDetails() async {
@@ -358,6 +371,13 @@ class _SuperAdminCompanyDetailScreenState
                           : 'No active plan',
                     ),
                   ),
+                ),
+
+                const SizedBox(height: 12),
+
+                SuperAdminReferralCard(
+                  subscription: _subscription,
+                  onChanged: _reloadSubscription,
                 ),
 
                 const SizedBox(height: 20),

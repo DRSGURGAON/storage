@@ -119,8 +119,10 @@ class _SuperAdminAuthorizeScreenState
     final subscription = _subscription;
     if (subscription == null) return;
 
-    final refreshed = await SubscriptionRepository.instance
-        .getOrCreateForCompany(subscription.companyId);
+    // Straight from the server: an activation just changed it, and a
+    // referral bonus may have changed it again.
+    final refreshed =
+        await SubscriptionRepository.instance.readLive(subscription.companyId);
     final history = await SubscriptionRepository.instance.getHistory(
       subscription.companyId,
     );
@@ -487,6 +489,27 @@ class _AuthorizeDialogState extends State<_AuthorizeDialog> {
       );
 
       if (!mounted) return;
+
+      // Refer & Earn: what happened for whoever referred this company.
+      final referral = SubscriptionRepository.instance.lastReferralMessage;
+      if (referral.isNotEmpty) {
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            icon: const Icon(Icons.card_giftcard, color: Color(0xffB7791F)),
+            title: const Text('Referral'),
+            content: Text(referral),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+      }
+
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
@@ -508,6 +531,24 @@ class _AuthorizeDialogState extends State<_AuthorizeDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (widget.subscription.referredBy.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xffFFF8E6),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    widget.subscription.referralRewarded
+                        ? 'Referred by App ID ${widget.subscription.referredBy} '
+                            '(referral bonus already given).'
+                        : 'Referred by App ID ${widget.subscription.referredBy}. '
+                            'A plan of 12 months or more gives them 1 month '
+                            'free automatically.',
+                    style: const TextStyle(fontSize: 12.5),
+                  ),
+                ),
               DropdownButtonFormField<SubscriptionPlanModel>(
                 initialValue: _selectedPlan,
                 decoration: const InputDecoration(labelText: 'Plan'),

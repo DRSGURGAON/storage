@@ -518,3 +518,45 @@ describe('subscription history', () => {
     await assertFails(getDocs(collection(asNobody(), 'subscriptions', COMPANY_A, 'history')));
   });
 });
+
+describe('Refer & Earn', () => {
+  it('the owner sets who referred them once, never to their own App ID', async () => {
+    const ref = doc(asA(), 'subscriptions', COMPANY_A);
+    // companyCode in the seed is '4838'; the stored form is SW + digits.
+    await assertFails(updateDoc(ref, { referredBy: 'not-a-code', updatedAt: 'now' }));
+    await assertSucceeds(updateDoc(ref, { referredBy: 'SW1325', updatedAt: 'now' }));
+    await assertFails(updateDoc(ref, { referredBy: 'SW1400', updatedAt: 'now' }));
+  });
+
+  it('cannot use its own App ID', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'subscriptions', COMPANY_A), { companyCode: 'SW4838' });
+    });
+    await assertFails(updateDoc(doc(asA(), 'subscriptions', COMPANY_A), { referredBy: 'SW4838', updatedAt: 'now' }));
+  });
+
+  it('a company cannot give itself a reward; the Super Admin can', async () => {
+    const own = doc(asA(), 'subscriptions', COMPANY_A);
+    await assertFails(updateDoc(own, { referralBonusDays: 30 }));
+    await assertFails(updateDoc(own, { referralCount: 1 }));
+    await assertFails(updateDoc(own, { referralRewarded: true }));
+
+    const admin = doc(asAdmin(), 'subscriptions', COMPANY_A);
+    await assertSucceeds(updateDoc(admin, { referralBonusDays: 30, referralCount: 1, updatedAt: 'now' }));
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'subscriptions', COMPANY_B), { referralRewarded: true }));
+  });
+
+  it('a new record starts with no reward', async () => {
+    const env2 = env.authenticatedContext('uid-new').firestore();
+    const fresh = (extra) => ({ ...subscriptionDoc('company-new', 'uid-new'), ...extra });
+    await assertFails(setDoc(doc(env2, 'subscriptions', 'company-new'), fresh({ referralBonusDays: 30 })));
+    await assertFails(setDoc(doc(env2, 'subscriptions', 'company-new'), fresh({ referralRewarded: true })));
+    await assertSucceeds(setDoc(doc(env2, 'subscriptions', 'company-new'), fresh({})));
+  });
+
+  it('only the Super Admin can look companies up by referral code', async () => {
+    const { query, where } = await import('firebase/firestore');
+    await assertFails(getDocs(query(collection(asA(), 'subscriptions'), where('referredBy', '==', 'SW4838'))));
+    await assertSucceeds(getDocs(query(collection(asAdmin(), 'subscriptions'), where('referredBy', '==', 'SW4838'))));
+  });
+});

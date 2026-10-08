@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/subscription/subscription_status.dart';
 import '../../../core/subscription/super_admin_scope.dart';
+import '../../company/services/app_id_counter_service.dart';
 import '../models/subscription_model.dart';
 import '../repositories/subscription_repository.dart';
 import '../repositories/subscription_settings_repository.dart';
@@ -101,6 +102,116 @@ class _SuperAdminDashboardScreenState
           s.status == SubscriptionStatus.expired ||
           (s.status.grantsFullAccess && s.hasLapsed))
       .length;
+
+  /// Companies that entered someone's referral code.
+  List<SubscriptionModel> get _referred =>
+      _subscriptions.where((s) => s.referredBy.isNotEmpty).toList();
+
+  List<SubscriptionModel> get _pendingReferrals =>
+      _referred.where((s) => !s.referralRewarded).toList();
+
+  static String _label(SubscriptionModel s) {
+    final name = s.companyName.trim();
+    final code = s.companyCode.trim();
+    final id = AppIdCounterService.isAssigned(code) ? 'App ID $code' : '';
+    if (name.isEmpty) return id.isEmpty ? s.companyId : id;
+    return id.isEmpty ? name : '$name ($id)';
+  }
+
+  /// Who referred whom, pending first. A row opens the company's
+  /// details, where the bonus can be given by hand.
+  void _showReferrals() {
+    final byNumber = {
+      for (final s in _subscriptions)
+        if (AppIdCounterService.numberIn(s.companyCode) != null)
+          AppIdCounterService.numberIn(s.companyCode)!: s,
+    };
+    SubscriptionModel? referrerOf(SubscriptionModel friend) {
+      final number = AppIdCounterService.numberIn(friend.referredBy);
+      return number == null ? null : byNumber[number];
+    }
+
+    final rows = [
+      ..._pendingReferrals,
+      ..._referred.where((s) => s.referralRewarded),
+    ];
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.95,
+        builder: (context, controller) => ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          children: [
+            Text(
+              'Refer & Earn',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'The bonus is given automatically when you activate a 1-year '
+              '(or longer) plan for the referred company. "Pending" ones '
+              'can also be given by hand from the company details.',
+              style: TextStyle(fontSize: 12.5, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            if (rows.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Text('No referrals yet.', textAlign: TextAlign.center),
+              )
+            else
+              for (final friend in rows)
+                Card(
+                  child: ListTile(
+                    title: Text(_label(friend)),
+                    subtitle: Text(
+                      'Referred by ${referrerOf(friend) == null ? 'App ID ${friend.referredBy}' : _label(referrerOf(friend)!)}\n'
+                      '${friend.status.label}',
+                    ),
+                    isThreeLine: true,
+                    trailing: _referralChip(friend.referralRewarded),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      context.push(
+                        '/super-admin/company-detail',
+                        extra: friend,
+                      );
+                    },
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _referralChip(bool given) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: (given ? Colors.green : Colors.orange).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        given ? 'Given' : 'Pending',
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: given ? Colors.green.shade700 : Colors.orange.shade800,
+        ),
+      ),
+    );
+  }
 
   /// Live, with the last day within the largest expiry-warning window.
   int get _expiringSoonCount {
@@ -228,6 +339,45 @@ class _SuperAdminDashboardScreenState
 
                   Card(
                     child: ListTile(
+                      leading: const Icon(
+                        Icons.card_giftcard,
+                        color: Color(0xffB7791F),
+                      ),
+                      title: const Text('Refer & Earn'),
+                      subtitle: Text(
+                        '${_referred.length} referred • '
+                        '${_pendingReferrals.length} bonus pending',
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_pendingReferrals.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.orange,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '${_pendingReferrals.length}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          const Icon(Icons.chevron_right),
+                        ],
+                      ),
+                      onTap: _showReferrals,
+                    ),
+                  ),
+
+                  Card(
+                    child: ListTile(
                       leading: const Icon(Icons.tune),
                       title: const Text('Plans & Settings'),
                       subtitle: const Text(
@@ -285,6 +435,9 @@ class _SuperAdminDashboardScreenState
       subscription.status.label,
       if (subscription.ownerMobile.isNotEmpty) subscription.ownerMobile,
       if (joined != null) 'Joined ${_joinedFormat.format(joined)}',
+      if (subscription.referredBy.isNotEmpty)
+        'Referred by ${subscription.referredBy}'
+            '${subscription.referralRewarded ? '' : ' (bonus pending)'}',
     ].join('  ·  ');
   }
 

@@ -368,4 +368,125 @@ void main() {
     expect(renewed.isActive, isTrue);
     expect(renewed.hasPaidPeriodEnded, isFalse);
   });
+
+  group('Refer & Earn', () {
+    const yearly = SubscriptionPlanModel(
+      id: 'PLAN_YEARLY',
+      code: 'PLAN_YEARLY',
+      name: 'Yearly',
+      durationMonths: 12,
+      price: 2499,
+    );
+
+    Future<void> seedReferrer({required String expiry}) async {
+      await SubscriptionRepository.firestoreOverride!
+          .collection('subscriptions')
+          .doc('company-referrer')
+          .set({
+        'id': 'sub-referrer',
+        'companyId': 'company-referrer',
+        'companyCode': 'SW1325',
+        'companyName': 'Sharma Storage',
+        'ownerUid': 'uid-referrer',
+        'status': 'ACTIVE',
+        'planId': 'PLAN_YEARLY',
+        'startDate': '2026-01-01T00:00:00.000',
+        'expiryDate': expiry,
+        'createdAt': '2026-01-01T00:00:00.000',
+        'updatedAt': '2026-01-01T00:00:00.000',
+      });
+    }
+
+    Future<Map<String, dynamic>> cloud(String companyId) async =>
+        (await SubscriptionRepository.firestoreOverride!
+                .collection('subscriptions')
+                .doc(companyId)
+                .get())
+            .data()!;
+
+    test('the code is saved once, in the SW form, never your own', () async {
+      await repo.getOrCreateForCompany(TenantScope.companyId);
+
+      await expectLater(
+          repo.setReferredBy(TenantScope.companyId, 'abc'), throwsArgumentError);
+
+      await repo.setReferredBy(TenantScope.companyId, 'sw 1325');
+      expect((await cloud(TenantScope.companyId))['referredBy'], 'SW1325');
+
+      await expectLater(
+          repo.setReferredBy(TenantScope.companyId, 'SW1400'), throwsStateError);
+    });
+
+    test('a 1-year plan for the friend gives the referrer one month',
+        () async {
+      final expiry = DateTime.now().add(const Duration(days: 40));
+      await seedReferrer(expiry: expiry.toIso8601String());
+      await repo.getOrCreateForCompany(TenantScope.companyId);
+      await repo.setReferredBy(TenantScope.companyId, 'SW1325');
+
+      await repo.activate(
+        companyId: TenantScope.companyId,
+        plan: yearly,
+        paymentReference: 'UTR20',
+        paymentMethod: 'MANUAL_UPI',
+        authorizedByMobileNumber: '9999999999',
+      );
+
+      expect(repo.lastReferralMessage, contains('+1 month'));
+      final referrer = await cloud('company-referrer');
+      expect(DateTime.parse(referrer['expiryDate'] as String),
+          DateTime(expiry.year, expiry.month + 1, expiry.day));
+      expect(referrer['referralCount'], 1);
+      expect((await cloud(TenantScope.companyId))['referralRewarded'], isTrue);
+
+      // Once only.
+      await expectLater(
+          repo.giveReferralBonusNow(TenantScope.companyId), throwsStateError);
+    });
+
+    test('a shorter plan gives nothing yet; the Super Admin can give it',
+        () async {
+      await seedReferrer(expiry: '2024-01-01T00:00:00.000');
+      await repo.getOrCreateForCompany(TenantScope.companyId);
+      await repo.setReferredBy(TenantScope.companyId, 'SW1325');
+
+      await repo.activate(
+        companyId: TenantScope.companyId,
+        plan: _quarterly,
+        paymentReference: 'UTR21',
+        paymentMethod: 'MANUAL_UPI',
+        authorizedByMobileNumber: '9999999999',
+      );
+      expect(repo.lastReferralMessage, contains('no bonus yet'));
+      expect((await cloud('company-referrer'))['referralCount'], isNull);
+
+      // The referrer's plan has run out, so the month is kept for later.
+      final message = await repo.giveReferralBonusNow(TenantScope.companyId);
+      expect(message, contains('saved'));
+      expect((await cloud('company-referrer'))['referralBonusDays'], 30);
+    });
+
+    test('saved bonus days are added to the next plan, then cleared',
+        () async {
+      await repo.getOrCreateForCompany(TenantScope.companyId);
+      await SubscriptionRepository.firestoreOverride!
+          .collection('subscriptions')
+          .doc(TenantScope.companyId)
+          .update({'referralBonusDays': 30});
+
+      final activated = await repo.activate(
+        companyId: TenantScope.companyId,
+        plan: _quarterly,
+        paymentReference: 'UTR22',
+        paymentMethod: 'MANUAL_UPI',
+        authorizedByMobileNumber: '9999999999',
+        explicitStartDate: DateTime(2026, 9, 1),
+      );
+
+      // 30 November, plus 30 days.
+      expect(DateTime.parse(activated.expiryDate!), DateTime(2026, 12, 30));
+      expect((await cloud(TenantScope.companyId))['referralBonusDays'], 0);
+      expect(repo.lastReferralMessage, contains('30 extra days'));
+    });
+  });
 }

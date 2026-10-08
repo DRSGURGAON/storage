@@ -23,6 +23,7 @@ import '../models/subscription_settings_model.dart';
 import '../services/platform_settings_service.dart';
 import '../repositories/subscription_plan_repository.dart';
 import '../repositories/subscription_settings_repository.dart';
+import '../widgets/refer_earn_card.dart';
 
 /// Subscription status, pricing plans, and a scannable UPI QR - the
 /// customer pays entirely off-app via their own UPI app, then sends
@@ -258,6 +259,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         icon: const Icon(Icons.history),
                         label: const Text('View Subscription History'),
                       ),
+                    ),
+
+                  if (_subscription != null)
+                    ReferEarnCard(
+                      subscription: _subscription!,
+                      onChanged: _load,
                     ),
 
                   if (_plans.isNotEmpty) ...[

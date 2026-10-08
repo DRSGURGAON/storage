@@ -172,7 +172,11 @@ service cloud.firestore {
             && !('startDate' in incoming() && incoming().startDate != null)
             && !('expiryDate' in incoming() && incoming().expiryDate != null)
             && (!('demoGenerationsUsed' in incoming())
-                || incoming().demoGenerationsUsed == {}));
+                || incoming().demoGenerationsUsed == {})
+            // Refer & Earn rewards are never self-granted.
+            && incoming().get('referralRewarded', false) == false
+            && incoming().get('referralBonusDays', 0) == 0
+            && incoming().get('referralCount', 0) == 0);
 
       allow update: if isSuperAdmin()
         || (signedIn()
@@ -187,11 +191,21 @@ service cloud.firestore {
                  'companyName', 'ownerMobile', 'gstNumber',
                  'authorizedSignatoryName', 'email', 'companyCode',
                  'demoGenerationsUsed', 'demoGenerationsUsedJson',
-                 'updatedAt', 'id'
+                 'updatedAt', 'id', 'referredBy'
                ])
             && countersNotLowered(
                  existing().get('demoGenerationsUsed', {}),
-                 incoming().get('demoGenerationsUsed', {})));
+                 incoming().get('demoGenerationsUsed', {}))
+            // Refer & Earn: who referred this company is set once, by
+            // its owner, and never to its own App ID. The rewards
+            // (referralRewarded, referralBonusDays, referralCount) are
+            // not in the list above - Super Admin only.
+            && (!changedKeys().hasAny(['referredBy'])
+                || (existing().get('referredBy', '') == ''
+                    && incoming().referredBy is string
+                    && incoming().referredBy.matches('SW[0-9]{1,8}')
+                    && incoming().referredBy
+                         != existing().get('companyCode', ''))));
 
       allow delete: if isSuperAdmin();
 

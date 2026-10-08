@@ -80,6 +80,25 @@ class SubscriptionModel {
   /// encode/decode logic - this model only carries the raw string.
   final String demoGenerationsUsedJson;
 
+  // ---- Refer & Earn - cloud only, never in the local cache, and never
+  // written by toFirestore(): only their own explicit updates change
+  // them (SubscriptionRepository.setReferredBy and the Super Admin's
+  // rewards), so no other save can wipe them.
+
+  /// App ID of the company that referred this one ('' = none), as
+  /// "SW1325". The owner may set it once; see firestore.rules.
+  final String referredBy;
+
+  /// True once the referrer got their month for this company.
+  final bool referralRewarded;
+
+  /// Free days earned while no plan was running - added on top of the
+  /// next activation. Super Admin only.
+  final int referralBonusDays;
+
+  /// Free months this company has earned by referring others.
+  final int referralCount;
+
   final String createdAt;
   final String updatedAt;
 
@@ -98,6 +117,10 @@ class SubscriptionModel {
     this.email = '',
     this.companyCode = '',
     this.demoGenerationsUsedJson = '{}',
+    this.referredBy = '',
+    this.referralRewarded = false,
+    this.referralBonusDays = 0,
+    this.referralCount = 0,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -177,6 +200,10 @@ class SubscriptionModel {
     String? email,
     String? companyCode,
     String? demoGenerationsUsedJson,
+    String? referredBy,
+    bool? referralRewarded,
+    int? referralBonusDays,
+    int? referralCount,
     String? updatedAt,
   }) {
     return SubscriptionModel(
@@ -196,6 +223,10 @@ class SubscriptionModel {
       companyCode: companyCode ?? this.companyCode,
       demoGenerationsUsedJson:
           demoGenerationsUsedJson ?? this.demoGenerationsUsedJson,
+      referredBy: referredBy ?? this.referredBy,
+      referralRewarded: referralRewarded ?? this.referralRewarded,
+      referralBonusDays: referralBonusDays ?? this.referralBonusDays,
+      referralCount: referralCount ?? this.referralCount,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -300,6 +331,10 @@ class SubscriptionModel {
                 if (e.value is num) e.key.toString(): (e.value as num).toInt(),
             })
           : data['demoGenerationsUsedJson'] as String? ?? '{}',
+      referredBy: data['referredBy'] as String? ?? '',
+      referralRewarded: data['referralRewarded'] as bool? ?? false,
+      referralBonusDays: (data['referralBonusDays'] as num?)?.toInt() ?? 0,
+      referralCount: (data['referralCount'] as num?)?.toInt() ?? 0,
       createdAt: _firestoreDate(data['createdAt']) ?? '',
       updatedAt: _firestoreDate(data['updatedAt']) ?? '',
     );
