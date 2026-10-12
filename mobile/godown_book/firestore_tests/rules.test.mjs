@@ -655,3 +655,15 @@ describe('PDF usage counter', () => {
       subscriptionDoc('company-f', UID_B, { pdfUsed: { bill: 50 } })));
   });
 });
+
+describe('one signed-in phone per number', () => {
+  it('only the account itself reads or claims its device session', async () => {
+    const own = doc(asA(), 'deviceSessions', UID_A);
+    await assertSucceeds(setDoc(own, { deviceId: 'phone-1', claimedAt: serverTimestamp() }));
+    await assertSucceeds(getDoc(own));
+    await assertFails(setDoc(own, { deviceId: '', claimedAt: serverTimestamp() }));
+    await assertFails(getDoc(doc(asB(), 'deviceSessions', UID_A)));
+    await assertFails(setDoc(doc(asB(), 'deviceSessions', UID_A), { deviceId: 'phone-2' }));
+    await assertSucceeds(deleteDoc(own));
+  });
+});

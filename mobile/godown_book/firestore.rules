@@ -473,6 +473,19 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // deviceSessions/{uid}: one signed-in phone per number. The phone
+    // that signed in last writes its id here; every other phone of the
+    // same account reads it and signs itself out. Strictly the owner's
+    // own document; deleted with the account.
+    match /deviceSessions/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && incoming().deviceId is string
+        && incoming().deviceId.size() > 0
+        && incoming().deviceId.size() <= 64;
+      allow delete: if isOwner(uid);
+    }
+
     // Anything not named above is closed.
     match /{document=**} {
       allow read, write: if false;

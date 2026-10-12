@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Resource shrinking (release builds) must not remove the Crashlytics
+     build id string in values/crashlytics.xml - it is only read by name. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@string/*crashlytics*" />

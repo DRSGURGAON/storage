@@ -10,6 +10,7 @@ import '../subscription/super_admin_scope.dart';
 import '../tenant/tenant_bootstrap.dart';
 import '../../features/subscription/services/app_user_presence_service.dart';
 import 'auth_scope.dart';
+import 'device_session_service.dart';
 
 /// Whether the app has a completed mobile+OTP sign-in on this device,
 /// which mobile number it was for, and the genuine Firebase Auth UID
@@ -241,6 +242,10 @@ class AuthSessionNotifier extends StateNotifier<AuthSessionState> {
           () => firestore.collection('companies').doc(user.uid).delete());
     }
 
+    await DeviceSessionService.instance.stop();
+    await step('device session',
+        () => firestore.collection('deviceSessions').doc(user.uid).delete());
+
     // While still signed in: the sign-in record goes with the account.
     await AppUserPresenceService.instance.deleteOwn(user.uid);
 
@@ -263,6 +268,9 @@ class AuthSessionNotifier extends StateNotifier<AuthSessionState> {
     // is there for the next sign-in on any phone. Best-effort: a dead
     // network never blocks signing out.
     if (backupFirst) await TenantBootstrap.beforeSignOut();
+
+    // A deliberate sign-out is not "another phone took over".
+    await DeviceSessionService.instance.stop();
 
     // Firebase's own session is the actual source of truth for
     // authentication (see this class's own doc comment) - sign out of

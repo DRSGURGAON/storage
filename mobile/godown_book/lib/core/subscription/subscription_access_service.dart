@@ -2,7 +2,9 @@ import '../../features/subscription/models/subscription_model.dart';
 import '../../features/subscription/models/subscription_settings_model.dart';
 import '../../features/subscription/repositories/subscription_repository.dart';
 import '../../features/subscription/repositories/subscription_settings_repository.dart';
+import '../security/trusted_clock.dart';
 import '../tenant/tenant_scope.dart';
+import 'subscription_policy.dart';
 import 'subscription_status.dart';
 
 /// The single centralized place every document-generation screen
@@ -112,8 +114,19 @@ class SubscriptionAccessService {
   // every lapsed company), so a subscription whose last day has
   // passed must be treated as lapsed here - otherwise one payment
   // would buy unlimited documents forever.
-  static bool _grantsAccess(SubscriptionModel subscription) =>
-      subscription.status.grantsFullAccess && !subscription.hasLapsed;
+  //
+  // SubscriptionPolicy also checks that the record belongs to the
+  // signed-in account, and trusts a copy that was not confirmed online
+  // only for a limited time; "now" comes from TrustedClock, which
+  // setting the phone's date back cannot move.
+  bool _grantsAccess(SubscriptionModel subscription) =>
+      SubscriptionPolicy.grantsAccess(
+        subscription,
+        now: TrustedClock.instance.now(),
+        currentUid: _subscriptionRepository.currentUid,
+        live: _subscriptionRepository.lastReadWasLive(subscription.companyId),
+        sinceVerified: TrustedClock.instance.sinceLastSync(),
+      );
 
   /// Days remaining until the current company's subscription expires -
   /// null if there is no subscription, no expiry date, or the
@@ -138,7 +151,7 @@ class SubscriptionAccessService {
     // Whole calendar days, not a fractional Duration - "3 days left"
     // should mean the same thing regardless of what time of day the
     // check happens to run.
-    final today = DateTime.now();
+    final today = TrustedClock.instance.now();
     final expiryDateOnly = DateTime(expiry.year, expiry.month, expiry.day);
     final todayDateOnly = DateTime(today.year, today.month, today.day);
 

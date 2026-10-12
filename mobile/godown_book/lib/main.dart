@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show PlatformDispatcher, kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,10 +17,13 @@ import 'app/theme/app_theme.dart';
 import 'core/auth/auth_scope.dart';
 import 'core/auth/auth_session.dart';
 import 'core/auth/auth_state_watcher.dart';
+import 'core/auth/device_session_service.dart';
+import 'core/security/trusted_clock.dart';
 import 'core/cloud_sync/document_cloud_sync_service.dart';
 import 'core/permissions/permission_service.dart';
 import 'core/subscription/super_admin_scope.dart';
 import 'core/tenant/tenant_bootstrap.dart';
+import 'features/company/controllers/company_controller.dart';
 import 'features/signature/repositories/signature_repository.dart';
 import 'features/subscription/repositories/subscription_settings_repository.dart';
 import 'features/subscription/services/app_user_presence_service.dart';
@@ -59,12 +65,56 @@ Future<void> main() async {
     return;
   }
 
+  // Crash reports (Firebase Crashlytics): a crash or uncaught error in a
+  // release build goes to the Firebase Console with its stack trace, so
+  // problems on customers' phones can be found and fixed. Off in debug
+  // builds; never allowed to block start-up.
+  try {
+    await FirebaseCrashlytics.instance
+        .setCrashlyticsCollectionEnabled(!kDebugMode);
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+    };
+    PlatformDispatcher.instance.onError = (error, stack) {
+      debugPrint('Uncaught error: $error');
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  } catch (error) {
+    debugPrint('Crash reports not enabled: $error');
+  }
+
+  // Firebase App Check: proves to Firebase that requests come from the
+  // genuine Play-signed app, not a modified copy or a script. Harmless
+  // until "Enforce" is switched on in the Firebase Console - until then
+  // it only attaches a token (keep it in Monitor mode until the console
+  // shows nearly all requests verified). Never allowed to block start-up.
+  try {
+    await FirebaseAppCheck.instance.activate(
+      providerAndroid: kDebugMode
+          ? const AndroidDebugProvider()
+          : const AndroidPlayIntegrityProvider(),
+    );
+  } catch (error) {
+    debugPrint('App Check not activated: $error');
+  }
+
   // Both must be known before the first route resolves: the router
   // redirect reads AuthScope first, then TenantScope.
   await _syncFirebaseAuthState();
   await AuthScope.loadFromDisk();
   await _loadPermissionSession();
   await TenantBootstrap.loadAtStartup();
+
+  // Crash reports carry the company's App ID, so a report can be matched
+  // to the customer who called about it.
+  unawaited(_tagCrashReports());
+
+  // "Now" for subscription expiry, from a clock that setting the
+  // phone's date back cannot move (see TrustedClock).
+  await TrustedClock.instance.init();
+  unawaited(TrustedClock.instance.sync());
 
   runApp(const ProviderScope(child: GodownBookApp()));
 
@@ -73,6 +123,8 @@ Future<void> main() async {
   // awaited: a network call must not hold the first frame.
   final signedInUid = FirebaseAuth.instance.currentUser?.uid;
   if (signedInUid != null) {
+    // One phone per number: signs this one out if another took over.
+    unawaited(DeviceSessionService.instance.start());
     unawaited(AppUserPresenceService.instance.record(signedInUid));
   }
 
@@ -295,6 +347,9 @@ class GodownBookApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
+      // Shows "signed in on another phone" even though that sign-out
+      // happens outside any screen.
+      scaffoldMessengerKey: DeviceSessionService.messengerKey,
       debugShowCheckedModeBanner: false,
       title: 'StorageBill Pro',
       // One brand, one look. The company's DocumentTheme styles its
@@ -305,5 +360,16 @@ class GodownBookApp extends ConsumerWidget {
       builder: (context, child) =>
           BrandedSplashScreen(child: child ?? const SizedBox.shrink()),
     );
+  }
+}
+
+Future<void> _tagCrashReports() async {
+  try {
+    final company = await CompanyController.instance.getCompany();
+    final appId = company?.companyCode.trim() ?? '';
+    if (appId.isEmpty) return;
+    await FirebaseCrashlytics.instance.setUserIdentifier(appId);
+  } catch (error) {
+    debugPrint('Crash report tag not set: $error');
   }
 }

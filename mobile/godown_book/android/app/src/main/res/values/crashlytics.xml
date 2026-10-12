@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Crash reports (Firebase Crashlytics) without the Crashlytics Gradle
+         plugin: the SDK refuses to start unless a build id is present, and
+         the plugin is what normally generates it. Dart crashes do not need
+         an R8 mapping file, so a fixed id is enough. -->
+    <string name="com.google.firebase.crashlytics.mapping_file_id" translatable="false">none</string>
+</resources>

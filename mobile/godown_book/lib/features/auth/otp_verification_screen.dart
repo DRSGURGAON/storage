@@ -10,6 +10,7 @@ import '../../core/auth/auth_session.dart';
 import '../../core/tenant/tenant_bootstrap.dart';
 import '../subscription/services/app_user_presence_service.dart';
 import 'services/otp_auth_service.dart';
+import '../../core/auth/device_session_service.dart';
 
 /// 6-digit OTP entry after the number was given on LoginScreen.
 ///
@@ -188,6 +189,10 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
         return;
       }
     }
+
+    // This phone becomes the one signed-in phone for the number; any
+    // other phone on it is signed out.
+    unawaited(DeviceSessionService.instance.claim());
 
     await ref
         .read(authSessionProvider.notifier)

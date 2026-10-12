@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/constants/app_build.dart';
+import '../../../core/security/trusted_clock.dart';
 import '../../../core/subscription/subscription_status.dart';
 import '../../../core/subscription/platform_audit_log_service.dart';
 import '../../../core/subscription/super_admin_scope.dart';
@@ -66,6 +67,17 @@ class SubscriptionRepository {
 
   FirebaseFirestore get _firestore =>
       firestoreOverride ?? FirebaseFirestore.instance;
+
+  /// Whether the last read of each company's record was confirmed by
+  /// the server (true) or came from a cache or stand-in copy (false).
+  /// Access decisions trust an unconfirmed copy only for a limited time
+  /// (SubscriptionPolicy).
+  final Map<String, bool> _liveFor = {};
+
+  bool lastReadWasLive(String companyId) => _liveFor[companyId] ?? false;
+
+  /// The signed-in account, for SubscriptionPolicy's ownership rule.
+  String get currentUid => _currentUid;
 
   String get _currentUid {
     final override = currentUidOverride;
@@ -161,6 +173,16 @@ class SubscriptionRepository {
     try {
       final docRef = _subscriptionsCollection.doc(companyId);
       final snapshot = await docRef.get().timeout(_firestoreTimeout);
+
+      // Firestore answers from its on-device cache when there is no
+      // connection, with no error - that is a copy, not confirmation.
+      final live = !snapshot.metadata.isFromCache;
+      _liveFor[companyId] = live;
+      if (live) {
+        // A real round trip just happened: re-anchor the trusted clock
+        // (rate-limited inside).
+        unawaited(TrustedClock.instance.sync());
+      }
 
       if (snapshot.exists && snapshot.data() != null) {
         var subscription =
@@ -286,6 +308,7 @@ class SubscriptionRepository {
       );
 
       await docRef.set(created.toFirestore()).timeout(_firestoreTimeout);
+      _liveFor[companyId] = true;
       await _syncFromFirestore(created);
       lastCloudError.value = null;
 
@@ -296,6 +319,7 @@ class SubscriptionRepository {
       if (error is _NoRecordForAdmin) {
         throw StateError('This company has no subscription record yet.');
       }
+      _liveFor[companyId] = false;
       lastCloudError.value = error is FirebaseException
           ? error.code
           : error is TimeoutException
