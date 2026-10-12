@@ -323,10 +323,9 @@ class MoneyReports {
 
   static Uint8List gstXlsx(List<GstMonth> months, String periodLabel) {
     double sum(double Function(GstMonth) f) => months.fold(0, (s, m) => s + f(m));
-    String monthName(DateTime m) =>
-        const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
-            'Oct', 'Nov', 'Dec'][m.month - 1] +
-        ' ${m.year}';
+    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug',
+        'Sep', 'Oct', 'Nov', 'Dec'];
+    String monthName(DateTime m) => '${names[m.month - 1]} ${m.year}';
     final bills = [for (final m in months) ...m.bills];
     return XlsxWriter.build([
       XlsxSheet(
