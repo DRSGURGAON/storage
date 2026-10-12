@@ -42,13 +42,23 @@ class DeviceSessionService {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _subscription;
   String? _watchedUid;
 
+  /// The signed-in account, or null - also when Firebase is not set up
+  /// (a unit test, a build on placeholder options): never a crash.
+  static String? _currentUid() {
+    try {
+      return FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      return null;
+    }
+  }
+
   DocumentReference<Map<String, dynamic>> _doc(String uid) =>
       FirebaseFirestore.instance.collection('deviceSessions').doc(uid);
 
   /// Call right after a genuine OTP sign-in: this phone becomes the one
   /// active phone for the number, and any other phone is signed out.
   Future<void> claim() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _currentUid();
     if (uid == null) return;
 
     await stop();
@@ -73,7 +83,7 @@ class DeviceSessionService {
   /// Starts watching for another phone taking over. Safe to call
   /// repeatedly; does nothing when nobody is signed in.
   Future<void> start() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _currentUid();
     if (uid == null) {
       await stop();
       return;
@@ -101,7 +111,7 @@ class DeviceSessionService {
   ) async {
     // A cached copy says nothing about what the server holds now.
     if (snapshot.metadata.isFromCache) return;
-    if (FirebaseAuth.instance.currentUser?.uid != uid) return;
+    if (_currentUid() != uid) return;
 
     String? localId;
     try {
