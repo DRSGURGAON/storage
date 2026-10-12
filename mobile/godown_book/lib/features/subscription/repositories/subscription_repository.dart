@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../core/constants/app_build.dart';
 import '../../../core/subscription/subscription_status.dart';
 import '../../../core/subscription/platform_audit_log_service.dart';
 import '../../../core/subscription/super_admin_scope.dart';
@@ -231,6 +232,10 @@ class SubscriptionRepository {
           }
         }
 
+        if (ownDevice) {
+          unawaited(_reportAppVersion(docRef, subscription.appVersion));
+        }
+
         await _syncFromFirestore(subscription);
         lastCloudError.value = null;
         return await _expireIfLapsed(subscription);
@@ -350,6 +355,60 @@ class SubscriptionRepository {
         .map((doc) => SubscriptionModel.fromFirestore(doc.data(), doc.id))
         .toList()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  }
+
+  /// Live version of [getAllAcrossCompanies] for the Super Admin's
+  /// dashboard: a new list whenever any company's record changes (a PDF
+  /// counted, a status change). No orderBy, for the same reason as
+  /// above; sorted here.
+  Stream<List<SubscriptionModel>> watchAllAcrossCompanies() {
+    return _subscriptionsCollection.snapshots().map((snapshot) => snapshot.docs
+        .map((doc) => SubscriptionModel.fromFirestore(doc.data(), doc.id))
+        .toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt)));
+  }
+
+  /// One company's record, live (Super Admin's company screen). Null
+  /// while the record does not exist.
+  Stream<SubscriptionModel?> watchLive(String companyId) {
+    return _subscriptionsCollection.doc(companyId).snapshots().map(
+          (snapshot) => snapshot.data() == null
+              ? null
+              : SubscriptionModel.fromFirestore(snapshot.data()!, snapshot.id),
+        );
+  }
+
+  /// Counts one generated PDF of [documentType] - every PDF, subscribed
+  /// or not - so the Super Admin sees exactly how much each company
+  /// uses the app. +1 on the server and the server's time of the last
+  /// PDF; queued by Firestore while offline and sent later. Never
+  /// throws: a counter must never break a PDF.
+  Future<void> recordPdfGenerated(String companyId, String documentType) async {
+    if (companyId.isEmpty || documentType.isEmpty) return;
+    try {
+      await _subscriptionsCollection.doc(companyId).update({
+        'pdfUsed.$documentType': FieldValue.increment(1),
+        'pdfLastAt': FieldValue.serverTimestamp(),
+      }).timeout(const Duration(seconds: 5));
+    } catch (error) {
+      debugPrint('PDF counter $documentType not confirmed: $error');
+    }
+  }
+
+  /// The company's phone reports its build, so the Super Admin can see
+  /// who is on an old app. Best-effort and only when it changed.
+  Future<void> _reportAppVersion(
+    DocumentReference<Map<String, dynamic>> docRef,
+    String stored,
+  ) async {
+    final version = AppBuild.label;
+    if (version == stored) return;
+    try {
+      await docRef
+          .update({'appVersion': version}).timeout(const Duration(seconds: 5));
+    } catch (error) {
+      debugPrint('App version not reported: $error');
+    }
   }
 
   /// Super Admin's search-by-mobile-number flow (the customer sends

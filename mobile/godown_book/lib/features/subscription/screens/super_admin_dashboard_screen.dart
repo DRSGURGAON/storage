@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -43,10 +45,31 @@ class _SuperAdminDashboardScreenState
   bool _loading = true;
   bool _isSuperAdmin = false;
 
+  /// Live company list: a PDF made or a status changed on any phone
+  /// shows here within seconds, without pulling to refresh.
+  StreamSubscription<List<SubscriptionModel>>? _live;
+
   @override
   void initState() {
     super.initState();
     Future.microtask(_load);
+  }
+
+  @override
+  void dispose() {
+    _live?.cancel();
+    super.dispose();
+  }
+
+  void _watch() {
+    if (_live != null) return;
+    _live = SubscriptionRepository.instance.watchAllAcrossCompanies().listen(
+      (subscriptions) {
+        if (mounted) setState(() => _subscriptions = subscriptions);
+      },
+      onError: (Object error) =>
+          debugPrint('Live company list stopped: $error'),
+    );
   }
 
   Future<void> _load() async {
@@ -83,6 +106,7 @@ class _SuperAdminDashboardScreenState
       _isSuperAdmin = true;
       _loading = false;
     });
+    _watch();
   }
 
   // From expiryDate, not only the stored status: a lapsed record keeps
@@ -441,6 +465,7 @@ class _SuperAdminDashboardScreenState
       subscription.status.label,
       if (subscription.ownerMobile.isNotEmpty) subscription.ownerMobile,
       if (joined != null) 'Joined ${_joinedFormat.format(joined)}',
+      '${subscription.pdfTotal} PDF${subscription.pdfTotal == 1 ? '' : 's'}',
       if (subscription.referredBy.isNotEmpty)
         'Referred by ${subscription.referredBy}'
             '${subscription.referralPending ? ' (to verify)' : ''}',

@@ -209,7 +209,8 @@ service cloud.firestore {
             && incoming().get('referralRewarded', false) == false
             && incoming().get('referralRejected', false) == false
             && incoming().get('referralBonusDays', 0) == 0
-            && incoming().get('referralCount', 0) == 0);
+            && incoming().get('referralCount', 0) == 0
+            && incoming().get('pdfUsed', {}).size() == 0);
 
       allow update: if isSuperAdmin()
         || (signedIn()
@@ -224,11 +225,26 @@ service cloud.firestore {
                  'companyName', 'ownerMobile', 'gstNumber',
                  'authorizedSignatoryName', 'email', 'companyCode',
                  'demoGenerationsUsed', 'demoGenerationsUsedJson',
-                 'updatedAt', 'id', 'referredBy'
+                 'updatedAt', 'id', 'referredBy',
+                 'pdfUsed', 'pdfLastAt', 'appVersion'
                ])
-            && countersNotLowered(
-                 existing().get('demoGenerationsUsed', {}),
-                 incoming().get('demoGenerationsUsed', {}))
+            && (!changedKeys().hasAny(['demoGenerationsUsed'])
+                || countersNotLowered(
+                     existing().get('demoGenerationsUsed', {}),
+                     incoming().get('demoGenerationsUsed', {})))
+            // Every PDF made is counted: the counts only grow, and the
+            // time of the last one is the server's, never the phone's.
+            && (!changedKeys().hasAny(['pdfUsed'])
+                || (incoming().pdfUsed
+                        .diff(existing().get('pdfUsed', {}))
+                        .affectedKeys().size() == 1
+                    && countersNotLowered(existing().get('pdfUsed', {}),
+                                          incoming().pdfUsed)))
+            && (!changedKeys().hasAny(['pdfLastAt'])
+                || incoming().pdfLastAt == request.time)
+            && (!changedKeys().hasAny(['appVersion'])
+                || (incoming().appVersion is string
+                    && incoming().appVersion.size() <= 40))
             && (!changedKeys().hasAny(['ownerMobile'])
                 || isOwnMobile(incoming().ownerMobile))
             && (!changedKeys().hasAny(['companyCode'])

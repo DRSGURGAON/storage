@@ -635,3 +635,23 @@ describe('Bill N Bilty hardening', () => {
     await assertSucceeds(setDoc(ref, { lastAssigned: 1324, updatedAt: serverTimestamp() }));
   });
 });
+
+describe('PDF usage counter', () => {
+  it('the owner adds to its PDF count with the server time; never lowers it', async () => {
+    const { increment } = await import('firebase/firestore');
+    const ref = doc(asA(), 'subscriptions', COMPANY_A);
+    await assertSucceeds(updateDoc(ref, { 'pdfUsed.bill': increment(1), pdfLastAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(ref, { 'pdfUsed.bill': increment(1), pdfLastAt: serverTimestamp() }));
+    await assertFails(updateDoc(ref, { 'pdfUsed.bill': 0 }));
+    await assertFails(updateDoc(ref, { 'pdfUsed.bill': increment(1), 'pdfUsed.notice': increment(5) }));
+    await assertFails(updateDoc(ref, { pdfLastAt: Timestamp.fromMillis(0) }));
+    await assertSucceeds(updateDoc(ref, { appVersion: 'Build 75' }));
+    await assertFails(updateDoc(ref, { appVersion: 'x'.repeat(41) }));
+  });
+
+  it('a new record starts with no PDFs counted', async () => {
+    await ownProfile(UID_B, 'company-f');
+    await assertFails(setDoc(doc(asB(), 'subscriptions', 'company-f'),
+      subscriptionDoc('company-f', UID_B, { pdfUsed: { bill: 50 } })));
+  });
+});

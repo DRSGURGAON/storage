@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -68,6 +70,40 @@ class _SuperAdminCompanyDetailScreenState
   /// as "no free copies used".
   Map<String, int>? _documentUsage;
 
+  /// True once the record has come from the server (a read or the live
+  /// listener) - the PDF figures are unknown, not 0, until then.
+  bool _liveKnown = false;
+
+  /// Keeps this screen current while it is open: a PDF made on the
+  /// company's phone shows here within seconds.
+  StreamSubscription<SubscriptionModel?>? _live;
+
+  @override
+  void dispose() {
+    _live?.cancel();
+    super.dispose();
+  }
+
+  static Map<String, int> _freeCopiesIn(SubscriptionModel live) => {
+        for (final type in DocumentType.all)
+          if (SubscriptionRepository.demoGenerationsUsedIn(live, type) > 0)
+            type: SubscriptionRepository.demoGenerationsUsedIn(live, type),
+      };
+
+  void _watch() {
+    if (_live != null) return;
+    _live = SubscriptionRepository.instance
+        .watchLive(_subscription.companyId)
+        .listen((live) {
+      if (live == null || !mounted) return;
+      setState(() {
+        _subscription = live;
+        _documentUsage = _freeCopiesIn(live);
+        _liveKnown = true;
+      });
+    }, onError: (Object error) => debugPrint('Live company stopped: $error'));
+  }
+
   CompanyRecordCounts? _recordCounts;
   String? _recordCountError;
 
@@ -114,11 +150,8 @@ class _SuperAdminCompanyDetailScreenState
       final live =
           await SubscriptionRepository.instance.readLive(_subscription.companyId);
       _subscription = live;
-      usage = {
-        for (final type in _trackedDocumentTypes)
-          if (SubscriptionRepository.demoGenerationsUsedIn(live, type) > 0)
-            type: SubscriptionRepository.demoGenerationsUsedIn(live, type),
-      };
+      _liveKnown = true;
+      usage = _freeCopiesIn(live);
     } catch (_) {
       usage = null;
     }
@@ -144,6 +177,103 @@ class _SuperAdminCompanyDetailScreenState
       _isSuperAdmin = true;
       _loadingDetails = false;
     });
+    _watch();
+  }
+
+  static String _when(String iso) {
+    final at = DateTime.tryParse(iso)?.toLocal();
+    if (at == null) return iso;
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(at.day)}-${two(at.month)}-${at.year} '
+        '${two(at.hour)}:${two(at.minute)}';
+  }
+
+  /// Every PDF the company has generated, per document type - counted
+  /// on the server, subscribed or not - and the app build it is on.
+  Widget _pdfUsageSection(BuildContext context) {
+    final pdfs = _subscription.pdfUsed;
+    final version = _subscription.appVersion;
+    final types = [
+      for (final type in DocumentType.all)
+        if ((pdfs[type] ?? 0) > 0) type,
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('PDFs Generated', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text(
+          'Every PDF this company generated (each opening of a PDF '
+          'screen), counted on the server - subscribed or not, and offline '
+          'ones once the phone is back online. Updates live.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          version.isEmpty
+              ? 'App version not reported - the company is on an older app '
+                  '(its PDFs are not being counted) or has not opened the '
+                  'app online since.'
+              : 'Company app: $version',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: version.isEmpty
+                ? Colors.orange.shade800
+                : Colors.green.shade800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!_liveKnown)
+                  const Text('- (could not be read; check the internet)',
+                      style: TextStyle(color: Colors.grey))
+                else if (types.isEmpty)
+                  const Text('No PDFs yet.',
+                      style: TextStyle(color: Colors.grey)),
+                for (final type in types)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_documentTypeLabel(type)),
+                        Text('${pdfs[type]}'),
+                      ],
+                    ),
+                  ),
+                if (_liveKnown) ...[
+                  const Divider(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total',
+                          style: TextStyle(fontWeight: FontWeight.w700)),
+                      Text('${_subscription.pdfTotal}',
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ],
+                if (_subscription.pdfLastAt.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Last PDF: ${_when(_subscription.pdfLastAt)}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _suspend() async {
@@ -396,6 +526,10 @@ class _SuperAdminCompanyDetailScreenState
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 KycReviewCard(companyId: _subscription.companyId),
+
+                const SizedBox(height: 20),
+
+                _pdfUsageSection(context),
 
                 const SizedBox(height: 20),
 

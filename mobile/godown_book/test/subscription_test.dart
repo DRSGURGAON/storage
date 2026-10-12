@@ -529,4 +529,16 @@ void main() {
         SubscriptionRepository.appIdChangeAllowed('SW1325', 'SW1326'), isFalse);
     expect(SubscriptionRepository.appIdChangeAllowed('1325', 'SW1326'), isFalse);
   });
+
+  test('every PDF is counted on the server, subscribed or not', () async {
+    await repo.getOrCreateForCompany(TenantScope.companyId);
+    await repo.recordPdfGenerated(TenantScope.companyId, DocumentType.bill);
+    await repo.recordPdfGenerated(TenantScope.companyId, DocumentType.bill);
+    await repo.recordPdfGenerated(TenantScope.companyId, DocumentType.notice);
+
+    final live = await repo.readLive(TenantScope.companyId);
+    expect(live.pdfUsed, {DocumentType.bill: 2, DocumentType.notice: 1});
+    expect(live.pdfTotal, 3);
+    expect(live.pdfLastAt, isNotEmpty);
+  });
 }

@@ -7,6 +7,8 @@ import 'package:printing/printing.dart';
 import '../../core/constants/feature_flags.dart';
 import '../../core/subscription/sample_documents.dart';
 import '../../core/subscription/subscription_access_service.dart';
+import '../../core/tenant/tenant_scope.dart';
+import '../../features/subscription/repositories/subscription_repository.dart';
 import '../../features/company/controllers/company_controller.dart';
 import '../../features/subscription/widgets/demo_generation_gate.dart';
 
@@ -66,6 +68,10 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
   /// (rotation, share, print) never counts a second one.
   bool _counted = false;
 
+  /// Set once this screen's PDF has been added to the company's usage
+  /// count (every PDF, subscribed or not - for the Super Admin).
+  bool _usageCounted = false;
+
   @override
   void initState() {
     super.initState();
@@ -85,6 +91,7 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
       _loading = true;
       _confirmed = false;
       _counted = false;
+      _usageCounted = false;
       _showingSample = false;
       _buildError = null;
     });
@@ -203,6 +210,14 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
         try {
           final bytes = await widget.build(showWatermark: showWatermark);
           widget.onBytes?.call(bytes);
+
+          if (!_usageCounted && TenantScope.isReady) {
+            _usageCounted = true;
+            // Not awaited: a counter never holds up the preview.
+            SubscriptionRepository.instance
+                .recordPdfGenerated(TenantScope.companyId, widget.documentType)
+                .ignore();
+          }
 
           if (FeatureFlags.demoGenerationLimitEnforced && count && !_counted) {
             _counted = true;

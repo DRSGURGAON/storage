@@ -103,6 +103,22 @@ class SubscriptionModel {
   /// Free months this company has earned by referring others.
   final int referralCount;
 
+  // ---- Usage, for the Super Admin - cloud only, written by their own
+  // updates (SubscriptionRepository.recordPdfGenerated and the app
+  // version report), never by toFirestore().
+
+  /// Every PDF this company has generated, per document type,
+  /// subscribed or not. +1 on the server per PDF; may only grow.
+  final Map<String, int> pdfUsed;
+
+  /// When the last PDF was made - the server's clock, never the phone's.
+  final String pdfLastAt;
+
+  /// The app build the company's phone last reported.
+  final String appVersion;
+
+  int get pdfTotal => pdfUsed.values.fold(0, (a, b) => a + b);
+
   /// A referral still waiting for the Super Admin's decision.
   bool get referralPending =>
       referredBy.isNotEmpty && !referralRewarded && !referralRejected;
@@ -130,6 +146,9 @@ class SubscriptionModel {
     this.referralRejected = false,
     this.referralBonusDays = 0,
     this.referralCount = 0,
+    this.pdfUsed = const {},
+    this.pdfLastAt = '',
+    this.appVersion = '',
     required this.createdAt,
     required this.updatedAt,
   });
@@ -238,6 +257,9 @@ class SubscriptionModel {
       referralRejected: referralRejected ?? this.referralRejected,
       referralBonusDays: referralBonusDays ?? this.referralBonusDays,
       referralCount: referralCount ?? this.referralCount,
+      pdfUsed: pdfUsed,
+      pdfLastAt: pdfLastAt,
+      appVersion: appVersion,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -347,6 +369,14 @@ class SubscriptionModel {
       referralRejected: data['referralRejected'] as bool? ?? false,
       referralBonusDays: (data['referralBonusDays'] as num?)?.toInt() ?? 0,
       referralCount: (data['referralCount'] as num?)?.toInt() ?? 0,
+      pdfUsed: data['pdfUsed'] is Map
+          ? {
+              for (final e in (data['pdfUsed'] as Map).entries)
+                if (e.value is num) e.key.toString(): (e.value as num).toInt(),
+            }
+          : const {},
+      pdfLastAt: _firestoreDate(data['pdfLastAt']) ?? '',
+      appVersion: data['appVersion'] as String? ?? '',
       createdAt: _firestoreDate(data['createdAt']) ?? '',
       updatedAt: _firestoreDate(data['updatedAt']) ?? '',
     );
