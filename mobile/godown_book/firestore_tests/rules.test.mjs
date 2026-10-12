@@ -114,8 +114,16 @@ async function seed() {
   });
 }
 
-const asA = () => env.authenticatedContext(UID_A).firestore();
-const asB = () => env.authenticatedContext(UID_B).firestore();
+// Each account signed in with its own verified phone number.
+const asA = () => env.authenticatedContext(UID_A, { phone_number: '+919876500001' }).firestore();
+const asB = () => env.authenticatedContext(UID_B, { phone_number: '+919999999999' }).firestore();
+
+/** Points [uid]'s cloud profile at [companyId] (rules off). */
+async function ownProfile(uid, companyId) {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'companies', uid), companyDoc(companyId, 'New Co'));
+  });
+}
 const asAdmin = () => env.authenticatedContext(UID_ADMIN, { role: 'superadmin' }).firestore();
 const asNobody = () => env.unauthenticatedContext().firestore();
 
@@ -257,6 +265,7 @@ describe('5. a company cannot change its own entitlement', () => {
   it('a new company starts LIMITED, owned by itself, with nothing granted', async () => {
     const db = asB();
     const fresh = 'company-c-uuid';
+    await ownProfile(UID_B, fresh);
     await assertFails(setDoc(doc(db, 'subscriptions', fresh), subscriptionDoc(fresh, UID_B, { status: 'ACTIVE' })));
     await assertFails(setDoc(doc(db, 'subscriptions', fresh), subscriptionDoc(fresh, UID_B, { expiryDate: '2099-01-01' })));
     await assertFails(setDoc(doc(db, 'subscriptions', fresh), subscriptionDoc(fresh, UID_A)));
@@ -273,6 +282,7 @@ describe('5. a company cannot change its own entitlement', () => {
   it('a new company can look for its record before creating it', async () => {
     const db = asB();
     const fresh = 'company-d-uuid';
+    await ownProfile(UID_B, fresh);
     const missing = await assertSucceeds(getDoc(doc(db, 'subscriptions', fresh)));
     assert.equal(missing.exists(), false);
     await assertSucceeds(setDoc(doc(db, 'subscriptions', fresh), subscriptionDoc(fresh, UID_B)));
@@ -547,7 +557,8 @@ describe('Refer & Earn', () => {
   });
 
   it('a new record starts with no reward', async () => {
-    const env2 = env.authenticatedContext('uid-new').firestore();
+    const env2 = env.authenticatedContext('uid-new', { phone_number: '+919999999999' }).firestore();
+    await ownProfile('uid-new', 'company-new');
     const fresh = (extra) => ({ ...subscriptionDoc('company-new', 'uid-new'), ...extra });
     await assertFails(setDoc(doc(env2, 'subscriptions', 'company-new'), fresh({ referralBonusDays: 30 })));
     await assertFails(setDoc(doc(env2, 'subscriptions', 'company-new'), fresh({ referralRewarded: true })));
@@ -571,5 +582,56 @@ describe('Refer & Earn verification', () => {
     const db = env.authenticatedContext('uid-new').firestore();
     await assertFails(setDoc(doc(db, 'subscriptions', 'company-new'),
       { ...subscriptionDoc('company-new', 'uid-new'), referralRejected: true }));
+  });
+});
+
+describe('Bill N Bilty hardening', () => {
+  it('a subscription is created only for the company in your own profile', async () => {
+    // B's profile is company B: it cannot create a record for another id.
+    const db = asB();
+    await assertFails(setDoc(doc(db, 'subscriptions', 'someone-else'), subscriptionDoc('someone-else', UID_B)));
+    // No profile at all: nothing can be created.
+    const stranger = env.authenticatedContext('uid-stranger', { phone_number: '+919999999999' }).firestore();
+    await assertFails(setDoc(doc(stranger, 'subscriptions', 'company-x'), subscriptionDoc('company-x', 'uid-stranger')));
+  });
+
+  it('the mobile on a subscription is blank or your own sign-in number', async () => {
+    const ref = doc(asA(), 'subscriptions', COMPANY_A);
+    await assertFails(updateDoc(ref, { ownerMobile: '9111111111', updatedAt: 'now' }));
+    await assertSucceeds(updateDoc(ref, { ownerMobile: '9876500001', updatedAt: 'now' }));
+    await assertSucceeds(updateDoc(ref, { ownerMobile: '', updatedAt: 'now' }));
+    // At creation too.
+    await ownProfile(UID_B, 'company-e');
+    await assertFails(setDoc(doc(asB(), 'subscriptions', 'company-e'),
+      subscriptionDoc('company-e', UID_B, { ownerMobile: '9876500001' })));
+  });
+
+  it('the App ID is set once; only an older form may move to SW', async () => {
+    const ref = doc(asA(), 'subscriptions', COMPANY_A);
+    // The seed holds the plain "4838".
+    await assertFails(updateDoc(ref, { companyCode: 'SW9999', updatedAt: 'now' }));
+    await assertSucceeds(updateDoc(ref, { companyCode: 'SW4838', updatedAt: 'now' }));
+    await assertFails(updateDoc(ref, { companyCode: 'SW4839', updatedAt: 'now' }));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'subscriptions', COMPANY_A), { companyCode: 'DRS-4838' });
+    });
+    await assertSucceeds(updateDoc(ref, { companyCode: 'SW4838', updatedAt: 'now' }));
+  });
+
+  it('KYC is submitted only for your own company', async () => {
+    const db = asB();
+    const kyc = (companyId) => ({ companyId, ownerUid: UID_B, status: 'PENDING', submittedAt: 'now' });
+    await assertFails(setDoc(doc(db, 'kycSubmissions', 'someone-else'), kyc('someone-else')));
+    await assertSucceeds(setDoc(doc(db, 'kycSubmissions', COMPANY_B), kyc(COMPANY_B)));
+  });
+
+  it('the App ID counter starts at the first number, stamped by the server', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await deleteDoc(doc(ctx.firestore(), 'counters', 'company_registration'));
+    });
+    const ref = doc(asA(), 'counters', 'company_registration');
+    await assertFails(setDoc(ref, { lastAssigned: 99999, updatedAt: serverTimestamp() }));
+    await assertSucceeds(setDoc(ref, { lastAssigned: 1324, updatedAt: serverTimestamp() }));
   });
 });

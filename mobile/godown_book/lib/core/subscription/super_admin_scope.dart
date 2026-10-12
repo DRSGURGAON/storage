@@ -25,8 +25,19 @@ class SuperAdminScope {
 
   static bool _isSuperAdmin = false;
   static String? _loadedForUid;
+  static Future<void>? _inFlight;
+  static String? _inFlightUid;
+
+  /// Same value as [isSuperAdmin], for screens that must update the
+  /// moment a check finishes (Settings shows the Super Admin menu).
+  static final ValueNotifier<bool> listenable = ValueNotifier<bool>(false);
 
   static bool get isSuperAdmin => _isSuperAdmin;
+
+  static void _set(bool value) {
+    _isSuperAdmin = value;
+    listenable.value = value;
+  }
 
   /// Tests: the claims the "token" carries, instead of Firebase.
   @visibleForTesting
@@ -47,15 +58,39 @@ class SuperAdminScope {
   /// grant made a moment ago is seen at the next sign-in, and falls
   /// back to the cached token when offline. A failed check denies
   /// access - never grants it.
-  static Future<void> refresh() async {
+  ///
+  /// Only an answer from a fresh token is remembered. One read from the
+  /// cached token (offline, slow network at launch) is used for now
+  /// but checked again on the next call - before, a failed check at
+  /// launch was kept until logout and the Super Admin menu stayed
+  /// hidden. Concurrent calls share one check.
+  static Future<void> refresh() {
     if (_testOverride != null) {
-      _isSuperAdmin = _testOverride!;
-      return;
+      _set(_testOverride!);
+      return Future.value();
     }
 
+    String? uid;
+    try {
+      uid = FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      uid = null;
+    }
+    final running = _inFlight;
+    if (running != null && _inFlightUid == uid) return running;
+
+    _inFlightUid = uid;
+    late final Future<void> call;
+    call = _refresh().whenComplete(() {
+      if (identical(_inFlight, call)) _inFlight = null;
+    });
+    return _inFlight = call;
+  }
+
+  static Future<void> _refresh() async {
     final override = claimsOverride;
     if (override != null) {
-      _isSuperAdmin = grantsSuperAdmin(await override());
+      _set(grantsSuperAdmin(await override()));
       return;
     }
 
@@ -66,44 +101,51 @@ class SuperAdminScope {
       // Firebase not initialised (a build still on the placeholder
       // options, or a unit test). Nobody is a Super Admin then, which
       // is the safe answer - never a crash.
-      _isSuperAdmin = false;
+      _set(false);
       _loadedForUid = null;
       return;
     }
 
     if (user == null || user.uid.isEmpty) {
-      _isSuperAdmin = false;
+      _set(false);
       _loadedForUid = null;
       return;
     }
 
     if (_loadedForUid == user.uid) return;
 
-    _isSuperAdmin = grantsSuperAdmin(await _claimsFor(user));
-    _loadedForUid = user.uid;
+    final (claims, definite) = await _claimsFor(user);
+
+    // Signed out or switched while the check was out.
+    if (FirebaseAuth.instance.currentUser?.uid != user.uid) return;
+
+    _set(grantsSuperAdmin(claims));
+    if (definite) _loadedForUid = user.uid;
   }
 
-  static Future<Map<String, dynamic>?> _claimsFor(User user) async {
+  /// The token's claims, and whether they came from a fresh token (a
+  /// definite answer) rather than the cached one.
+  static Future<(Map<String, dynamic>?, bool)> _claimsFor(User user) async {
     try {
       final fresh = await user
           .getIdTokenResult(true)
           .timeout(const Duration(seconds: 8));
-      return fresh.claims;
+      return (fresh.claims, true);
     } catch (_) {
       // Offline: the last token Firebase cached still carries the
-      // claims it was issued with.
+      // claims it was issued with - used for now, checked again later.
       try {
-        return (await user.getIdTokenResult()).claims;
+        return ((await user.getIdTokenResult()).claims, false);
       } catch (error) {
         debugPrint('Super Admin claim check failed: $error');
-        return null;
+        return (null, false);
       }
     }
   }
 
   /// Used on sign-out and in tests.
   static void clear() {
-    _isSuperAdmin = false;
+    _set(false);
     _loadedForUid = null;
   }
 
@@ -115,7 +157,7 @@ class SuperAdminScope {
 
   static void overrideForTesting(bool? isSuperAdmin) {
     _testOverride = isSuperAdmin;
-    _isSuperAdmin = isSuperAdmin ?? false;
+    _set(isSuperAdmin ?? false);
     _loadedForUid = null;
   }
 }

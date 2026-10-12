@@ -63,6 +63,36 @@ service cloud.firestore {
       return incoming().diff(existing()).affectedKeys();
     }
 
+    // Is [companyId] the company in the caller's own cloud profile
+    // (companies/{uid})? A subscription or KYC record can be created
+    // only for the caller's own company - not for any company id they
+    // happen to know.
+    function ownsCompany(companyId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/companies/$(request.auth.uid))
+        && get(/databases/$(database)/documents/companies/$(request.auth.uid))
+             .data.get('companyId', '') == companyId;
+    }
+
+    // The mobile number on a subscription is blank (account deleted) or
+    // the caller's own verified sign-in number - so a company cannot put
+    // another company's number on its record and turn up in the Super
+    // Admin's search for that number.
+    function isOwnMobile(mobile) {
+      return mobile == ''
+        || (mobile is string
+            && mobile.matches('[0-9]{10}')
+            && request.auth.token.get('phone_number', '').matches('.*' + mobile));
+    }
+
+    // The App ID is set once. The only later change allowed is moving an
+    // older form ("4838", "DRS-4838") to the current one ("SW4838").
+    function appIdChangeAllowed(before, after) {
+      return before == ''
+        || after == 'SW' + before
+        || before == 'DRS-' + after.replace('^SW', '');
+    }
+
     // The free-copy counters, one per document type. A company may add
     // to its own counters (a copy was made) and never take away. The
     // keys are DocumentType.all in lib/core/subscription/document_type.dart.
@@ -165,8 +195,10 @@ service cloud.firestore {
 
       allow create: if isSuperAdmin()
         || (signedIn()
+            && ownsCompany(companyId)
             && incoming().ownerUid == request.auth.uid
             && incoming().companyId == companyId
+            && isOwnMobile(incoming().get('ownerMobile', ''))
             && incoming().status == 'LIMITED'
             && !('planId' in incoming() && incoming().planId != null)
             && !('startDate' in incoming() && incoming().startDate != null)
@@ -197,6 +229,12 @@ service cloud.firestore {
             && countersNotLowered(
                  existing().get('demoGenerationsUsed', {}),
                  incoming().get('demoGenerationsUsed', {}))
+            && (!changedKeys().hasAny(['ownerMobile'])
+                || isOwnMobile(incoming().ownerMobile))
+            && (!changedKeys().hasAny(['companyCode'])
+                || (incoming().companyCode is string
+                    && appIdChangeAllowed(existing().get('companyCode', ''),
+                                          incoming().companyCode)))
             // Refer & Earn: who referred this company is set once, by
             // its owner, and never to its own App ID. The rewards
             // (referralRewarded, referralBonusDays, referralCount) are
@@ -276,8 +314,10 @@ service cloud.firestore {
     match /counters/company_registration {
       allow read: if signedIn();
 
+      // Created once, by the first company ever, at the first number.
       allow create: if signedIn()
-        && incoming().lastAssigned is int
+        && incoming().lastAssigned == 1324
+        && incoming().updatedAt == request.time
         && incoming().keys().hasOnly(['lastAssigned', 'updatedAt']);
 
       allow update: if isSuperAdmin()
@@ -305,6 +345,7 @@ service cloud.firestore {
       allow list: if isSuperAdmin();
 
       allow create: if signedIn()
+        && ownsCompany(companyId)
         && incoming().ownerUid == request.auth.uid
         && incoming().companyId == companyId
         && incoming().status == 'PENDING';

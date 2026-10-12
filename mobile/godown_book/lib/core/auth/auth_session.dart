@@ -191,39 +191,54 @@ class AuthSessionNotifier extends StateNotifier<AuthSessionState> {
       return;
     }
 
-    if (companyId != null && companyId.isNotEmpty) {
+    // Each step on its own, best-effort: one that fails (offline, or a
+    // rule not yet published) must neither skip the others nor block
+    // the Auth account itself from being deleted - re-running Delete
+    // Account retries what was left.
+    Future<void> step(
+      String what,
+      Future<void> Function() action, {
+      Duration timeout = const Duration(seconds: 8),
+    }) async {
       try {
-        // The document cloud backup lives under this same
-        // companies/{uid} doc - wipe those subcollections FIRST,
-        // while the user is still signed in (the Security Rule only
-        // lets the owner write under their own uid). Best-effort by
-        // design, same as the profile-doc delete below.
-        await DocumentCloudSyncService.instance.wipeCloudBackup();
-
-        await FirebaseFirestore.instance
-            .collection('companies')
-            .doc(user.uid)
-            .delete()
-            .timeout(const Duration(seconds: 8));
-
-        // The KYC submission holds the uploaded PAN and second ID -
-        // the most sensitive thing this app ever puts in the cloud -
-        // and lives outside companies/{uid}, so it needs its own
-        // delete or it would survive the account it belongs to.
-        await FirebaseFirestore.instance
-            .collection('kycSubmissions')
-            .doc(companyId)
-            .delete()
-            .timeout(const Duration(seconds: 8));
+        await action().timeout(timeout);
       } catch (error) {
-        // A failed cloud-doc delete must not block the user from
-        // genuinely deleting their own Auth account - the Firestore
-        // Security Rule (request.auth.uid == uid) already means no
-        // one else could ever read/write this orphaned doc anyway,
-        // and re-running deleteAccount() after fixing connectivity
-        // will simply retry this step.
-        debugPrint('Failed to delete company cloud doc: $error');
+        debugPrint('Delete account - $what not removed: $error');
       }
+    }
+
+    final firestore = FirebaseFirestore.instance;
+    if (companyId != null && companyId.isNotEmpty) {
+      // The KYC submission holds the uploaded PAN and second ID - the
+      // most sensitive thing this app puts in the cloud - and lives
+      // outside companies/{uid}, so it needs its own delete.
+      await step('KYC documents',
+          () => firestore.collection('kycSubmissions').doc(companyId).delete());
+
+      // The subscription stays (plan history and App ID are the
+      // platform's record), but the personal copy on it goes.
+      await step('subscription contact details', () async {
+        final ref = firestore.collection('subscriptions').doc(companyId);
+        final snapshot = await ref.get();
+        if (!snapshot.exists) return;
+        await ref.update({
+          'companyName': '',
+          'ownerMobile': '',
+          'gstNumber': '',
+          'authorizedSignatoryName': '',
+          'email': '',
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+      });
+
+      // The document cloud backup lives under companies/{uid}: wiped
+      // while still signed in (only the owner may write there), then
+      // the profile itself.
+      await step('cloud backup',
+          () => DocumentCloudSyncService.instance.wipeCloudBackup(),
+          timeout: const Duration(minutes: 2));
+      await step('company profile',
+          () => firestore.collection('companies').doc(user.uid).delete());
     }
 
     // While still signed in: the sign-in record goes with the account.

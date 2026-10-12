@@ -93,6 +93,24 @@ class SubscriptionRepository {
     }
   }
 
+  /// The verified sign-in number, as 10 digits - the only number the
+  /// rules let a company put on its own record. '' when unknown.
+  String get _ownMobile {
+    final digits = _signedInPhone.replaceAll(RegExp(r'[^0-9]'), '');
+    return digits.length >= 10 ? digits.substring(digits.length - 10) : '';
+  }
+
+  /// Mirrors firestore.rules' appIdChangeAllowed: the App ID is set
+  /// once; later only an older form may move to the current "SW" one.
+  static bool appIdChangeAllowed(String before, String after) {
+    if (before.isEmpty) return true;
+    final digits = after.startsWith(AppIdCounterService.prefix)
+        ? after.substring(AppIdCounterService.prefix.length)
+        : after;
+    return after == '${AppIdCounterService.prefix}$before' ||
+        before == 'DRS-$digits';
+  }
+
   /// Per document type, the larger of two free-copy counts.
   static Map<String, int> _higherCounts(
     Map<String, int> a,
@@ -165,9 +183,9 @@ class SubscriptionRepository {
             if (local.isNotEmpty && local != cloud) changes[field] = local;
           }
 
-          final mobile = localCompany.mobile1.isNotEmpty
-              ? _normalizePhone(localCompany.mobile1)
-              : _normalizePhone(_signedInPhone);
+          // The sign-in number, never the profile's typed one: the
+          // Super Admin finds a company by it.
+          final mobile = _ownMobile;
           refresh('companyName', localCompany.companyName, subscription.companyName);
           refresh('ownerMobile', mobile, subscription.ownerMobile);
           refresh('gstNumber', localCompany.gstNumber, subscription.gstNumber);
@@ -175,7 +193,11 @@ class SubscriptionRepository {
               localCompany.authorizedSignatoryName,
               subscription.authorizedSignatoryName);
           refresh('email', localCompany.email, subscription.email);
-          refresh('companyCode', localCompany.companyCode, subscription.companyCode);
+          if (appIdChangeAllowed(
+              subscription.companyCode, localCompany.companyCode)) {
+            refresh('companyCode', localCompany.companyCode,
+                subscription.companyCode);
+          }
 
           // Free copies made while offline were counted on this device;
           // the cloud must never take them back.
@@ -219,6 +241,14 @@ class SubscriptionRepository {
       // so the very first record any company ever has is already the
       // server-authoritative one.
       final localCompany = await CompanyController.instance.getCompany();
+      // A Super Admin's phone, holding its own company, never creates
+      // another company's record: it would be owned by the admin, and
+      // the company itself could then never read it.
+      if (localCompany != null &&
+          localCompany.companyId != companyId &&
+          SuperAdminScope.isSuperAdmin) {
+        throw const _NoRecordForAdmin();
+      }
       final now = DateTime.now().toIso8601String();
       final created = SubscriptionModel(
         id: IdGenerator.generateId(),
@@ -229,11 +259,7 @@ class SubscriptionRepository {
             localCompany?.companyId == companyId
                 ? (localCompany?.companyName ?? '')
                 : '',
-        ownerMobile: localCompany?.companyId == companyId
-            ? _normalizePhone((localCompany?.mobile1 ?? '').isNotEmpty
-                ? localCompany!.mobile1
-                : _signedInPhone)
-            : '',
+        ownerMobile: _ownMobile,
         gstNumber:
             localCompany?.companyId == companyId
                 ? (localCompany?.gstNumber ?? '')
@@ -260,6 +286,11 @@ class SubscriptionRepository {
 
       return created;
     } catch (error) {
+      // Not a cloud failure, and no local stand-in either: the Super
+      // Admin is told the record does not exist.
+      if (error is _NoRecordForAdmin) {
+        throw StateError('This company has no subscription record yet.');
+      }
       lastCloudError.value = error is FirebaseException
           ? error.code
           : error is TimeoutException
@@ -346,21 +377,30 @@ class SubscriptionRepository {
   /// see this class's own doc comment on getOrCreateForCompany()'s
   /// backfill for why a brand-new/legacy record may briefly lack it.
   Future<SubscriptionModel?> getByMobileNumber(String mobileNumber) async {
+    final matches = await findAllByMobileNumber(mobileNumber);
+    return matches.isEmpty ? null : matches.first;
+  }
+
+  /// Every company on [mobileNumber] - more than one means a number
+  /// was reused, and the Super Admin must pick after comparing rather
+  /// than act on whichever came back first.
+  Future<List<SubscriptionModel>> findAllByMobileNumber(
+    String mobileNumber,
+  ) async {
     await _requireSuperAdmin();
 
     final normalizedQuery = _normalizePhone(mobileNumber);
-    if (normalizedQuery.isEmpty) return null;
+    if (normalizedQuery.isEmpty) return const [];
 
     final snapshot = await _subscriptionsCollection
         .where('ownerMobile', isEqualTo: normalizedQuery)
-        .limit(1)
+        .limit(10)
         .get()
         .timeout(_firestoreTimeout);
 
-    if (snapshot.docs.isEmpty) return null;
-
-    final doc = snapshot.docs.first;
-    return SubscriptionModel.fromFirestore(doc.data(), doc.id);
+    return snapshot.docs
+        .map((doc) => SubscriptionModel.fromFirestore(doc.data(), doc.id))
+        .toList();
   }
 
   /// Super Admin lookup by the customer's unique App ID (the
@@ -372,22 +412,28 @@ class SubscriptionRepository {
   /// same number is searched and typed prefixes and spacing are
   /// tolerated.
   Future<SubscriptionModel?> getByCompanyCode(String code) async {
+    final matches = await findAllByCompanyCode(code);
+    return matches.isEmpty ? null : matches.first;
+  }
+
+  /// Every company carrying the App ID [code] in any of its forms. An
+  /// App ID should be unique; more than one is shown to the Super Admin
+  /// as a warning, and no referral bonus is paid against it.
+  Future<List<SubscriptionModel>> findAllByCompanyCode(String code) async {
     await _requireSuperAdmin();
 
+    final byId = <String, SubscriptionModel>{};
     for (final candidate in AppIdCounterService.lookupCandidates(code)) {
       final snapshot = await _subscriptionsCollection
           .where('companyCode', isEqualTo: candidate)
-          .limit(1)
+          .limit(10)
           .get()
           .timeout(_firestoreTimeout);
-
-      if (snapshot.docs.isNotEmpty) {
-        final doc = snapshot.docs.first;
-        return SubscriptionModel.fromFirestore(doc.data(), doc.id);
+      for (final doc in snapshot.docs) {
+        byId[doc.id] = SubscriptionModel.fromFirestore(doc.data(), doc.id);
       }
     }
-
-    return null;
+    return byId.values.toList();
   }
 
   /// Strips everything but digits, and a leading '91' country code if
@@ -745,10 +791,15 @@ class SubscriptionRepository {
 
   Future<String> _payReferralBonus(SubscriptionModel friend) async {
     final code = friend.referredBy.trim();
-    final referrer = await getByCompanyCode(code);
-    if (referrer == null) {
+    final matches = await findAllByCompanyCode(code);
+    if (matches.isEmpty) {
       throw StateError('App ID $code was not found - no bonus given.');
     }
+    if (matches.length > 1) {
+      throw StateError('App ID $code is on ${matches.length} companies - '
+          'no bonus given until that is sorted out.');
+    }
+    final referrer = matches.single;
     if (referrer.companyId == friend.companyId) {
       throw StateError('A company cannot refer itself.');
     }
@@ -1007,4 +1058,8 @@ class SubscriptionRepository {
 
   static String _encodeDemoCounts(Map<String, int> counts) =>
       jsonEncode(counts);
+}
+
+class _NoRecordForAdmin implements Exception {
+  const _NoRecordForAdmin();
 }

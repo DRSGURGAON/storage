@@ -64,7 +64,9 @@ class _SuperAdminCompanyDetailScreenState
   bool _isSuperAdmin = false;
 
 
-  Map<String, int> _documentUsage = {};
+  /// Null when the record could not be read - shown as unknown, never
+  /// as "no free copies used".
+  Map<String, int>? _documentUsage;
 
   CompanyRecordCounts? _recordCounts;
   String? _recordCountError;
@@ -104,13 +106,21 @@ class _SuperAdminCompanyDetailScreenState
       return;
     }
 
-    // Only the documents this company has actually generated are worth
-    // a row; the rest would be a page of zeroes.
-    final usage = <String, int>{};
-    for (final type in _trackedDocumentTypes) {
-      final used = await SubscriptionRepository.instance
-          .getDemoGenerationsUsed(_subscription.companyId, type);
-      if (used > 0) usage[type] = used;
+    // One read straight from the server: never this phone's cached or
+    // stand-in copy, and never a record created for a company that has
+    // none.
+    Map<String, int>? usage;
+    try {
+      final live =
+          await SubscriptionRepository.instance.readLive(_subscription.companyId);
+      _subscription = live;
+      usage = {
+        for (final type in _trackedDocumentTypes)
+          if (SubscriptionRepository.demoGenerationsUsedIn(live, type) > 0)
+            type: SubscriptionRepository.demoGenerationsUsedIn(live, type),
+      };
+    } catch (_) {
+      usage = null;
     }
 
     // How much this company actually uses the app. Counted from its
@@ -427,18 +437,22 @@ class _SuperAdminCompanyDetailScreenState
                             style: TextStyle(color: Colors.grey, fontSize: 12),
                           ),
                         ),
-                        if (_documentUsage.isEmpty)
+                        if (_documentUsage == null)
+                          const Text(
+                              '- (could not be read; check the internet)',
+                              style: TextStyle(color: Colors.grey))
+                        else if (_documentUsage!.isEmpty)
                           const Text('No free copies used.',
                               style: TextStyle(color: Colors.grey)),
                         for (final type in _trackedDocumentTypes)
-                          if ((_documentUsage[type] ?? 0) > 0)
+                          if ((_documentUsage?[type] ?? 0) > 0)
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 2),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(_documentTypeLabel(type)),
-                                  Text('${_documentUsage[type]} generated'),
+                                  Text('${_documentUsage![type]} generated'),
                                 ],
                               ),
                             ),

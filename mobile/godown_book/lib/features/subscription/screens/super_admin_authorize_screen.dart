@@ -38,6 +38,10 @@ class _SuperAdminAuthorizeScreenState
   bool _searched = false;
 
   SubscriptionModel? _subscription;
+
+  /// How many companies the last search matched - more than one is
+  /// kept on screen as a warning after the admin has picked one.
+  int _matchCount = 0;
   List<SubscriptionHistoryModel> _history = [];
 
   @override
@@ -80,12 +84,33 @@ class _SuperAdminAuthorizeScreenState
     // dashboard) - a 10-digit number is tried as a phone first, and
     // anything else (or a phone that matches nothing) is tried as an
     // App ID. Both lookups tolerate natural formatting.
-    final SubscriptionModel? subscription;
+    // Every match is fetched: a number or App ID on more than one
+    // company must be a choice the admin makes after comparing, never
+    // whichever record the server returned first.
+    final List<SubscriptionModel> matches;
+    try {
+      final byMobile =
+          await SubscriptionRepository.instance.findAllByMobileNumber(query);
+      matches = byMobile.isNotEmpty
+          ? byMobile
+          : await SubscriptionRepository.instance.findAllByCompanyCode(query);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _searching = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Search failed: $error')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    final SubscriptionModel? subscription = matches.length > 1
+        ? await _pickCompany(matches)
+        : (matches.isEmpty ? null : matches.single);
+    _matchCount = matches.length;
+
     final List<SubscriptionHistoryModel> history;
     try {
-      subscription =
-          await SubscriptionRepository.instance.getByMobileNumber(query) ??
-              await SubscriptionRepository.instance.getByCompanyCode(query);
       history = subscription == null
           ? const []
           : await SubscriptionRepository.instance
@@ -114,6 +139,57 @@ class _SuperAdminAuthorizeScreenState
       _history = history;
       _searching = false;
     });
+  }
+
+  /// Several companies matched: show them side by side so the right one
+  /// is chosen on purpose.
+  Future<SubscriptionModel?> _pickCompany(
+    List<SubscriptionModel> matches,
+  ) {
+    return showDialog<SubscriptionModel>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+        title: Text('${matches.length} companies found'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Text(
+                'This number or App ID is on more than one company. '
+                'Compare them and pick the right one.',
+                style: TextStyle(fontSize: 12.5, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              for (final match in matches)
+                Card(
+                  child: ListTile(
+                    title: Text(match.companyName.trim().isEmpty
+                        ? 'Company name not set'
+                        : match.companyName.trim()),
+                    subtitle: Text([
+                      if (match.companyCode.isNotEmpty)
+                        'App ID ${match.companyCode}',
+                      if (match.ownerMobile.isNotEmpty) match.ownerMobile,
+                      match.status.label,
+                      if (match.createdAt.length >= 10)
+                        'Joined ${match.createdAt.substring(0, 10)}',
+                    ].join('  ·  ')),
+                    onTap: () => Navigator.pop(dialogContext, match),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _reload() async {
@@ -283,6 +359,20 @@ class _SuperAdminAuthorizeScreenState
                 'No company found for this mobile number.',
                 textAlign: TextAlign.center,
               ),
+            ),
+          ),
+        if (_subscription != null && _matchCount > 1)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              'Warning: this search matched $_matchCount companies. Make '
+              'sure this is the one that paid before you authorize.',
+              style: TextStyle(fontSize: 12.5, color: Colors.orange.shade900),
             ),
           ),
         if (_subscription != null) _buildResult(context),

@@ -480,6 +480,22 @@ void main() {
       expect((await cloud('company-referrer'))['referralBonusDays'], 30);
     });
 
+    test('no bonus while the App ID is on more than one company', () async {
+      await seedReferrer(expiry: '2099-01-01T00:00:00.000');
+      // An older record still carrying the plain form of the same ID.
+      await SubscriptionRepository.firestoreOverride!
+          .collection('subscriptions')
+          .doc('company-duplicate')
+          .set({'companyId': 'company-duplicate', 'companyCode': '1325'});
+      await repo.getOrCreateForCompany(TenantScope.companyId);
+      await repo.setReferredBy(TenantScope.companyId, 'SW1325');
+
+      expect((await repo.findAllByCompanyCode('SW1325')).length, 2);
+      await expectLater(
+          repo.giveReferralBonusNow(TenantScope.companyId), throwsStateError);
+      expect((await cloud('company-referrer'))['referralCount'], isNull);
+    });
+
     test('saved bonus days are added to the next plan, then cleared',
         () async {
       await repo.getOrCreateForCompany(TenantScope.companyId);
@@ -502,5 +518,15 @@ void main() {
       expect((await cloud(TenantScope.companyId))['referralBonusDays'], 0);
       expect(repo.lastReferralMessage, contains('30 extra days'));
     });
+  });
+
+  test('the App ID is set once; only an older form moves to SW', () {
+    expect(SubscriptionRepository.appIdChangeAllowed('', 'SW1325'), isTrue);
+    expect(SubscriptionRepository.appIdChangeAllowed('1325', 'SW1325'), isTrue);
+    expect(
+        SubscriptionRepository.appIdChangeAllowed('DRS-1325', 'SW1325'), isTrue);
+    expect(
+        SubscriptionRepository.appIdChangeAllowed('SW1325', 'SW1326'), isFalse);
+    expect(SubscriptionRepository.appIdChangeAllowed('1325', 'SW1326'), isFalse);
   });
 }

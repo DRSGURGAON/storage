@@ -169,17 +169,27 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
 
-          if (SuperAdminScope.isSuperAdmin)
-            Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: ListTile(
-                leading: const Icon(Icons.shield_outlined),
-                title: const Text('Super Admin Dashboard'),
-                subtitle: const Text('Verify payments, manage plans'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/super-admin'),
-              ),
-            ),
+          // Checked again each time Settings opens, and shown the moment
+          // the answer lands - a check that failed at launch no longer
+          // hides the menu until the next sign-in.
+          ValueListenableBuilder<bool>(
+            valueListenable: SuperAdminScope.listenable,
+            builder: (context, isSuperAdmin, _) {
+              SuperAdminScope.refresh().ignore();
+              if (!isSuperAdmin) return const SizedBox.shrink();
+              return Card(
+                margin:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: ListTile(
+                  leading: const Icon(Icons.shield_outlined),
+                  title: const Text('Super Admin Dashboard'),
+                  subtitle: const Text('Companies, plans, referrals'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/super-admin'),
+                ),
+              );
+            },
+          ),
 
           const SizedBox(height: 16),
 
