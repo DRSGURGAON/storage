@@ -19,6 +19,7 @@ import '../../features/settings/screens/cloud_backup_screen.dart';
 import '../../features/settings/screens/delete_account_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/reports/screens/document_customisation_screen.dart';
+import '../../features/reports/screens/money_report_screens.dart';
 import '../../features/reports/screens/report_pdf_screen.dart';
 import '../../features/reports/screens/reports_screen.dart';
 
@@ -230,6 +231,36 @@ class AppRouter {
         path: '/reports/aged-outstanding',
         builder: (context, state) =>
             const ReportPdfScreen(kind: ReportKind.agedOutstanding),
+      ),
+
+      GoRoute(
+        path: '/reports/ledger',
+        builder: (context, state) => const CustomerLedgerReportScreen(),
+      ),
+
+      GoRoute(
+        path: '/reports/outstanding',
+        builder: (context, state) => const OutstandingReportScreen(),
+      ),
+
+      GoRoute(
+        path: '/reports/payments',
+        builder: (context, state) => const PaymentReportScreen(),
+      ),
+
+      GoRoute(
+        path: '/reports/gst',
+        builder: (context, state) => const GstSummaryReportScreen(),
+      ),
+
+      GoRoute(
+        path: '/reports/bills',
+        builder: (context, state) => const BillReportScreen(),
+      ),
+
+      GoRoute(
+        path: '/reports/quotations',
+        builder: (context, state) => const QuotationReportScreen(),
       ),
 
       GoRoute(
