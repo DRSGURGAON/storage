@@ -171,6 +171,11 @@ class QuotationModel {
   final double igstAmount;
 
   final QuotationStatus status;
+
+  /// When to call the customer about this quotation ('' = no follow-up
+  /// planned). Set two days ahead when a quotation is made; moved by
+  /// the follow-ups screen, and closed by marking it Booked or Lost.
+  final String followUpDate;
   final String notes;
   final String terms;
 
@@ -204,6 +209,7 @@ class QuotationModel {
     this.sgstAmount = 0,
     this.igstAmount = 0,
     this.status = QuotationStatus.draft,
+    this.followUpDate = '',
     this.notes = '',
     this.terms = '',
     required this.createdAt,
@@ -280,6 +286,7 @@ class QuotationModel {
     double? sgstAmount,
     double? igstAmount,
     QuotationStatus? status,
+    String? followUpDate,
     String? notes,
     String? terms,
     String? createdAt,
@@ -311,6 +318,7 @@ class QuotationModel {
       sgstAmount: sgstAmount ?? this.sgstAmount,
       igstAmount: igstAmount ?? this.igstAmount,
       status: status ?? this.status,
+      followUpDate: followUpDate ?? this.followUpDate,
       notes: notes ?? this.notes,
       terms: terms ?? this.terms,
       createdAt: createdAt ?? this.createdAt,
@@ -349,6 +357,7 @@ class QuotationModel {
         'igst_amount': igstAmount,
         'grand_total': grandTotal,
         'status': status.code,
+        'follow_up_date': followUpDate,
         'notes': notes,
         'terms': terms,
         'created_at': createdAt,
@@ -387,6 +396,7 @@ class QuotationModel {
       sgstAmount: number('sgst_amount'),
       igstAmount: number('igst_amount'),
       status: QuotationStatus.fromCode(map['status'] as String?),
+      followUpDate: text('follow_up_date'),
       notes: text('notes'),
       terms: text('terms'),
       createdAt: text('created_at'),

@@ -137,6 +137,8 @@ class QuotationRepository {
       final updated = priced.copyWith(
         quotationNo: existing.quotationNo,
         createdAt: existing.createdAt,
+        // An edit never undoes a follow-up already planned or closed.
+        followUpDate: existing.followUpDate,
         updatedAt: nowIso,
         lines: [
           for (final line in priced.lines)
@@ -171,6 +173,11 @@ class QuotationRepository {
           final withNumber = priced.copyWith(
             id: idToUse,
             quotationNo: quotationNo,
+            // A new quotation is due for a call two days later.
+            followUpDate: priced.followUpDate.isNotEmpty
+                ? priced.followUpDate
+                : DateTime(now.year, now.month, now.day + 2)
+                    .toIso8601String(),
             createdAt: priced.createdAt.isEmpty ? nowIso : priced.createdAt,
             updatedAt: nowIso,
             lines: [
@@ -208,6 +215,23 @@ class QuotationRepository {
     final existing = await _dao.getById(id);
     if (existing == null) return;
     await _dao.updateRow(existing.copyWith(
+      status: status,
+      updatedAt: DateTime.now().toIso8601String(),
+    ));
+  }
+
+  /// Moves a quotation's follow-up to [followUpDate] ('' closes it),
+  /// and records the outcome when one is given (Booked = accepted,
+  /// Lost = declined).
+  Future<void> setFollowUp(
+    String id, {
+    required String followUpDate,
+    QuotationStatus? status,
+  }) async {
+    final existing = await _dao.getById(id);
+    if (existing == null) return;
+    await _dao.updateRow(existing.copyWith(
+      followUpDate: followUpDate,
       status: status,
       updatedAt: DateTime.now().toIso8601String(),
     ));

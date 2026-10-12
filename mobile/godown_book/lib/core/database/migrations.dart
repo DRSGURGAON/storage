@@ -226,6 +226,9 @@ class Migrations {
     /* 'DRAFT' | 'SENT' | 'ACCEPTED' | 'DECLINED' - see QuotationStatus. */
     status TEXT NOT NULL DEFAULT 'DRAFT',
 
+    /* When to call the customer about it ('' = none planned). */
+    follow_up_date TEXT NOT NULL DEFAULT '',
+
     notes TEXT,
     terms TEXT,
 

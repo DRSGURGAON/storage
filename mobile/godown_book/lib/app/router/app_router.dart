@@ -19,6 +19,7 @@ import '../../features/settings/screens/cloud_backup_screen.dart';
 import '../../features/settings/screens/delete_account_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/reports/screens/document_customisation_screen.dart';
+import '../../features/followups/follow_ups_screen.dart';
 import '../../features/reports/screens/money_report_screens.dart';
 import '../../features/reports/screens/report_pdf_screen.dart';
 import '../../features/reports/screens/reports_screen.dart';
@@ -231,6 +232,11 @@ class AppRouter {
         path: '/reports/aged-outstanding',
         builder: (context, state) =>
             const ReportPdfScreen(kind: ReportKind.agedOutstanding),
+      ),
+
+      GoRoute(
+        path: '/follow-ups',
+        builder: (context, state) => const FollowUpsScreen(),
       ),
 
       GoRoute(

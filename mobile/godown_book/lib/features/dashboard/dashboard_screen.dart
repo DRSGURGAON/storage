@@ -6,12 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/theme/brand.dart';
 import '../../core/contact/contact_launcher.dart';
 import '../../core/subscription/subscription_access_service.dart';
 import '../../core/subscription/subscription_status.dart';
 import '../../core/tenant/tenant_provider.dart';
+import '../../core/tenant/tenant_scope.dart';
 import '../../core/update/app_update_banner.dart';
 import '../company/controllers/company_controller.dart';
 import '../company/models/company_model.dart';
@@ -19,6 +21,7 @@ import '../company/repositories/company_repository.dart';
 import '../company/services/company_firestore_sync_service.dart';
 import '../company/services/app_id_counter_service.dart';
 import '../subscription/services/platform_settings_service.dart';
+import '../followups/follow_up_service.dart';
 import '../promo/promo_banner.dart';
 import '../subscription/models/subscription_model.dart';
 import '../subscription/models/subscription_settings_model.dart';
@@ -97,6 +100,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     });
 
     unawaited(_loadPlatformContact());
+    unawaited(_remindCallsOncePerDay(stats));
   }
 
   /// Picks up a support number the Super Admin has published, replacing
@@ -179,8 +183,44 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 child: Center(child: CircularProgressIndicator(color: Brand.navy)),
               )
             else if (stats != null) ...[
-              _moneyTiles(stats),
+              // What needs the owner now, first: the plan running out,
+              // the customers to call, and today's work.
+              if (_subscription != null && !_subscriptionHealthy)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: _Pulse(
+                    active: true,
+                    color: Brand.coral,
+                    child: _subscriptionStrip(),
+                  ),
+                ),
+              _callToday(stats),
               _todayTasks(stats),
+            ],
+            _actionGrid(),
+            _documentGrid(),
+            // Everything else, below the documents.
+            if (stats != null) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 26, 20, 0),
+                child: _sectionTitle('Overview'),
+              ),
+              _moneyTiles(stats),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
+                child: _sectionTitle('Godown'),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Brand.navy,
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: _godownMap(stats),
+                ),
+              ),
             ],
             // A newer build from CI, or nothing at all (no gap).
             const AppUpdateBanner(),
@@ -189,9 +229,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               subscriptionStatus: _subscription?.status,
               subscriptionActive: _isSubscriptionActive,
             ),
-            _actionGrid(),
-            _documentGrid(),
-            if (_subscription != null) _subscriptionStrip(),
+            if (_subscription != null && _subscriptionHealthy)
+              _subscriptionStrip(),
             if (_supportSettings != null) _supportCard(_supportSettings!),
             const SizedBox(height: 24),
           ],
@@ -264,8 +303,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   () => _open('/settings')),
             ],
           ),
-          const SizedBox(height: 22),
-          _godownMap(stats),
         ],
       ),
     );
@@ -957,6 +994,135 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   // Subscription and support
   // ==========================================================================
 
+  /// Active, and not inside the expiry-warning window.
+  bool get _subscriptionHealthy =>
+      _subscription?.status == SubscriptionStatus.active &&
+      (_isSubscriptionActive ?? false) &&
+      !(_isExpiringSoon && _daysUntilExpiry != null);
+
+  // ==========================================================================
+  // Call today
+  // ==========================================================================
+
+  List<FollowUpCall> _callsFor(DashboardStats stats) => FollowUps.callsToday(
+        quotations: stats.quotations,
+        overdueBills: stats.overdueBills,
+        pastExpectedEnd: stats.pastExpectedEnd,
+        today: DateTime.now(),
+        money: (v) => '₹${_rupees.format(v.round())}',
+      );
+
+  /// Customers to call today - quotation follow-ups, overdue payments,
+  /// storage past its end date. Pulses so it is the first thing seen.
+  Widget _callToday(DashboardStats stats) {
+    final calls = _callsFor(stats);
+    final hasCalls = calls.isNotEmpty;
+    final names = calls.map((c) => c.customerName).toSet().toList();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      child: _Pulse(
+        active: hasCalls,
+        color: Brand.amber,
+        child: Material(
+          color: hasCalls ? Brand.amberSoft : Brand.card,
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () => _open('/follow-ups'),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                    color: hasCalls ? const Color(0xffF3D9A6) : Brand.line),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    hasCalls ? Icons.ring_volume_outlined : Icons.event_available,
+                    color: hasCalls ? Brand.amberInk : Brand.mintInk,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          hasCalls
+                              ? 'Call today: ${calls.length} customer'
+                                  '${calls.length == 1 ? '' : 's'}'
+                              : 'No calls due today',
+                          style: const TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                              color: Brand.ink),
+                        ),
+                        Text(
+                          hasCalls
+                              ? '${names.take(2).join(', ')}'
+                                  '${names.length > 2 ? ' +${names.length - 2} more' : ''}'
+                              : 'Follow-ups, payments and storage renewals',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12, color: Brand.inkMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    hasCalls ? 'Call now' : 'Open',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: hasCalls ? Brand.amberInk : Brand.inkMuted,
+                    ),
+                  ),
+                  Icon(Icons.chevron_right,
+                      size: 20,
+                      color: hasCalls ? Brand.amberInk : Brand.inkMuted),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _reminderShown = false;
+
+  /// On the first open of the day, a popup lists who to call. Not shown
+  /// again that day.
+  Future<void> _remindCallsOncePerDay(DashboardStats stats) async {
+    if (_reminderShown || !TenantScope.isReady) return;
+    final calls = _callsFor(stats);
+    if (calls.isEmpty) return;
+
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final key = 'call_reminder_day.${TenantScope.companyId}';
+    final SharedPreferences prefs;
+    try {
+      prefs = await SharedPreferences.getInstance();
+      if (prefs.getString(key) == today) return;
+    } catch (_) {
+      return;
+    }
+
+    // Only over the dashboard itself, never over a screen opened since.
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    _reminderShown = true;
+    try {
+      await prefs.setString(key, today);
+    } catch (_) {}
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _CallTodayDialog(calls: calls),
+    );
+  }
+
   Widget _subscriptionStrip() {
     final subscription = _subscription!;
     final status = subscription.status;
@@ -1152,4 +1318,147 @@ class _Action {
   final VoidCallback onTap;
 
   const _Action(this.label, this.icon, this.fill, this.ink, this.onTap);
+}
+
+/// A soft glow that breathes around a card that needs attention.
+class _Pulse extends StatefulWidget {
+  const _Pulse({required this.active, required this.color, required this.child});
+
+  final bool active;
+  final Color color;
+  final Widget child;
+
+  @override
+  State<_Pulse> createState() => _PulseState();
+}
+
+class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) _controller.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(_Pulse oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    } else if (!widget.active && _controller.isAnimating) {
+      _controller
+        ..stop()
+        ..value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.active) return widget.child;
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) {
+        final t = Curves.easeInOut.transform(_controller.value);
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: widget.color.withValues(alpha: 0.15 + 0.35 * t),
+                blurRadius: 4 + 12 * t,
+                spreadRadius: 1 + 2 * t,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+    );
+  }
+}
+
+/// "Call today" popup on the first open of the day: who to call and
+/// why, with a Call button for each.
+class _CallTodayDialog extends StatelessWidget {
+  const _CallTodayDialog({required this.calls});
+
+  final List<FollowUpCall> calls;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = calls.take(5).toList();
+    return AlertDialog(
+      icon: const Icon(Icons.ring_volume, color: Brand.amber, size: 34),
+      title: Text(
+        'Call today: ${calls.length} customer${calls.length == 1 ? '' : 's'}',
+        textAlign: TextAlign.center,
+      ),
+      contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'A quick call now can win a booking, bring in a payment or '
+                'settle a storage that has run its time.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Brand.inkMuted),
+              ),
+              const SizedBox(height: 12),
+              for (final call in shown)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: Text(call.customerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text(call.detail, maxLines: 2),
+                  trailing: call.phone.trim().isEmpty
+                      ? null
+                      : IconButton.filledTonal(
+                          tooltip: 'Call',
+                          icon: const Icon(Icons.call, size: 20),
+                          onPressed: () => ContactLauncher.call(call.phone),
+                        ),
+                ),
+              if (calls.length > shown.length)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('+${calls.length - shown.length} more',
+                      style: const TextStyle(color: Brand.inkMuted)),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Later'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final router = GoRouter.of(context);
+            Navigator.pop(context);
+            router.push('/follow-ups');
+          },
+          child: const Text('Open Follow-ups'),
+        ),
+      ],
+    );
+  }
 }

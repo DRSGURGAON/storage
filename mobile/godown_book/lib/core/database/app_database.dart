@@ -145,6 +145,19 @@ class AppDatabase {
         "ALTER TABLE storage_photos ADD COLUMN item_id TEXT NOT NULL DEFAULT ''",
       );
     }
+    if (oldVersion < 6) {
+      // Quotation follow-ups. Guarded: a phone whose quotations table
+      // already carries the column (or lacks the table) must not fail
+      // the whole upgrade on this one step.
+      final columns = await db.rawQuery('PRAGMA table_info(quotations)');
+      if (columns.isEmpty) {
+        await db.execute(Migrations.createQuotationTable);
+      } else if (!columns.any((c) => c['name'] == 'follow_up_date')) {
+        await db.execute(
+          "ALTER TABLE quotations ADD COLUMN follow_up_date TEXT NOT NULL DEFAULT ''",
+        );
+      }
+    }
   }
 
   /// The charge heads a godown bills for. Storage Rent is the system
