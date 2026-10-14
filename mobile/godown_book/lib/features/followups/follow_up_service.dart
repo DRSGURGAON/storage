@@ -18,12 +18,21 @@ class FollowUpCall {
   /// storage booking id.
   final String recordId;
 
+  /// For the WhatsApp message: the document number, the amount and the
+  /// date that matters (due date, agreed end date).
+  final String number;
+  final double amount;
+  final String date;
+
   const FollowUpCall({
     required this.reason,
     required this.customerName,
     required this.phone,
     required this.detail,
     required this.recordId,
+    this.number = '',
+    this.amount = 0,
+    this.date = '',
   });
 }
 
@@ -108,6 +117,8 @@ class FollowUps {
           phone: q.customerPhone,
           detail: 'Quotation ${q.quotationNo} - ${dueLabel(q.followUpDate, today)}',
           recordId: q.id,
+          number: q.quotationNo,
+          amount: q.grandTotal,
         ),
     ];
 
@@ -126,6 +137,9 @@ class FollowUps {
         detail: '${rupees(total)} overdue'
             '${bills.length > 1 ? ' on ${bills.length} bills' : ' - ${bills.first.billNo}'}',
         recordId: bills.first.customerId,
+        number: bills.length == 1 ? bills.first.billNo : '',
+        amount: total,
+        date: bills.length == 1 ? bills.first.dueDate : '',
       ));
     }
 
@@ -137,6 +151,8 @@ class FollowUps {
         detail: 'Storage ${b.bookingNo} is past its end date - extend or '
             'release?',
         recordId: b.id,
+        number: b.bookingNo,
+        date: b.expectedEndDate,
       ));
     }
     return calls;

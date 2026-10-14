@@ -11,9 +11,10 @@ import '../../core/tenant/tenant_scope.dart';
 import '../../features/subscription/repositories/subscription_repository.dart';
 import '../../features/company/controllers/company_controller.dart';
 import '../../features/subscription/widgets/demo_generation_gate.dart';
+import 'pdf_bottom_bar.dart';
 
 /// The body every PDF screen shares: the free-copy gate, the preview,
-/// and Share / Print. The screen above it only says which document
+/// and the DOWNLOAD / SHARE PDF bar under it. The screen above it only says which document
 /// this is and how to build its bytes.
 ///
 /// A copy is counted once, when bytes are genuinely produced - a
@@ -35,6 +36,10 @@ class DocumentPdfView extends StatefulWidget {
   /// Rebuilds the preview when this changes (copy selection, and so on).
   final Object? rebuildKey;
 
+  /// Sent along with the PDF from SHARE PDF (the owner's WhatsApp
+  /// message) - WhatsApp shows it as the caption. Null = PDF only.
+  final String? shareMessage;
+
   const DocumentPdfView({
     super.key,
     required this.documentType,
@@ -42,6 +47,7 @@ class DocumentPdfView extends StatefulWidget {
     required this.build,
     this.onBytes,
     this.rebuildKey,
+    this.shareMessage,
   });
 
   @override
@@ -72,6 +78,10 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
   /// count (every PDF, subscribed or not - for the Super Admin).
   bool _usageCounted = false;
 
+  /// What the preview last rendered - DOWNLOAD and SHARE PDF send
+  /// exactly this.
+  Uint8List? _bytes;
+
   @override
   void initState() {
     super.initState();
@@ -94,6 +104,7 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
       _usageCounted = false;
       _showingSample = false;
       _buildError = null;
+      _bytes = null;
     });
     Future.microtask(_load);
   }
@@ -204,52 +215,48 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
 
   /// [count]: whether producing this copy uses up a free one.
   Widget _preview({required bool showWatermark, required bool count}) {
-    return PdfPreview(
-      key: widget.rebuildKey == null ? null : ValueKey(widget.rebuildKey),
-      build: (_) async {
-        try {
-          final bytes = await widget.build(showWatermark: showWatermark);
-          widget.onBytes?.call(bytes);
+    return PdfWithBottomBar(
+      getPdfBytes: () => _bytes,
+      fileName: widget.fileName,
+      shareMessage: widget.shareMessage,
+      preview: PdfPreview(
+        key: widget.rebuildKey == null ? null : ValueKey(widget.rebuildKey),
+        build: (_) async {
+          try {
+            final bytes = await widget.build(showWatermark: showWatermark);
+            _bytes = bytes;
+            widget.onBytes?.call(bytes);
 
-          if (!_usageCounted && TenantScope.isReady) {
-            _usageCounted = true;
-            // Not awaited: a counter never holds up the preview.
-            SubscriptionRepository.instance
-                .recordPdfGenerated(TenantScope.companyId, widget.documentType)
-                .ignore();
-          }
+            if (!_usageCounted && TenantScope.isReady) {
+              _usageCounted = true;
+              // Not awaited: a counter never holds up the preview.
+              SubscriptionRepository.instance
+                  .recordPdfGenerated(TenantScope.companyId, widget.documentType)
+                  .ignore();
+            }
 
-          if (FeatureFlags.demoGenerationLimitEnforced && count && !_counted) {
-            _counted = true;
-            await SubscriptionAccessService.instance
-                .recordDemoGeneration(widget.documentType);
+            if (FeatureFlags.demoGenerationLimitEnforced && count && !_counted) {
+              _counted = true;
+              await SubscriptionAccessService.instance
+                  .recordDemoGeneration(widget.documentType);
+            }
+            return bytes;
+          } catch (error, stackTrace) {
+            debugPrint('${widget.fileName} build failed: $error\n$stackTrace');
+            if (mounted) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) setState(() => _buildError = error);
+              });
+            }
+            rethrow;
           }
-          return bytes;
-        } catch (error, stackTrace) {
-          debugPrint('${widget.fileName} build failed: $error\n$stackTrace');
-          if (mounted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) setState(() => _buildError = error);
-            });
-          }
-          rethrow;
-        }
-      },
-      pdfFileName: widget.fileName,
-      canDebug: false,
-      allowPrinting: true,
-      allowSharing: true,
-      actions: [
-        PdfPreviewAction(
-          icon: const Icon(Icons.share),
-          onPressed: (context, build, format) async {
-            await Printing.sharePdf(
-              bytes: await build(format),
-              filename: widget.fileName,
-            );
-          },
-        ),
-      ],
+        },
+        pdfFileName: widget.fileName,
+        canDebug: false,
+        allowPrinting: true,
+        // Sharing lives in the bar below.
+        allowSharing: false,
+      ),
     );
   }
 

@@ -8,6 +8,7 @@ import '../../billing/models/bill_model.dart';
 import '../../billing/models/payment_model.dart';
 import '../../quotation/models/quotation_model.dart';
 import '../services/money_reports.dart';
+import '../../../core/contact/whatsapp_templates.dart';
 
 // The money reports (the same set Bill N Bilty has, for a godown):
 // Customer Ledger, Outstanding, Payment / Collection, GST Summary, Bill
@@ -331,11 +332,13 @@ class _OutstandingState extends _ReportState<OutstandingReportScreen> {
   }
 
   Future<void> _remind(BillModel bill) async {
-    final message = 'Namaste ${bill.customerName.trim()},\n\n'
-        'Aapka bill ${bill.billNo} (${_dateText(bill.billDate)}) ka '
-        '${_money(bill.balanceDue)} baaki hai'
-        '${bill.dueDate.isEmpty ? '' : ', jo ${_dateText(bill.dueDate)} tak dena tha'}. '
-        'Kripya jaldi payment kar dein.\n\nDhanyavaad';
+    final message = WhatsAppTemplates.instance.paymentReminder(
+      name: bill.customerName,
+      number: bill.billNo,
+      balance: bill.balanceDue,
+      total: bill.grandTotal,
+      dueDate: bill.dueDate,
+    );
     await ContactLauncher.openWhatsAppWithChoice(
       context,
       bill.customerPhone,

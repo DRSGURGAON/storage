@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/theme/brand.dart';
 import '../../core/contact/contact_launcher.dart';
+import '../../core/contact/whatsapp_templates.dart';
 import '../../core/subscription/subscription_access_service.dart';
 import '../../core/subscription/subscription_status.dart';
 import '../../core/tenant/tenant_provider.dart';
@@ -100,6 +101,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     });
 
     unawaited(_loadPlatformContact());
+    // The owner's WhatsApp messages, for this company.
+    unawaited(WhatsAppTemplates.instance.load());
     unawaited(_remindCallsOncePerDay(stats));
   }
 

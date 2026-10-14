@@ -1,12 +1,11 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/errors/delete_blocked_exception.dart';
+import '../../core/pdf/pdf_download.dart';
 
 /// The single three-dot (⋮) menu shown on every saved document's PDF
 /// screen - one place for the full option set: Share PDF, Save PDF,
@@ -172,30 +171,15 @@ class PdfActionsMenu extends StatelessWidget {
     }
   }
 
-  /// Writes the PDF into the app's own storage folder (no permission
-  /// prompts on any Android version) and shows where it went. For
-  /// saving into Drive/Downloads/etc. the Share option's system sheet
-  /// already offers every installed destination.
+  /// Saves the PDF into the phone's Downloads folder, where the Files
+  /// app finds it.
   Future<void> _savePdf(BuildContext context, Uint8List bytes) async {
-    Directory? dir;
-    if (Platform.isAndroid) {
-      dir = await getExternalStorageDirectory();
-    }
-    dir ??= await getApplicationDocumentsDirectory();
-
-    final folder = Directory('${dir.path}/StorageBill Pro Documents');
-    if (!await folder.exists()) {
-      await folder.create(recursive: true);
-    }
-
-    final file = File('${folder.path}/${fileName()}');
-    await file.writeAsBytes(bytes);
-
+    final where = await PdfDownload.save(bytes, fileName());
     if (!context.mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Saved: ${file.path}'),
+        content: Text('Downloaded: $where'),
         duration: const Duration(seconds: 5),
       ),
     );

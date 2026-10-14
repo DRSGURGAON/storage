@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/contact/whatsapp_templates.dart';
 import '../../../core/subscription/document_type.dart';
 import '../../../shared/widgets/company_not_configured.dart';
 import '../../../shared/widgets/document_pdf_view.dart';
@@ -111,6 +112,11 @@ class _ReleasePdfScreenState extends State<ReleasePdfScreen> {
                             rebuildKey:
                                 '${_selectedCopies.join('|')}|${_signature?.signedAt ?? ''}|$_version',
                             onBytes: (bytes) => _menuPdfBytes = bytes,
+                            shareMessage: WhatsAppTemplates.instance.document(
+                              name: release.customerName,
+                              document: 'Release Record',
+                              number: release.releaseNo,
+                            ),
                             build: ({required showWatermark}) =>
                                 ReleasePdfService.instance.build(
                               release,

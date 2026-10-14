@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/contact/whatsapp_templates.dart';
 import '../../../core/subscription/document_type.dart';
 import '../../../shared/widgets/company_not_configured.dart';
 import '../../../shared/widgets/document_pdf_view.dart';
@@ -125,6 +126,12 @@ class _PaymentReceiptPdfScreenState extends State<PaymentReceiptPdfScreen> {
                       fileName: _fileName,
                       rebuildKey: '$_version',
                       onBytes: (bytes) => _menuPdfBytes = bytes,
+                      shareMessage: WhatsAppTemplates.instance.document(
+                        name: payment.payerName,
+                        document: payment.isCreditNote ? 'Credit Note' : 'Payment Receipt',
+                        number: payment.receiptNo,
+                        amount: payment.amount,
+                      ),
                       build: ({required showWatermark}) =>
                           PaymentReceiptPdfService.instance.build(
                         payment,

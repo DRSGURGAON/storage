@@ -8,6 +8,7 @@ import '../../storage_booking/providers/storage_booking_provider.dart';
 import '../models/goods_release_model.dart';
 import '../providers/goods_release_provider.dart';
 import '../repositories/goods_release_repository.dart';
+import '../../../core/contact/whatsapp_templates.dart';
 
 class ReleaseListScreen extends ConsumerWidget {
   const ReleaseListScreen({super.key});
@@ -117,9 +118,11 @@ class ReleaseListScreen extends ConsumerWidget {
       title: release.releaseNo,
       subtitle: '${release.customerName}  •  against ${release.bookingNo}',
       customerPhone: release.customerPhone,
-      whatsAppMessage:
-          'Hello ${release.customerName}, sharing the release record '
-          '${release.releaseNo} for the goods collected from our godown.',
+      whatsAppMessage: WhatsAppTemplates.instance.document(
+        name: release.customerName,
+        document: 'Release Record',
+        number: release.releaseNo,
+      ),
       actions: [
         DocumentAction(
           icon: Icons.picture_as_pdf_outlined,

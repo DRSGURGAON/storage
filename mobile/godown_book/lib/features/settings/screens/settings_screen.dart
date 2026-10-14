@@ -213,10 +213,23 @@ class SettingsScreen extends ConsumerWidget {
               leading: const Icon(Icons.bar_chart_outlined),
               title: const Text('Reports'),
               subtitle: const Text(
-                'Rent roll and aged outstanding, as of today',
+                'Ledger, outstanding, payments, GST, rent roll - with Excel',
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/reports'),
+            ),
+          ),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: ListTile(
+              leading: const Icon(Icons.chat_outlined, color: Color(0xff128C4A)),
+              title: const Text('WhatsApp Messages'),
+              subtitle: const Text(
+                'Your own words for documents, payment reminders, '
+                'follow-ups and storage renewals',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/settings/whatsapp-messages'),
             ),
           ),
 

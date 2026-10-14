@@ -8,6 +8,7 @@ import '../models/quotation_model.dart';
 import '../providers/quotation_provider.dart';
 import '../repositories/quotation_repository.dart';
 import '../../../core/utils/number_format.dart';
+import '../../../core/contact/whatsapp_templates.dart';
 
 class QuotationListScreen extends ConsumerStatefulWidget {
   const QuotationListScreen({super.key});
@@ -171,9 +172,12 @@ Future<void> showQuotationActions(
     title: q.quotationNo.isEmpty ? 'Quotation' : q.quotationNo,
     subtitle: '${q.customerName}  •  ${q.status.label}',
     customerPhone: q.customerPhone,
-    whatsAppMessage:
-        'Hello ${q.customerName}, sharing our quotation ${q.quotationNo} '
-        'for your shifting and storage.',
+    whatsAppMessage: WhatsAppTemplates.instance.document(
+      name: q.customerName,
+      document: 'Quotation',
+      number: q.quotationNo,
+      amount: q.grandTotal,
+    ),
     actions: [
       DocumentAction(
         icon: Icons.picture_as_pdf_outlined,

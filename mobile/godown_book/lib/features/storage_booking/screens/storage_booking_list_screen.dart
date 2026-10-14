@@ -9,6 +9,7 @@ import '../models/storage_status.dart';
 import '../providers/storage_booking_provider.dart';
 import '../repositories/storage_booking_repository.dart';
 import 'storage_booking_pdf_screen.dart';
+import '../../../core/contact/whatsapp_templates.dart';
 
 class StorageBookingListScreen extends ConsumerStatefulWidget {
   /// When set, the list is a register of that paper: tapping a record
@@ -247,9 +248,11 @@ Future<void> showBookingActions(
     title: b.bookingNo.isEmpty ? 'Storage' : b.bookingNo,
     subtitle: b.customerName,
     customerPhone: b.customerPhone,
-    whatsAppMessage:
-        'Hello ${b.customerName}, sharing the Storage Receipt ${b.bookingNo} '
-        'for your goods kept with us.',
+    whatsAppMessage: WhatsAppTemplates.instance.document(
+      name: b.customerName,
+      document: 'Storage Receipt',
+      number: b.bookingNo,
+    ),
     actions: [
       DocumentAction(
         icon: Icons.picture_as_pdf_outlined,

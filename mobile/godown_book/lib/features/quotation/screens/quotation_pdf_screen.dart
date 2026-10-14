@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/contact/whatsapp_templates.dart';
 import '../../../core/subscription/document_type.dart';
 import '../../../shared/widgets/company_not_configured.dart';
 import '../../../shared/widgets/document_pdf_view.dart';
@@ -94,6 +95,12 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
       fileName: _fileName,
       rebuildKey: '$_version',
       onBytes: (bytes) => _menuPdfBytes = bytes,
+      shareMessage: WhatsAppTemplates.instance.document(
+        name: quotation.customerName,
+        document: 'Quotation',
+        number: quotation.quotationNo,
+        amount: quotation.grandTotal,
+      ),
       build: ({required showWatermark}) => QuotationPdfService.instance.build(
         quotation,
         _company,

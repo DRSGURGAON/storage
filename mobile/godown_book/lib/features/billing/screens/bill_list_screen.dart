@@ -8,6 +8,7 @@ import '../models/bill_model.dart';
 import '../providers/billing_provider.dart';
 import '../repositories/billing_repository.dart';
 import '../../../core/utils/number_format.dart';
+import '../../../core/contact/whatsapp_templates.dart';
 
 class BillListScreen extends ConsumerStatefulWidget {
   const BillListScreen({super.key});
@@ -212,9 +213,20 @@ Future<void> showBillActions(
     subtitle: '${bill.customerName}  •  ${formatRupees(bill.grandTotal)}'
         '${bill.balanceDue > 0 ? '  •  due ${formatRupees(bill.balanceDue)}' : ''}',
     customerPhone: bill.customerPhone,
-    whatsAppMessage:
-        'Hello ${bill.customerName}, sharing your storage bill ${bill.billNo} '
-        'for ${formatRupees(bill.grandTotal)}.',
+    whatsAppMessage: bill.derivedStatus == BillStatus.overdue
+        ? WhatsAppTemplates.instance.paymentReminder(
+            name: bill.customerName,
+            number: bill.billNo,
+            balance: bill.balanceDue,
+            total: bill.grandTotal,
+            dueDate: bill.dueDate,
+          )
+        : WhatsAppTemplates.instance.document(
+            name: bill.customerName,
+            document: 'Bill',
+            number: bill.billNo,
+            amount: bill.grandTotal,
+          ),
     actions: [
       DocumentAction(
         icon: Icons.picture_as_pdf_outlined,

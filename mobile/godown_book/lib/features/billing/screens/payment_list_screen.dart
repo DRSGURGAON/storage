@@ -8,6 +8,7 @@ import '../models/payment_model.dart';
 import '../providers/billing_provider.dart';
 import '../repositories/billing_repository.dart';
 import '../../../core/utils/number_format.dart';
+import '../../../core/contact/whatsapp_templates.dart';
 
 class PaymentListScreen extends ConsumerStatefulWidget {
   const PaymentListScreen({super.key});
@@ -135,7 +136,7 @@ class _PaymentListScreenState extends ConsumerState<PaymentListScreen> {
                           ),
                           trailing: Text(
                             '${payment.isCreditNote ? '- ' : ''}'
-                            formatRupees(payment.amount),
+                            '${formatRupees(payment.amount)}',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: payment.isCreditNote
@@ -168,11 +169,12 @@ class _PaymentListScreenState extends ConsumerState<PaymentListScreen> {
       title: payment.receiptNo,
       subtitle: '${payment.payerName}  •  ${formatRupees(payment.amount)}',
       customerPhone: payment.payerPhone,
-      whatsAppMessage: payment.isCreditNote
-          ? 'Hello ${payment.payerName}, sharing credit note ${payment.receiptNo} '
-              'for ${formatRupees(payment.amount)} against your account.'
-          : 'Hello ${payment.payerName}, sharing the receipt ${payment.receiptNo} '
-              'for ${formatRupees(payment.amount)} received. Thank you.',
+      whatsAppMessage: WhatsAppTemplates.instance.document(
+        name: payment.payerName,
+        document: payment.isCreditNote ? 'Credit Note' : 'Payment Receipt',
+        number: payment.receiptNo,
+        amount: payment.amount,
+      ),
       actions: [
         DocumentAction(
           icon: Icons.picture_as_pdf_outlined,

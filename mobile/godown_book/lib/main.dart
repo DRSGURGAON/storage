@@ -18,6 +18,7 @@ import 'core/auth/auth_scope.dart';
 import 'core/auth/auth_session.dart';
 import 'core/auth/auth_state_watcher.dart';
 import 'core/auth/device_session_service.dart';
+import 'core/contact/whatsapp_templates.dart';
 import 'core/security/trusted_clock.dart';
 import 'core/cloud_sync/document_cloud_sync_service.dart';
 import 'core/permissions/permission_service.dart';
@@ -110,6 +111,9 @@ Future<void> main() async {
   // Crash reports carry the company's App ID, so a report can be matched
   // to the customer who called about it.
   unawaited(_tagCrashReports());
+
+  // The owner's own WhatsApp messages, ready before any list opens.
+  unawaited(WhatsAppTemplates.instance.load());
 
   // "Now" for subscription expiry, from a clock that setting the
   // phone's date back cannot move (see TrustedClock).

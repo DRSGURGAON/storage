@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/contact/contact_launcher.dart';
+import '../../core/contact/whatsapp_templates.dart';
 import '../dashboard/services/dashboard_stats_service.dart';
 import '../quotation/models/quotation_model.dart';
 import '../quotation/repositories/quotation_repository.dart';
@@ -47,18 +48,18 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
   }
 
   Future<void> _whatsApp(FollowUpCall call) async {
+    final templates = WhatsAppTemplates.instance;
     final text = switch (call.reason) {
-      FollowUpReason.quotation =>
-        'Namaste ${call.customerName.trim()},\n\nHumne aapko storage ke liye '
-            'quotation bheja tha. Koi sawaal ho to batayein - aapka saamaan '
-            'surakshit rakhne ke liye hum taiyaar hain.\n\nDhanyavaad',
-      FollowUpReason.payment =>
-        'Namaste ${call.customerName.trim()},\n\n${call.detail}. Kripya '
-            'jaldi payment kar dein.\n\nDhanyavaad',
-      FollowUpReason.storageEnd =>
-        'Namaste ${call.customerName.trim()},\n\nAapke saamaan ki storage ki '
-            'tay taarikh nikal gayi hai. Kya aap ise aage badhana chahenge ya '
-            'saamaan le jayenge? Kripya batayein.\n\nDhanyavaad',
+      FollowUpReason.quotation => templates.followUp(
+          name: call.customerName, number: call.number, amount: call.amount),
+      FollowUpReason.payment => templates.paymentReminder(
+          name: call.customerName,
+          number: call.number,
+          balance: call.amount,
+          dueDate: call.date,
+        ),
+      FollowUpReason.storageEnd => templates.storageEnd(
+          name: call.customerName, booking: call.number, endDate: call.date),
     };
     await ContactLauncher.openWhatsAppWithChoice(context, call.phone,
         message: text);

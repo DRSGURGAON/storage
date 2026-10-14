@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/contact/whatsapp_templates.dart';
 import '../../../core/subscription/document_type.dart';
 import '../../../shared/widgets/company_not_configured.dart';
 import '../../../shared/widgets/document_pdf_view.dart';
@@ -103,6 +104,20 @@ class _BillPdfScreenState extends State<BillPdfScreen> {
                       fileName: _fileName,
                       rebuildKey: '$_version',
                       onBytes: (bytes) => _menuPdfBytes = bytes,
+                      shareMessage: bill.derivedStatus == BillStatus.overdue
+                          ? WhatsAppTemplates.instance.paymentReminder(
+                              name: bill.customerName,
+                              number: bill.billNo,
+                              balance: bill.balanceDue,
+                              total: bill.grandTotal,
+                              dueDate: bill.dueDate,
+                            )
+                          : WhatsAppTemplates.instance.document(
+                              name: bill.customerName,
+                              document: 'Bill',
+                              number: bill.billNo,
+                              amount: bill.grandTotal,
+                            ),
                       build: ({required showWatermark}) => BillPdfService.instance.build(
                         bill,
                         _company,

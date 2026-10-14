@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/contact/whatsapp_templates.dart';
 import '../../../core/subscription/document_type.dart';
 import '../../../shared/widgets/company_not_configured.dart';
 import '../../../shared/widgets/document_pdf_view.dart';
@@ -157,6 +158,11 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
             fileName: _fileName,
             rebuildKey: '${_selectedCopies.join('|')}|$_version',
             onBytes: (bytes) => _menuPdfBytes = bytes,
+            shareMessage: WhatsAppTemplates.instance.document(
+              name: booking.customerName,
+              document: widget.kind.title,
+              number: booking.bookingNo,
+            ),
             build: ({required showWatermark}) => _buildBytes(booking, showWatermark),
           ),
         ),
