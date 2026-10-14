@@ -7,6 +7,7 @@ import '../../storage_booking/models/storage_booking_model.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
 import '../models/payment_model.dart';
 import '../repositories/billing_repository.dart';
+import '../../../core/utils/number_format.dart';
 
 /// The security deposit on one storage record, in plain language: what
 /// was agreed, what came in, what went back, and what the godown is
@@ -62,7 +63,7 @@ class _DepositScreenState extends State<DepositScreen> {
     });
   }
 
-  String _money(double value) => '₹${value.toStringAsFixed(0)}';
+  String _money(double value) => formatRupees(value);
 
   String _date(String iso) {
     final parsed = DateTime.tryParse(iso);

@@ -18,12 +18,18 @@ class CloudSyncResult {
   final int pushed;
   final int deleted;
   final int restored;
+
+  /// Cloud rows a restore left alone because their number (bill no,
+  /// receipt no...) already belongs to a different document on this
+  /// phone - restoring them would have deleted that document.
+  final int skipped;
   final String? error;
 
   const CloudSyncResult({
     this.pushed = 0,
     this.deleted = 0,
     this.restored = 0,
+    this.skipped = 0,
     this.error,
   });
 
@@ -120,6 +126,10 @@ class DocumentCloudSyncService {
 
   bool _started = false;
   bool _syncing = false;
+
+  /// Set while a restore runs; a backup waits for it (and a restore
+  /// waits for a running backup), so the two never interleave.
+  Completer<void>? _restoring;
   Timer? _timer;
 
   CollectionReference<Map<String, dynamic>> _tableCollection(
@@ -154,6 +164,9 @@ class DocumentCloudSyncService {
   Future<CloudSyncResult> syncNow() async {
     if (_syncing) {
       return const CloudSyncResult(error: 'A backup is already running.');
+    }
+    if (_restoring != null) {
+      return const CloudSyncResult(error: 'A restore is running.');
     }
 
     final uid = _currentUid;
@@ -374,9 +387,17 @@ class DocumentCloudSyncService {
     }
     final expectedCompany = companyId ?? TenantScope.companyIdOrNull;
 
+    // Never alongside a backup, and never two restores at once.
+    while (_syncing || _restoring != null) {
+      await (_restoring?.future ??
+          Future<void>.delayed(const Duration(milliseconds: 200)));
+    }
+    final lock = _restoring = Completer<void>();
+
     try {
       final db = await AppDatabase.instance.database;
       var restored = 0;
+      var skipped = 0;
 
       for (final table in syncedTables) {
         final snapshot =
@@ -391,8 +412,9 @@ class DocumentCloudSyncService {
         final validColumns =
             columnInfo.map((c) => c['name'] as String).toSet();
 
-        final insertBatch = db.batch();
         final restoredIds = <String>[];
+        final batch = db.batch();
+        final rows = <Map<String, Object?>>[];
 
         for (final doc in snapshot.docs) {
           final data = doc.data();
@@ -411,17 +433,37 @@ class DocumentCloudSyncService {
             continue;
           }
 
-          insertBatch.insert(
+          // Row by row: the same document is updated in place; a new
+          // one is inserted. Either is skipped when its number belongs
+          // to a different document here - REPLACE used to delete that
+          // document to make room.
+          final id = row['id'] as String;
+          batch.update(
             table,
             row,
-            conflictAlgorithm: ConflictAlgorithm.replace,
+            where: 'id = ?',
+            whereArgs: [id],
+            conflictAlgorithm: ConflictAlgorithm.ignore,
           );
-          restoredIds.add(row['id'] as String);
+          batch.insert(table, row, conflictAlgorithm: ConflictAlgorithm.ignore);
+          rows.add(row);
         }
 
-        if (restoredIds.isEmpty) continue;
+        if (rows.isEmpty) continue;
 
-        await insertBatch.commit(noResult: true);
+        final results = await batch.commit(continueOnError: true);
+        for (var i = 0; i < rows.length; i++) {
+          final updated = results[i * 2];
+          final inserted = results[i * 2 + 1];
+          final wasUpdated = updated is int && updated > 0;
+          final wasInserted = inserted is int && inserted > 0;
+          if (wasUpdated || wasInserted) {
+            restoredIds.add(rows[i]['id'] as String);
+          } else {
+            skipped++;
+          }
+        }
+        if (restoredIds.isEmpty) continue;
         restored += restoredIds.length;
 
         // Mark ONLY the restored rows as already-pushed (hashes read
@@ -432,10 +474,13 @@ class DocumentCloudSyncService {
         await _recordHashesFor(db, table, restoredIds);
       }
 
-      return CloudSyncResult(restored: restored);
+      return CloudSyncResult(restored: restored, skipped: skipped);
     } catch (e) {
       debugPrint('Document cloud restore failed: $e');
       return CloudSyncResult(error: e.toString());
+    } finally {
+      _restoring = null;
+      lock.complete();
     }
   }
 

@@ -7,6 +7,7 @@ import '../../../shared/widgets/document_actions_sheet.dart';
 import '../models/quotation_model.dart';
 import '../providers/quotation_provider.dart';
 import '../repositories/quotation_repository.dart';
+import '../../../core/utils/number_format.dart';
 
 class QuotationListScreen extends ConsumerStatefulWidget {
   const QuotationListScreen({super.key});
@@ -124,7 +125,7 @@ class _QuotationListScreenState extends ConsumerState<QuotationListScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                '₹${q.grandTotal.toStringAsFixed(0)}',
+                                formatRupees(q.grandTotal),
                                 style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
                               IconButton(

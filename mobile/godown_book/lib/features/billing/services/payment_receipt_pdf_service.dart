@@ -12,6 +12,7 @@ import '../../../core/utils/amount_in_words.dart';
 import '../../company/models/company_model.dart';
 import '../models/bill_model.dart';
 import '../models/payment_model.dart';
+import '../../../core/utils/number_format.dart';
 
 /// The payment receipt - proof that money was received, and what it
 /// leaves outstanding. The same paper, with different words on it,
@@ -280,7 +281,7 @@ class PaymentReceiptPdfService {
               PdfPageKit.gridRow('Taxable Value Credited',
                   PdfPageKit.money(payment.amount - gstOnNote), _style),
               PdfPageKit.gridRow(
-                  'GST Credited (${bill.gstPercent.toStringAsFixed(2)}%)',
+                  'GST Credited (${formatRate(bill.gstPercent)}%)',
                   PdfPageKit.money(gstOnNote),
                   _style),
             ],

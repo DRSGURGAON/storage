@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 import '../../../core/customer/customer_lookup_service.dart';
+import '../../../core/errors/delete_blocked_exception.dart';
 import '../../../core/database/database_constants.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../core/tenant/tenant_scope.dart';
@@ -274,7 +275,39 @@ class StorageBookingRepository {
   /// bills raised against it hold their own snapshots (booking_no,
   /// customer) so they keep printing; their "open booking" link simply
   /// stops resolving.
+  /// What still points at storage [id], in words: "2 bills, 1 release".
+  /// Empty when nothing does.
+  Future<String> linkedDocuments(String id) async {
+    final db = await _db.database;
+    final parts = <String>[];
+    Future<void> count(String table, String one, String many) async {
+      final rows = await db.rawQuery(
+        'SELECT COUNT(*) AS n FROM $table WHERE booking_id = ? AND company_id = ?',
+        [id, TenantScope.companyId],
+      );
+      final n = Sqflite.firstIntValue(rows) ?? 0;
+      if (n > 0) parts.add('$n ${n == 1 ? one : many}');
+    }
+
+    await count(DatabaseConstants.invoiceTable, 'bill', 'bills');
+    await count(DatabaseConstants.paymentTable, 'payment', 'payments');
+    await count(DatabaseConstants.goodsReleaseTable, 'release', 'releases');
+    await count(DatabaseConstants.noticeTable, 'notice', 'notices');
+    await count(DatabaseConstants.incidentTable, 'damage report', 'damage reports');
+    await count(DatabaseConstants.consignmentTable, 'bilty', 'bilties');
+    return parts.join(', ');
+  }
+
+  /// Refused while bills, payments, releases or other papers still
+  /// belong to this storage - they would be left pointing at nothing.
   Future<void> delete(String id) async {
+    final linked = await linkedDocuments(id);
+    if (linked.isNotEmpty) {
+      throw DeleteBlockedException(
+        'This storage has $linked. Delete those first, or keep the '
+        'storage record.',
+      );
+    }
     await _dao.delete(id);
     CustomerLookupService.instance.invalidate();
   }

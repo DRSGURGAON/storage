@@ -20,6 +20,7 @@ import '../repositories/storage_booking_repository.dart';
 import '../repositories/storage_photo_repository.dart';
 import 'storage_booking_list_screen.dart';
 import 'storage_booking_pdf_screen.dart';
+import '../../../core/utils/number_format.dart';
 
 /// One storage record at a glance: customer, goods still with us,
 /// charges, and the papers that hang off it.
@@ -241,7 +242,7 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
             leading: const Icon(Icons.payments_outlined),
             title: const Text('Receive Payment'),
             subtitle: Text(_outstanding > 0
-                ? '₹${_outstanding.toStringAsFixed(0)} outstanding'
+                ? '${formatRupees(_outstanding)} outstanding'
                 : 'Nothing outstanding'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () async {
@@ -328,10 +329,10 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
 
   String get _depositSubtitle {
     if (_deposit.received <= 0.004) {
-      return '₹${_deposit.agreed.toStringAsFixed(0)} agreed - no receipt yet';
+      return '${formatRupees(_deposit.agreed)} agreed - no receipt yet';
     }
     if (_deposit.held <= 0.004) return 'Settled in full';
-    return '₹${_deposit.held.toStringAsFixed(0)} held with you';
+    return '${formatRupees(_deposit.held)} held with you';
   }
 
   bool get _signatureSigned => _signatures.any((s) => s.isSigned);
@@ -406,10 +407,10 @@ class _StorageBookingDetailScreenState extends State<StorageBookingDetailScreen>
   String _noDuesHint(StorageBookingModel b) {
     if (b.status.isOpen) return 'Once the goods are out and everything is paid';
     if (_outstanding > 0.004) {
-      return '₹${_outstanding.toStringAsFixed(0)} still outstanding';
+      return '${formatRupees(_outstanding)} still outstanding';
     }
     if (_deposit.held > 0.004) {
-      return 'Deposit of ₹${_deposit.held.toStringAsFixed(0)} still held';
+      return 'Deposit of ${formatRupees(_deposit.held)} still held';
     }
     return 'Goods collected, nothing owed - ready to issue';
   }

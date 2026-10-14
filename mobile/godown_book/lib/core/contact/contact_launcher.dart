@@ -1,7 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+// MainActivity's file_share channel: opens a WhatsApp chat in the
+// chosen app with the message typed in.
+const MethodChannel _channel = MethodChannel('com.drs.godownbook/file_share');
 
 /// Which WhatsApp app a chat should open in.
 enum WhatsAppApp {
@@ -106,19 +111,19 @@ class ContactLauncher {
         ? ''
         : '?text=${Uri.encodeComponent(message.trim())}';
 
+    // On Android the chat opens through the app's own native channel,
+    // pinned to the chosen app's package, with the message typed in -
+    // the only way that really opens WhatsApp Business. (The intent://
+    // link it replaces carried no text and url_launcher rarely took it,
+    // so chats fell through to wa.me and the default WhatsApp.)
     if (Platform.isAndroid) {
-      final intentUri = Uri.parse(
-        'intent://send/$phone#Intent;scheme=smsto;'
-        'package=${app.androidPackage};'
-        'action=android.intent.action.SENDTO;end',
-      );
-
       try {
-        final opened = await launchUrl(
-          intentUri,
-          mode: LaunchMode.externalApplication,
-        );
-        if (opened) return true;
+        final opened = await _channel.invokeMethod<bool>('openWhatsAppChat', {
+          'phone': phone,
+          'targetPackage': app.androidPackage,
+          'text': message.trim(),
+        });
+        if (opened == true) return true;
       } catch (_) {
         // That app is not installed - fall through to wa.me below
         // rather than leaving the user with a dead button.

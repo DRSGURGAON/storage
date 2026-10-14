@@ -24,6 +24,7 @@ import '../services/platform_settings_service.dart';
 import '../repositories/subscription_plan_repository.dart';
 import '../repositories/subscription_settings_repository.dart';
 import '../widgets/refer_earn_card.dart';
+import '../../../core/utils/number_format.dart';
 
 /// Subscription status, pricing plans, and a scannable UPI QR - the
 /// customer pays entirely off-app via their own UPI app, then sends
@@ -437,7 +438,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               children: [
                 if (hasDiscount)
                   Text(
-                    '₹${plan.price.toStringAsFixed(0)}',
+                    formatRupees(plan.price),
                     style: const TextStyle(
                       fontSize: 12,
                       color: Colors.grey,
@@ -445,7 +446,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     ),
                   ),
                 Text(
-                  '₹${plan.finalAmount.toStringAsFixed(0)}',
+                  formatRupees(plan.finalAmount),
                   style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.bold,

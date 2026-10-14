@@ -67,7 +67,14 @@ class CompanyController {
     // throwing, so the local save above remains authoritative and
     // immediate regardless of connectivity.
     if (pushToCloud) {
-      await CompanyFirestoreSyncService.instance.pushToCloud(toSave);
+      final pushed =
+          await CompanyFirestoreSyncService.instance.pushToCloud(toSave);
+      // Not reached (offline): remembered and pushed on a later
+      // dashboard load, so an offline edit is not left on this phone.
+      if (toSave.companyName.trim().isNotEmpty) {
+        await CompanyFirestoreSyncService.instance
+            .markPushPending(toSave.companyId, pending: !pushed);
+      }
     }
 
     // Seed rows written before the company existed have no owner yet.

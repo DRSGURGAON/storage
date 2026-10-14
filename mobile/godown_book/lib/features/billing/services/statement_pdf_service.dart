@@ -10,6 +10,7 @@ import '../../../core/utils/amount_in_words.dart';
 import '../../company/models/company_model.dart';
 import '../../customers/models/customer_model.dart';
 import '../repositories/billing_repository.dart';
+import '../../../core/utils/number_format.dart';
 
 /// The customer statement - bills, receipts and what is left, in date
 /// order. A business statement, not an accounting ledger.
@@ -146,8 +147,8 @@ class StatementPdfService {
         '${i + 1}',
         PdfPageKit.date(e.date),
         '${e.particulars}${e.reference.isEmpty ? '' : '  (${e.reference})'}',
-        e.debit > 0 ? e.debit.toStringAsFixed(2) : '',
-        e.credit > 0 ? e.credit.toStringAsFixed(2) : '',
+        e.debit > 0 ? formatMoney(e.debit) : '',
+        e.credit > 0 ? formatMoney(e.credit) : '',
         PdfPageKit.money(e.runningBalance.abs()) + (e.runningBalance < 0 ? ' Cr' : ''),
       ]);
     }
@@ -176,8 +177,8 @@ class StatementPdfService {
         '',
         '',
         'Total for the period',
-        billed.toStringAsFixed(2),
-        received.toStringAsFixed(2),
+        formatMoney(billed),
+        formatMoney(received),
         '',
       ],
     );

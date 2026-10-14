@@ -290,12 +290,19 @@ Future<void> showBookingActions(
             context,
             what: 'storage record',
             warning: 'This storage record and its goods list will be '
-                'permanently deleted. Bills and release records already '
-                'raised against it keep their own copies.',
+                'permanently deleted. A storage with bills, payments or '
+                'releases cannot be deleted until those are.',
           )) {
             return;
           }
-          await StorageBookingRepository.instance.delete(b.id);
+          try {
+            await StorageBookingRepository.instance.delete(b.id);
+          } catch (e) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('$e')));
+            return;
+          }
           onChanged();
         },
       ),

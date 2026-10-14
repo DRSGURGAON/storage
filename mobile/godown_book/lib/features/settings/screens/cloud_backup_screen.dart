@@ -112,9 +112,10 @@ class _CloudBackupScreenState extends State<CloudBackupScreen> {
     setState(() => _restoring = false);
 
     final message = result.succeeded
-        ? (result.restored == 0
+        ? (result.restored == 0 && result.skipped == 0
             ? 'No backed-up documents found in the cloud for this account.'
-            : 'Restored ${result.restored} record(s) from the cloud.')
+            : 'Restored ${result.restored} record(s) from the cloud.'
+                '${result.skipped == 0 ? '' : ' ${result.skipped} kept as they are on this phone - their number is already used by another document here.'}')
         : 'Restore failed: ${result.error}';
 
     ScaffoldMessenger.of(context)

@@ -7,6 +7,7 @@ import '../../../shared/widgets/document_actions_sheet.dart';
 import '../models/bill_model.dart';
 import '../providers/billing_provider.dart';
 import '../repositories/billing_repository.dart';
+import '../../../core/utils/number_format.dart';
 
 class BillListScreen extends ConsumerStatefulWidget {
   const BillListScreen({super.key});
@@ -115,7 +116,7 @@ class _BillListScreenState extends ConsumerState<BillListScreen> {
                         color: Colors.red.shade50,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         child: Text(
-                          'Outstanding on these bills: ₹${outstanding.toStringAsFixed(0)}',
+                          'Outstanding on these bills: ${formatRupees(outstanding)}',
                           style: TextStyle(
                             color: Colors.red.shade900,
                             fontWeight: FontWeight.w600,
@@ -153,10 +154,10 @@ class _BillListScreenState extends ConsumerState<BillListScreen> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    Text('₹${bill.grandTotal.toStringAsFixed(0)}',
+                                    Text(formatRupees(bill.grandTotal),
                                         style: const TextStyle(fontWeight: FontWeight.bold)),
                                     if (bill.balanceDue > 0)
-                                      Text('due ₹${bill.balanceDue.toStringAsFixed(0)}',
+                                      Text('due ${formatRupees(bill.balanceDue)}',
                                           style: TextStyle(
                                               fontSize: 12, color: Colors.red.shade700)),
                                   ],
@@ -208,12 +209,12 @@ Future<void> showBillActions(
   return DocumentActionsSheet.show(
     context,
     title: bill.billNo.isEmpty ? 'Bill' : bill.billNo,
-    subtitle: '${bill.customerName}  •  ₹${bill.grandTotal.toStringAsFixed(0)}'
-        '${bill.balanceDue > 0 ? '  •  due ₹${bill.balanceDue.toStringAsFixed(0)}' : ''}',
+    subtitle: '${bill.customerName}  •  ${formatRupees(bill.grandTotal)}'
+        '${bill.balanceDue > 0 ? '  •  due ${formatRupees(bill.balanceDue)}' : ''}',
     customerPhone: bill.customerPhone,
     whatsAppMessage:
         'Hello ${bill.customerName}, sharing your storage bill ${bill.billNo} '
-        'for ₹${bill.grandTotal.toStringAsFixed(0)}.',
+        'for ${formatRupees(bill.grandTotal)}.',
     actions: [
       DocumentAction(
         icon: Icons.picture_as_pdf_outlined,
@@ -229,7 +230,7 @@ Future<void> showBillActions(
         DocumentAction(
           icon: Icons.payments_outlined,
           label: 'Receive Payment',
-          subtitle: '₹${bill.balanceDue.toStringAsFixed(0)} still due',
+          subtitle: '${formatRupees(bill.balanceDue)} still due',
           color: const Color(0xff2E7D32),
           onTap: () async {
             final paymentId = await context.push('/payment-create', extra: {'billId': bill.id});

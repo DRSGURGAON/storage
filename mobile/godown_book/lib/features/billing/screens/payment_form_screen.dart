@@ -13,6 +13,7 @@ import '../../voice_entry/widgets/voice_fill.dart';
 import '../models/bill_model.dart';
 import '../models/payment_model.dart';
 import '../repositories/billing_repository.dart';
+import '../../../core/utils/number_format.dart';
 
 /// Receive a payment. Opened from a bill it fills in the customer and
 /// the balance still due, so the operator only confirms.
@@ -375,7 +376,7 @@ class _PaymentFormScreenState extends State<PaymentFormScreen>
           children: [
             for (final open in _openBills)
               ChoiceChip(
-                label: Text('${open.billNo}  ₹${open.balanceDue.toStringAsFixed(0)}'),
+                label: Text('${open.billNo}  ${formatRupees(open.balanceDue)}'),
                 selected: _bill?.id == open.id,
                 onSelected: (_) => setState(() => _applyBill(open)),
               ),

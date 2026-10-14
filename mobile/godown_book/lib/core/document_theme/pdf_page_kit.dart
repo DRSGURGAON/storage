@@ -7,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../features/company/models/company_model.dart';
 import 'document_header.dart';
 import 'document_theme.dart';
+import '../utils/number_format.dart';
 
 /// The pieces every generated document shares - page frame with the
 /// demo watermark, company letterhead, bordered section boxes, the
@@ -585,7 +586,9 @@ class PdfPageKit {
         '${parsed.month.toString().padLeft(2, '0')}-${parsed.year}';
   }
 
-  static String money(double amount) => 'Rs. ${amount.toStringAsFixed(2)}';
+  /// Indian grouping: Rs. 1,25,000.00 - the same figure the same way on
+  /// every document.
+  static String money(double amount) => 'Rs. ${formatMoney(amount)}';
 
   static String qty(double value) =>
       value == value.roundToDouble() ? value.toStringAsFixed(0) : value.toStringAsFixed(2);

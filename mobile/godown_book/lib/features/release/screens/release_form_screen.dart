@@ -11,6 +11,7 @@ import '../../storage_booking/models/storage_status.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
 import '../models/goods_release_model.dart';
 import '../repositories/goods_release_repository.dart';
+import '../../../core/utils/number_format.dart';
 
 /// Release goods back to the customer. Opened from a storage record it
 /// lists everything still with us, with quantities filled in.
@@ -362,7 +363,7 @@ class _ReleaseFormScreenState extends State<ReleaseFormScreen> {
                     child: ListTile(
                       leading: Icon(Icons.warning_amber_rounded, color: Colors.red.shade700),
                       title: Text(
-                        '₹${_outstanding.toStringAsFixed(0)} still unpaid',
+                        '${formatRupees(_outstanding)} still unpaid',
                         style: TextStyle(
                             color: Colors.red.shade900, fontWeight: FontWeight.bold),
                       ),

@@ -11,6 +11,7 @@ import '../models/subscription_plan_model.dart';
 import '../repositories/subscription_plan_repository.dart';
 import '../repositories/subscription_repository.dart';
 import '../widgets/referral_review_dialog.dart';
+import '../../../core/utils/number_format.dart';
 
 /// V1's corrected Super Admin flow (payment is fully off-app): Super
 /// Admin searches the customer's registered mobile number (the
@@ -464,7 +465,7 @@ class _SuperAdminAuthorizeScreenState
           for (final entry in _history)
             Card(
               child: ListTile(
-                title: Text('${entry.planName} • ₹${entry.amount.toStringAsFixed(0)}'),
+                title: Text('${entry.planName} • ${formatRupees(entry.amount)}'),
                 subtitle: Text(
                   '${entry.startDate} → ${entry.endDate}'
                   '${entry.remarks.isNotEmpty ? '\n${entry.remarks}' : ''}',

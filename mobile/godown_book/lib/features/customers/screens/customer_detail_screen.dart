@@ -11,6 +11,7 @@ import '../../storage_booking/models/storage_booking_model.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
 import '../models/customer_model.dart';
 import '../repositories/customer_repository.dart';
+import '../../../core/utils/number_format.dart';
 
 /// One customer, and everything an operator does for them: what is in
 /// storage, what they owe, and the six things they can make next.
@@ -224,10 +225,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             ],
             const SizedBox(height: 8),
             if (outstanding > 0)
-              _line(Icons.error_outline, 'Outstanding ₹${outstanding.toStringAsFixed(0)}',
+              _line(Icons.error_outline, 'Outstanding ${formatRupees(outstanding)}',
                   color: Colors.red.shade700)
             else if (advance > 0)
-              _line(Icons.savings_outlined, 'Advance with us ₹${advance.toStringAsFixed(0)}',
+              _line(Icons.savings_outlined, 'Advance with us ${formatRupees(advance)}',
                   color: Colors.green.shade700)
             else
               _line(Icons.check_circle_outline, 'Nothing outstanding',
@@ -373,8 +374,8 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             leading: const Icon(Icons.receipt_long_outlined),
             title: Text(bill.billNo),
             subtitle: Text('${bill.derivedStatus.label}'
-                '${bill.balanceDue > 0 ? '  •  due ₹${bill.balanceDue.toStringAsFixed(0)}' : ''}'),
-            trailing: Text('₹${bill.grandTotal.toStringAsFixed(0)}',
+                '${bill.balanceDue > 0 ? '  •  due ${formatRupees(bill.balanceDue)}' : ''}'),
+            trailing: Text(formatRupees(bill.grandTotal),
                 style: const TextStyle(fontWeight: FontWeight.bold)),
             onTap: () async {
               await context.push('/bill-pdf', extra: bill.id);
@@ -395,7 +396,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             leading: const Icon(Icons.request_quote_outlined),
             title: Text(quotation.quotationNo),
             subtitle: Text(quotation.status.label),
-            trailing: Text('₹${quotation.grandTotal.toStringAsFixed(0)}',
+            trailing: Text(formatRupees(quotation.grandTotal),
                 style: const TextStyle(fontWeight: FontWeight.bold)),
             onTap: () async {
               await context.push('/quotation-pdf', extra: quotation.id);

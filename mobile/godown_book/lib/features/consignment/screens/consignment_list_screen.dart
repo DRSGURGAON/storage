@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../models/consignment_model.dart';
 import '../repositories/consignment_repository.dart';
+import '../../../core/utils/number_format.dart';
 
 /// Every bilty, newest first - who sent it, where it went, and whether
 /// it has reached.
@@ -107,7 +108,7 @@ class _ConsignmentListScreenState extends State<ConsignmentListScreen> {
                         ),
                         isThreeLine: true,
                         trailing: c.freightBalance > 0.004 && !c.isDelivered
-                            ? Text('₹${c.freightBalance.toStringAsFixed(0)}\nto pay',
+                            ? Text('${formatRupees(c.freightBalance)}\nto pay',
                                 textAlign: TextAlign.right,
                                 style: const TextStyle(
                                     fontSize: 11, color: Colors.deepOrange))

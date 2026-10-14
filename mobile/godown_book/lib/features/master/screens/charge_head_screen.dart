@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/charge_head_model.dart';
 import '../providers/charge_head_provider.dart';
+import '../../../core/utils/number_format.dart';
 
 class ChargeHeadScreen extends ConsumerWidget {
   const ChargeHeadScreen({super.key});
@@ -217,7 +218,7 @@ class ChargeHeadScreen extends ConsumerWidget {
                 title: Text(head.chargeName),
                 subtitle: Text(
                   'Default: ${head.defaultMode.label}'
-                  '${head.defaultMode == ChargeMode.amount && head.defaultAmount > 0 ? ' ₹${head.defaultAmount.toStringAsFixed(0)}' : ''}'
+                  '${head.defaultMode == ChargeMode.amount && head.defaultAmount > 0 ? ' ${formatRupees(head.defaultAmount)}' : ''}'
                   '  •  ${head.taxable ? 'GST applicable' : 'GST exempt'}',
                 ),
                 trailing: Row(

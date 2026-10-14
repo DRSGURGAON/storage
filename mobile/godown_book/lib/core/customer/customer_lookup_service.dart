@@ -1,4 +1,5 @@
 import '../../features/customers/repositories/customer_repository.dart';
+import '../tenant/tenant_scope.dart';
 
 /// One known customer, assembled from whatever the Customer master (and,
 /// through [extraSources], earlier documents) recorded about them.
@@ -88,13 +89,26 @@ class CustomerLookupService {
   /// every keystroke would make typing feel sluggish.
   List<CustomerSuggestion>? _cache;
 
+  /// The company the cache was built for, and when: another account
+  /// signing in on the same phone must never see these suggestions,
+  /// and a document saved elsewhere shows within half a minute.
+  String? _cacheCompany;
+  DateTime? _cachedAt;
+  static const Duration _cacheLife = Duration(seconds: 30);
+
   /// Call after saving a customer or document so the next lookup
   /// genuinely includes what was just entered.
   void invalidate() => _cache = null;
 
   Future<List<CustomerSuggestion>> _all() async {
     final cached = _cache;
-    if (cached != null) return cached;
+    final company = TenantScope.companyIdOrNull;
+    if (cached != null &&
+        _cacheCompany == company &&
+        _cachedAt != null &&
+        DateTime.now().difference(_cachedAt!) < _cacheLife) {
+      return cached;
+    }
 
     final merged = <String, CustomerSuggestion>{};
 
@@ -136,6 +150,8 @@ class CustomerLookupService {
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     _cache = list;
+    _cacheCompany = company;
+    _cachedAt = DateTime.now();
     return list;
   }
 

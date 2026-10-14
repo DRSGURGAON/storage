@@ -12,6 +12,7 @@ import '../../../core/utils/amount_in_words.dart';
 import '../../company/models/company_model.dart';
 import '../../master/models/charge_head_model.dart';
 import '../models/quotation_model.dart';
+import '../../../core/utils/number_format.dart';
 
 /// The quotation the operator sends before the goods move - services,
 /// storage and the price, on the company's own letterhead.
@@ -156,7 +157,7 @@ class QuotationPdfService {
         line.serviceName,
         line.description,
         line.mode == ChargeMode.amount ? PdfPageKit.qty(line.quantity) : '',
-        line.mode == ChargeMode.amount ? line.rate.toStringAsFixed(2) : '',
+        line.mode == ChargeMode.amount ? formatMoney(line.rate) : '',
         line.printedAmount,
       ]);
     }
@@ -181,7 +182,7 @@ class QuotationPdfService {
         pw.TextAlign.right,
         pw.TextAlign.right,
       ],
-      totals: ['', 'Subtotal', '', '', '', q.subtotal.toStringAsFixed(2)],
+      totals: ['', 'Subtotal', '', '', '', formatMoney(q.subtotal)],
     );
   }
 
@@ -227,13 +228,13 @@ class QuotationPdfService {
             if (q.discountValue > 0)
               PdfPageKit.gridRow('Discount', '- ${PdfPageKit.money(q.discountValue)}', _style),
             if (q.cgstAmount > 0) ...[
-              PdfPageKit.gridRow('CGST (${(q.gstPercent / 2).toStringAsFixed(2)}%)',
+              PdfPageKit.gridRow('CGST (${formatRate(q.gstPercent / 2)}%)',
                   PdfPageKit.money(q.cgstAmount), _style),
-              PdfPageKit.gridRow('SGST (${(q.gstPercent / 2).toStringAsFixed(2)}%)',
+              PdfPageKit.gridRow('SGST (${formatRate(q.gstPercent / 2)}%)',
                   PdfPageKit.money(q.sgstAmount), _style),
             ],
             if (q.igstAmount > 0)
-              PdfPageKit.gridRow('IGST (${q.gstPercent.toStringAsFixed(2)}%)',
+              PdfPageKit.gridRow('IGST (${formatRate(q.gstPercent)}%)',
                   PdfPageKit.money(q.igstAmount), _style),
             pw.Container(
               width: double.infinity,

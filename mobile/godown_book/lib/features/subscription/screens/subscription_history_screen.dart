@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/tenant/tenant_scope.dart';
 import '../models/subscription_history_model.dart';
 import '../repositories/subscription_repository.dart';
+import '../../../core/utils/number_format.dart';
 
 /// Section 23's "SUBSCRIPTION HISTORY" - every past period, never
 /// edited or deleted.
@@ -78,7 +79,7 @@ class _SubscriptionHistoryScreenState
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       child: ListTile(
                         title: Text(
-                          '${entry.planName}  •  ₹${entry.amount.toStringAsFixed(0)}',
+                          '${entry.planName}  •  ${formatRupees(entry.amount)}',
                         ),
                         subtitle: Text(
                           '${_date(entry.startDate)} → ${_date(entry.endDate)}'

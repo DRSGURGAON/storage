@@ -14,6 +14,7 @@ import '../../customers/models/customer_model.dart';
 import '../../customers/repositories/customer_repository.dart';
 import '../repositories/billing_repository.dart';
 import '../services/statement_pdf_service.dart';
+import '../../../core/utils/number_format.dart';
 
 /// One customer's account: every bill and receipt in date order, with
 /// the balance, and the same thing as a PDF to send them.
@@ -211,14 +212,14 @@ class _StatementScreenState extends State<StatementScreen> {
                     children: [
                       Text(
                         entry.debit > 0
-                            ? '+₹${entry.debit.toStringAsFixed(0)}'
-                            : '-₹${entry.credit.toStringAsFixed(0)}',
+                            ? '+${formatRupees(entry.debit)}'
+                            : '-${formatRupees(entry.credit)}',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: entry.debit > 0 ? Colors.red.shade700 : Colors.green.shade700,
                         ),
                       ),
-                      Text('bal ₹${entry.runningBalance.abs().toStringAsFixed(0)}',
+                      Text('bal ${formatRupees(entry.runningBalance.abs())}',
                           style: const TextStyle(fontSize: 11, color: Colors.grey)),
                     ],
                   ),

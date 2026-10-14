@@ -9,6 +9,7 @@ import '../../incidents/repositories/incident_repository.dart';
 import '../../notices/repositories/notice_repository.dart';
 import '../../release/repositories/goods_release_repository.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
+import '../../../core/utils/number_format.dart';
 
 /// What kind of paper a row is.
 enum DocumentKind {
@@ -477,7 +478,7 @@ class _DocumentCentreScreenState extends State<DocumentCentreScreen> {
         ),
         isThreeLine: true,
         trailing: row.amount > 0
-            ? Text('₹${row.amount.toStringAsFixed(0)}',
+            ? Text(formatRupees(row.amount),
                 style: const TextStyle(fontWeight: FontWeight.bold))
             : const Icon(Icons.chevron_right),
         onTap: () => _open(row),

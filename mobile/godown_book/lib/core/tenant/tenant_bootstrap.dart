@@ -10,6 +10,7 @@ import '../auth/auth_session.dart';
 import '../cloud_sync/document_cloud_sync_service.dart';
 import '../database/app_database.dart';
 import 'tenant_scope.dart';
+import '../customer/customer_lookup_service.dart';
 
 /// How a company came to be the active tenant.
 enum TenantBootstrapOutcome {
@@ -229,6 +230,8 @@ class TenantBootstrap {
   /// active tenant. The rows stay on disk under their company id.
   static void clearActiveTenant() {
     TenantScope.clear();
+    // Nothing of this account's may show for the next one.
+    CustomerLookupService.instance.invalidate();
   }
 
   static Future<String?> _ownerUid() async {

@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/errors/delete_blocked_exception.dart';
+
 /// The single three-dot (⋮) menu shown on every saved document's PDF
 /// screen - one place for the full option set: Share PDF, Save PDF,
 /// Print, Edit, Call Customer, Delete.
@@ -267,7 +269,10 @@ class PdfActionsMenu extends StatelessWidget {
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not delete: $e')),
+        SnackBar(
+          content: Text(e is DeleteBlockedException ? e.message : 'Could not delete: $e'),
+          duration: const Duration(seconds: 6),
+        ),
       );
     }
   }

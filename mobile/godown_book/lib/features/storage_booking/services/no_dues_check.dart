@@ -1,6 +1,7 @@
 import '../../billing/repositories/billing_repository.dart';
 import '../models/storage_booking_model.dart';
 import '../models/storage_status.dart';
+import '../../../core/utils/number_format.dart';
 
 /// Whether a storage record has really closed - goods gone, bills paid,
 /// deposit settled - and, when it has not, what is still in the way.
@@ -33,13 +34,13 @@ class NoDuesCheck {
 
     if (balance.outstanding > 0.004) {
       reasons.add(
-        '₹${balance.outstanding.toStringAsFixed(0)} is still outstanding',
+        '${formatRupees(balance.outstanding)} is still outstanding',
       );
     }
 
     if (deposit.held > 0.004) {
       reasons.add(
-        'Security deposit of ₹${deposit.held.toStringAsFixed(0)} is still '
+        'Security deposit of ${formatRupees(deposit.held)} is still '
         'held - return or adjust it first',
       );
     }

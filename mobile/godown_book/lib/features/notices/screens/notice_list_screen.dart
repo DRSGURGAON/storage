@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../models/notice_model.dart';
 import '../repositories/notice_repository.dart';
+import '../../../core/utils/number_format.dart';
 
 /// Every letter sent about money owed, newest first. This list is the
 /// trail: it shows what was asked, when, and how it went out.
@@ -103,7 +104,7 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
                         title: Text(notice.customerName,
                             style: const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: Text(
-                          '${notice.kind.label}  ·  ₹${notice.amountDue.toStringAsFixed(0)}'
+                          '${notice.kind.label}  ·  ${formatRupees(notice.amountDue)}'
                           '\n${_date(notice.noticeDate)}  ·  ${notice.noticeNo}'
                           '${notice.sentVia.isEmpty ? '' : '  ·  ${notice.sentVia}'}',
                         ),

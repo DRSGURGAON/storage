@@ -7,6 +7,7 @@ import '../../../shared/widgets/document_actions_sheet.dart';
 import '../models/payment_model.dart';
 import '../providers/billing_provider.dart';
 import '../repositories/billing_repository.dart';
+import '../../../core/utils/number_format.dart';
 
 class PaymentListScreen extends ConsumerStatefulWidget {
   const PaymentListScreen({super.key});
@@ -134,7 +135,7 @@ class _PaymentListScreenState extends ConsumerState<PaymentListScreen> {
                           ),
                           trailing: Text(
                             '${payment.isCreditNote ? '- ' : ''}'
-                            '₹${payment.amount.toStringAsFixed(0)}',
+                            formatRupees(payment.amount),
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: payment.isCreditNote
@@ -165,13 +166,13 @@ class _PaymentListScreenState extends ConsumerState<PaymentListScreen> {
     return DocumentActionsSheet.show(
       context,
       title: payment.receiptNo,
-      subtitle: '${payment.payerName}  •  ₹${payment.amount.toStringAsFixed(0)}',
+      subtitle: '${payment.payerName}  •  ${formatRupees(payment.amount)}',
       customerPhone: payment.payerPhone,
       whatsAppMessage: payment.isCreditNote
           ? 'Hello ${payment.payerName}, sharing credit note ${payment.receiptNo} '
-              'for ₹${payment.amount.toStringAsFixed(0)} against your account.'
+              'for ${formatRupees(payment.amount)} against your account.'
           : 'Hello ${payment.payerName}, sharing the receipt ${payment.receiptNo} '
-              'for ₹${payment.amount.toStringAsFixed(0)} received. Thank you.',
+              'for ${formatRupees(payment.amount)} received. Thank you.',
       actions: [
         DocumentAction(
           icon: Icons.picture_as_pdf_outlined,

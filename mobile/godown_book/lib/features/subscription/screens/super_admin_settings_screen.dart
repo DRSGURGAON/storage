@@ -12,6 +12,7 @@ import '../repositories/subscription_settings_repository.dart';
 import '../../signature/repositories/signature_repository.dart';
 import '../services/platform_settings_service.dart';
 import '../utils/payment_screenshot_picker.dart';
+import '../../../core/utils/number_format.dart';
 
 /// Section 9-10's Super Admin configuration screen - plan pricing, UPI/
 /// QR, demo limits, watermark, and expiry-warning schedule. Every write
@@ -393,7 +394,7 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                         child: ListTile(
                           title: Text(plan.name),
                           subtitle: Text(
-                            '₹${plan.finalAmount.toStringAsFixed(0)} • '
+                            '${formatRupees(plan.finalAmount)} • '
                             '${plan.durationMonths} months'
                             '${plan.isRecommended ? ' • Recommended' : ''}',
                           ),

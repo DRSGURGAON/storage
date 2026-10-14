@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/document_theme/document_theme.dart';
 import '../models/company_model.dart';
@@ -132,6 +133,38 @@ class CompanyFirestoreSyncService {
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  static String _pendingKey(String companyId) =>
+      'company_push_pending.$companyId';
+
+  /// Remembers that [companyId]'s latest profile has not reached the
+  /// cloud yet.
+  Future<void> markPushPending(String companyId, {required bool pending}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (pending) {
+        await prefs.setBool(_pendingKey(companyId), true);
+      } else {
+        await prefs.remove(_pendingKey(companyId));
+      }
+    } catch (_) {
+      // Prefs unavailable - the next save tries again anyway.
+    }
+  }
+
+  /// Pushes a profile saved while offline, once the network is back.
+  /// Still never overwrites a different company in the cloud.
+  Future<void> pushPendingIfAny(CompanyModel company) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!(prefs.getBool(_pendingKey(company.companyId)) ?? false)) return;
+      if (await pushToCloud(company)) {
+        await prefs.remove(_pendingKey(company.companyId));
+      }
+    } catch (_) {
+      // Retried on the next dashboard load.
     }
   }
 

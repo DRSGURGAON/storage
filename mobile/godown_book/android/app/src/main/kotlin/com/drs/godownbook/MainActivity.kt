@@ -64,6 +64,12 @@ class MainActivity : FlutterActivity() {
                     call.argument<String>("mimeType") ?: "application/octet-stream",
                     result,
                 )
+"openWhatsAppChat" -> openWhatsAppChat(
+                    call.argument<String>("phone"),
+                    call.argument<String>("targetPackage"),
+                    call.argument<String>("text") ?: "",
+                    result,
+                )
                 "shareFile" -> shareFile(
                     call.argument<String>("filePath"),
                     call.argument<String>("mimeType") ?: "application/octet-stream",
@@ -73,6 +79,35 @@ class MainActivity : FlutterActivity() {
                 )
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    /** Opens a chat, with the message typed in, in exactly the chosen
+     *  app - WhatsApp or WhatsApp Business. A plain wa.me link always
+     *  went to the phone's default WhatsApp. */
+    private fun openWhatsAppChat(
+        phone: String?,
+        targetPackage: String?,
+        text: String,
+        result: MethodChannel.Result,
+    ) {
+        if (phone.isNullOrEmpty() || targetPackage.isNullOrEmpty()) {
+            result.error("BAD_ARGS", "phone and targetPackage are required", null)
+            return
+        }
+        val link = Uri.parse("https://api.whatsapp.com/send").buildUpon()
+            .appendQueryParameter("phone", phone)
+            .apply { if (text.isNotEmpty()) appendQueryParameter("text", text) }
+            .build()
+        val intent = Intent(Intent.ACTION_VIEW, link).apply {
+            setPackage(targetPackage)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            startActivity(intent)
+            result.success(true)
+        } catch (e: ActivityNotFoundException) {
+            result.error("APP_NOT_FOUND", "$targetPackage is not installed", null)
         }
     }
 

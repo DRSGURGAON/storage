@@ -12,6 +12,7 @@ import '../../../core/document_theme/pdf_page_kit.dart';
 import '../../../core/utils/amount_in_words.dart';
 import '../../company/models/company_model.dart';
 import '../models/bill_model.dart';
+import '../../../core/utils/number_format.dart';
 
 /// The storage bill - what the customer owes for a period, and what is
 /// still outstanding after whatever they have already paid.
@@ -210,8 +211,8 @@ class BillPdfService {
         line.description,
         if (hasGst) SacCodes.forCharge(line.chargeName),
         PdfPageKit.qty(line.quantity),
-        line.rate.toStringAsFixed(2),
-        line.amount.toStringAsFixed(2),
+        formatMoney(line.rate),
+        formatMoney(line.amount),
       ]);
     }
 
@@ -248,7 +249,7 @@ class BillPdfService {
       ],
       totals: [
         '', 'Subtotal', '', if (hasGst) '', '', '',
-        bill.subtotal.toStringAsFixed(2),
+        formatMoney(bill.subtotal),
       ],
     );
   }
@@ -299,13 +300,13 @@ class BillPdfService {
             if (bill.gstAmount > 0)
               PdfPageKit.gridRow('Taxable Value', PdfPageKit.money(bill.taxableBase), _style),
             if (bill.cgstAmount > 0) ...[
-              PdfPageKit.gridRow('CGST (${(bill.gstPercent / 2).toStringAsFixed(2)}%)',
+              PdfPageKit.gridRow('CGST (${formatRate(bill.gstPercent / 2)}%)',
                   PdfPageKit.money(bill.cgstAmount), _style),
-              PdfPageKit.gridRow('SGST (${(bill.gstPercent / 2).toStringAsFixed(2)}%)',
+              PdfPageKit.gridRow('SGST (${formatRate(bill.gstPercent / 2)}%)',
                   PdfPageKit.money(bill.sgstAmount), _style),
             ],
             if (bill.igstAmount > 0)
-              PdfPageKit.gridRow('IGST (${bill.gstPercent.toStringAsFixed(2)}%)',
+              PdfPageKit.gridRow('IGST (${formatRate(bill.gstPercent)}%)',
                   PdfPageKit.money(bill.igstAmount), _style),
             pw.Container(
               width: double.infinity,
