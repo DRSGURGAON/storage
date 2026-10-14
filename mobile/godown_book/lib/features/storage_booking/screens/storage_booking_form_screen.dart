@@ -358,7 +358,14 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
       final saved = await StorageBookingRepository.instance.save(booking);
       voiceFilled.clear();
       if (!mounted) return;
-      context.pop(saved.id);
+      // A new storage opens straight on its receipt, ready to share; an
+      // edit goes back to the screen it came from.
+      if (_isEdit) {
+        context.pop(saved.id);
+      } else {
+        context.pushReplacement('/storage-pdf',
+            extra: {'id': saved.id, 'kind': 'receipt'});
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);

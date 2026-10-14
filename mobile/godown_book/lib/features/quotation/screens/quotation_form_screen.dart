@@ -6,6 +6,7 @@ import '../../../core/customer/customer_lookup_service.dart';
 import '../../../core/utils/id_generator.dart';
 import '../../../shared/widgets/charge_line_row.dart';
 import '../../../shared/widgets/customer_name_field.dart';
+import '../../../shared/widgets/gst_fields.dart';
 import '../../master/repositories/charge_head_repository.dart';
 import '../../../shared/widgets/state_autocomplete_field.dart';
 import '../../../shared/widgets/save_problem.dart';
@@ -60,6 +61,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
   final _goodsDescription = TextEditingController();
   final _discount = TextEditingController();
   final _gstPercent = TextEditingController();
+  GstSplit _gstSplit = GstSplit.auto;
   final _notes = TextEditingController();
   final _terms = TextEditingController();
 
@@ -139,6 +141,7 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
     _goodsDescription.text = d.goodsDescription;
     _discount.text = d.discountValue == 0 ? '' : _num(d.discountValue);
     _gstPercent.text = d.gstPercent == 0 ? '' : _num(d.gstPercent);
+    _gstSplit = GstSplit.fromAmounts(cgst: d.cgstAmount, igst: d.igstAmount);
     _notes.text = d.notes;
     _terms.text = d.terms;
     _quotationDate = DateTime.tryParse(d.quotationDate) ?? DateTime.now();
@@ -296,10 +299,17 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
 
     setState(() => _saving = true);
     try {
-      final saved = await QuotationRepository.instance.save(_compose());
+      final saved = await QuotationRepository.instance
+          .save(_compose(), interState: _gstSplit.interState);
       voiceFilled.clear();
       if (!mounted) return;
-      context.pop(saved.id);
+      // A new quotation opens straight on its PDF, ready to share; an
+      // edit goes back to the screen it came from.
+      if (_isEdit) {
+        context.pop(saved.id);
+      } else {
+        context.pushReplacement('/quotation-pdf', extra: saved.id);
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -524,7 +534,11 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
   Widget build(BuildContext context) {
     // Nothing is composed until _load has run: the draft is only an empty
     // quotation before that, and a build that throws is an empty screen.
-    final preview = _loading ? null : _compose();
+    // Priced here as well as on save, so the total on screen already
+    // carries the GST.
+    final preview = _loading
+        ? null
+        : _compose().recalculated(interState: _gstSplit.interState ?? false);
 
     return Scaffold(
       appBar: AppBar(
@@ -797,11 +811,9 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: TextField(
-                        textInputAction: TextInputAction.next,
+                      child: GstRateField(
                         controller: _gstPercent,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) {
+                        onChanged: () {
                           typedOver(VoiceFieldKind.gstPercent);
                           setState(() {});
                         },
@@ -811,6 +823,13 @@ class _QuotationFormScreenState extends State<QuotationFormScreen>
                     ),
                   ],
                 ),
+                if (_parse(_gstPercent) > 0) ...[
+                  const SizedBox(height: 12),
+                  GstSplitField(
+                    value: _gstSplit,
+                    onChanged: (split) => setState(() => _gstSplit = split),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 Card(
                   child: Padding(

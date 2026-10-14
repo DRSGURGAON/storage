@@ -334,16 +334,19 @@ class BillingRepository {
   /// allocated atomically, an existing one keeps its number. Saving a
   /// bill raised against a storage record also moves that record's
   /// rent-billed-upto date, so the next bill starts the day after.
-  Future<BillModel> saveBill(BillModel bill) async {
+  Future<BillModel> saveBill(BillModel bill, {bool? interState}) async {
     final now = DateTime.now();
     final nowIso = now.toIso8601String();
 
     final company = await CompanyController.instance.getCompany();
     final companyState = (company?.state ?? '').trim().toLowerCase();
     final customerState = bill.customerState.trim().toLowerCase();
-    final interState = companyState.isNotEmpty &&
-        customerState.isNotEmpty &&
-        companyState != customerState;
+    // [interState] is the owner's own choice of CGST + SGST or IGST;
+    // null decides it by the customer's state.
+    final isInterState = interState ??
+        (companyState.isNotEmpty &&
+            customerState.isNotEmpty &&
+            companyState != customerState);
 
     // An explicitly picked customer is never replaced by a phone/name
     // match - editing the name or phone printed on a bill must not
@@ -381,7 +384,7 @@ class BillingRepository {
           customerId: customerId,
           gstPercent: registered ? bill.gstPercent : 0,
         )
-        .recalculated(interState: interState);
+        .recalculated(interState: isInterState);
 
     final existing = await _dao.getBillById(bill.id);
     if (existing != null) {

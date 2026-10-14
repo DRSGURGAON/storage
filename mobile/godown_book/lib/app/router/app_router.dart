@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_scope.dart';
+import '../../shared/widgets/unsaved_changes_guard.dart';
 import '../../core/tenant/tenant_scope.dart';
 import '../shell/app_shell.dart';
 import '../../core/subscription/super_admin_scope.dart';
@@ -313,7 +314,7 @@ class AppRouter {
       // ==========================
       GoRoute(
         path: '/customer-create',
-        builder: (context, state) => const CustomerFormScreen(),
+        builder: (context, state) => const UnsavedChangesGuard(child: CustomerFormScreen()),
       ),
 
       GoRoute(
@@ -325,7 +326,7 @@ class AppRouter {
       GoRoute(
         path: '/customer-edit',
         builder: (context, state) =>
-            CustomerFormScreen(editCustomerId: state.extra as String),
+            UnsavedChangesGuard(child: CustomerFormScreen(editCustomerId: state.extra as String)),
       ),
 
       GoRoute(
@@ -349,13 +350,13 @@ class AppRouter {
       GoRoute(
         path: '/quotation-create',
         builder: (context, state) =>
-            QuotationFormScreen(customerId: state.extra as String?),
+            UnsavedChangesGuard(child: QuotationFormScreen(customerId: state.extra as String?)),
       ),
 
       GoRoute(
         path: '/quotation-edit',
         builder: (context, state) =>
-            QuotationFormScreen(editQuotationId: state.extra as String),
+            UnsavedChangesGuard(child: QuotationFormScreen(editQuotationId: state.extra as String)),
       ),
 
       GoRoute(
@@ -393,17 +394,17 @@ class AppRouter {
         path: '/storage-create',
         builder: (context, state) {
           final extra = state.extra;
-          return StorageBookingFormScreen(
+          return UnsavedChangesGuard(child: StorageBookingFormScreen(
             openVoice: extra == 'voice',
             customerId: extra is Map ? extra['customerId'] as String? : null,
-          );
+          ));
         },
       ),
 
       GoRoute(
         path: '/storage-edit',
         builder: (context, state) =>
-            StorageBookingFormScreen(editBookingId: state.extra as String),
+            UnsavedChangesGuard(child: StorageBookingFormScreen(editBookingId: state.extra as String)),
       ),
 
       GoRoute(
@@ -461,13 +462,13 @@ class AppRouter {
       GoRoute(
         path: '/release-create',
         builder: (context, state) =>
-            ReleaseFormScreen(bookingId: state.extra as String?),
+            UnsavedChangesGuard(child: ReleaseFormScreen(bookingId: state.extra as String?)),
       ),
 
       GoRoute(
         path: '/release-edit',
         builder: (context, state) =>
-            ReleaseFormScreen(editReleaseId: state.extra as String),
+            UnsavedChangesGuard(child: ReleaseFormScreen(editReleaseId: state.extra as String)),
       ),
 
       GoRoute(
@@ -487,13 +488,13 @@ class AppRouter {
       GoRoute(
         path: '/bill-create',
         builder: (context, state) =>
-            BillFormScreen(bookingId: state.extra as String?),
+            UnsavedChangesGuard(child: BillFormScreen(bookingId: state.extra as String?)),
       ),
 
       GoRoute(
         path: '/bill-edit',
         builder: (context, state) =>
-            BillFormScreen(editBillId: state.extra as String),
+            UnsavedChangesGuard(child: BillFormScreen(editBillId: state.extra as String)),
       ),
 
       GoRoute(
@@ -510,17 +511,17 @@ class AppRouter {
         path: '/payment-create',
         builder: (context, state) {
           final args = state.extra as Map<String, dynamic>?;
-          return PaymentFormScreen(
+          return UnsavedChangesGuard(child: PaymentFormScreen(
             billId: args?['billId'] as String?,
             customerId: args?['customerId'] as String?,
-          );
+          ));
         },
       ),
 
       GoRoute(
         path: '/payment-edit',
         builder: (context, state) =>
-            PaymentFormScreen(editPaymentId: state.extra as String),
+            UnsavedChangesGuard(child: PaymentFormScreen(editPaymentId: state.extra as String)),
       ),
 
       GoRoute(
@@ -532,13 +533,13 @@ class AppRouter {
       GoRoute(
         path: '/credit-note-create',
         builder: (context, state) =>
-            CreditNoteFormScreen(billId: state.extra as String),
+            UnsavedChangesGuard(child: CreditNoteFormScreen(billId: state.extra as String)),
       ),
 
       GoRoute(
         path: '/credit-note-edit',
         builder: (context, state) =>
-            CreditNoteFormScreen(editPaymentId: state.extra as String),
+            UnsavedChangesGuard(child: CreditNoteFormScreen(editPaymentId: state.extra as String)),
       ),
 
       GoRoute(
@@ -565,17 +566,17 @@ class AppRouter {
         path: '/notice-create',
         builder: (context, state) {
           final args = state.extra as Map<String, dynamic>?;
-          return NoticeFormScreen(
+          return UnsavedChangesGuard(child: NoticeFormScreen(
             bookingId: args?['bookingId'] as String?,
             customerId: args?['customerId'] as String?,
-          );
+          ));
         },
       ),
 
       GoRoute(
         path: '/notice-edit',
         builder: (context, state) =>
-            NoticeFormScreen(editNoticeId: state.extra as String),
+            UnsavedChangesGuard(child: NoticeFormScreen(editNoticeId: state.extra as String)),
       ),
 
       GoRoute(
@@ -595,13 +596,13 @@ class AppRouter {
       GoRoute(
         path: '/bilty-create',
         builder: (context, state) =>
-            ConsignmentFormScreen(bookingId: state.extra as String?),
+            UnsavedChangesGuard(child: ConsignmentFormScreen(bookingId: state.extra as String?)),
       ),
 
       GoRoute(
         path: '/bilty-edit',
         builder: (context, state) =>
-            ConsignmentFormScreen(consignmentId: state.extra as String),
+            UnsavedChangesGuard(child: ConsignmentFormScreen(consignmentId: state.extra as String)),
       ),
 
       GoRoute(
@@ -621,13 +622,13 @@ class AppRouter {
       GoRoute(
         path: '/incident-create',
         builder: (context, state) =>
-            IncidentFormScreen(bookingId: state.extra as String?),
+            UnsavedChangesGuard(child: IncidentFormScreen(bookingId: state.extra as String?)),
       ),
 
       GoRoute(
         path: '/incident-edit',
         builder: (context, state) =>
-            IncidentFormScreen(incidentId: state.extra as String),
+            UnsavedChangesGuard(child: IncidentFormScreen(incidentId: state.extra as String)),
       ),
 
       GoRoute(

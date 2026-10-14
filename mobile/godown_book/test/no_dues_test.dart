@@ -62,8 +62,8 @@ void main() {
       deposit: const DepositSummary(received: 5000, adjusted: 2000),
     );
     expect(owes.blockers, [
-      '₹2000 is still outstanding',
-      'Security deposit of ₹3000 is still held - return or adjust it first',
+      '₹ 2,000 is still outstanding',
+      'Security deposit of ₹ 3,000 is still held - return or adjust it first',
     ]);
 
     final cancelled = NoDuesCheck(

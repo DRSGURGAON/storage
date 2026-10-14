@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/utils/id_generator.dart';
 import '../../../shared/widgets/charge_line_row.dart';
 import '../../../shared/widgets/customer_name_field.dart';
+import '../../../shared/widgets/gst_fields.dart';
 import '../../../shared/widgets/save_problem.dart';
 import '../../master/repositories/charge_head_repository.dart';
 import '../../storage_booking/models/storage_booking_model.dart';
@@ -47,6 +48,7 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
   final _customerGst = TextEditingController();
   final _discount = TextEditingController();
   final _gstPercent = TextEditingController();
+  GstSplit _gstSplit = GstSplit.auto;
   final _notes = TextEditingController();
 
   String _customerId = '';
@@ -129,6 +131,7 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
     _customerPincode = bill.customerPincode;
     _discount.text = bill.discountValue == 0 ? '' : _num(bill.discountValue);
     _gstPercent.text = bill.gstPercent == 0 ? '' : _num(bill.gstPercent);
+    _gstSplit = GstSplit.fromAmounts(cgst: bill.cgstAmount, igst: bill.igstAmount);
     _notes.text = bill.notes;
     _billDate = DateTime.tryParse(bill.billDate) ?? DateTime.now();
     _periodFrom = DateTime.tryParse(bill.periodFrom);
@@ -650,10 +653,17 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
 
     setState(() => _saving = true);
     try {
-      final saved = await BillingRepository.instance.saveBill(_compose());
+      final saved = await BillingRepository.instance
+          .saveBill(_compose(), interState: _gstSplit.interState);
       if (!mounted) return;
       voiceFilled.clear();
-      context.pop(saved.id);
+      // A new bill opens straight on its PDF, ready to share; an edit
+      // goes back to the screen it came from.
+      if (_isEdit) {
+        context.pop(saved.id);
+      } else {
+        context.pushReplacement('/bill-pdf', extra: saved.id);
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -663,7 +673,11 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
 
   @override
   Widget build(BuildContext context) {
-    final preview = _loading ? null : _compose();
+    // Priced here as well as on save, so the total on screen already
+    // carries the GST.
+    final preview = _loading
+        ? null
+        : _compose().recalculated(interState: _gstSplit.interState ?? false);
 
     return Scaffold(
       appBar: AppBar(
@@ -870,11 +884,9 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: TextField(
-                        textInputAction: TextInputAction.next,
+                      child: GstRateField(
                         controller: _gstPercent,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (_) {
+                        onChanged: () {
                           typedOver(VoiceFieldKind.gstPercent);
                           setState(() {});
                         },
@@ -884,6 +896,13 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
                     ),
                   ],
                 ),
+                if (_parse(_gstPercent) > 0) ...[
+                  const SizedBox(height: 12),
+                  GstSplitField(
+                    value: _gstSplit,
+                    onChanged: (split) => setState(() => _gstSplit = split),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
                   controller: _notes,

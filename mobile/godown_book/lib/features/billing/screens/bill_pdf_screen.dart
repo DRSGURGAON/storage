@@ -75,6 +75,17 @@ class _BillPdfScreenState extends State<BillPdfScreen> {
         title: const Text('Storage Bill'),
         centerTitle: true,
         actions: [
+          if (bill != null && !bill.isSettled)
+            IconButton(
+              tooltip: 'Record Payment',
+              icon: const Icon(Icons.payments_outlined),
+              onPressed: () async {
+                await context.push('/payment-create',
+                    extra: {'billId': bill.id});
+                _version++;
+                await _load();
+              },
+            ),
           PdfActionsMenu(
             documentLabel: 'Bill',
             fileName: () => _fileName,

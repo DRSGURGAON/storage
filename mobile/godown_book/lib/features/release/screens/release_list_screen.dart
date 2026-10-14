@@ -9,6 +9,7 @@ import '../models/goods_release_model.dart';
 import '../providers/goods_release_provider.dart';
 import '../repositories/goods_release_repository.dart';
 import '../../../core/contact/whatsapp_templates.dart';
+import '../../../shared/widgets/load_error_view.dart';
 
 class ReleaseListScreen extends ConsumerWidget {
   const ReleaseListScreen({super.key});
@@ -45,7 +46,10 @@ class ReleaseListScreen extends ConsumerWidget {
       ),
       body: releases.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, s) => Center(child: Text(e.toString())),
+        error: (e, s) => LoadErrorView(
+                message: 'Could not load the release records.',
+                onRetry: () => ref.invalidate(goodsReleaseListProvider),
+              ),
         data: (list) {
           if (list.isEmpty) {
             return const Center(

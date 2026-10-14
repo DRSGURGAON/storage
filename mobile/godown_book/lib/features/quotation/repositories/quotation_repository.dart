@@ -96,16 +96,19 @@ class QuotationRepository {
   ///
   /// The tax split follows the customer's state: same state as the
   /// company means CGST + SGST, a different one means IGST.
-  Future<QuotationModel> save(QuotationModel quotation) async {
+  Future<QuotationModel> save(QuotationModel quotation, {bool? interState}) async {
     final now = DateTime.now();
     final nowIso = now.toIso8601String();
 
     final company = await CompanyController.instance.getCompany();
     final companyState = (company?.state ?? '').trim().toLowerCase();
     final customerState = quotation.customerState.trim().toLowerCase();
-    final interState = companyState.isNotEmpty &&
-        customerState.isNotEmpty &&
-        companyState != customerState;
+    // [interState] is the owner's own choice of CGST + SGST or IGST;
+    // null decides it by the customer's state.
+    final isInterState = interState ??
+        (companyState.isNotEmpty &&
+            customerState.isNotEmpty &&
+            companyState != customerState);
 
     // An explicitly picked customer is never replaced by a phone/name
     // match - see StorageBookingRepository.save for the reasoning.
@@ -130,7 +133,7 @@ class QuotationRepository {
 
     final priced = quotation
         .copyWith(customerId: customerId)
-        .recalculated(interState: interState);
+        .recalculated(interState: isInterState);
 
     final existing = await _dao.getById(quotation.id);
     if (existing != null) {

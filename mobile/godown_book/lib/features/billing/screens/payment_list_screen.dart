@@ -9,6 +9,7 @@ import '../providers/billing_provider.dart';
 import '../repositories/billing_repository.dart';
 import '../../../core/utils/number_format.dart';
 import '../../../core/contact/whatsapp_templates.dart';
+import '../../../shared/widgets/load_error_view.dart';
 
 class PaymentListScreen extends ConsumerStatefulWidget {
   const PaymentListScreen({super.key});
@@ -72,7 +73,10 @@ class _PaymentListScreenState extends ConsumerState<PaymentListScreen> {
           Expanded(
             child: payments.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, s) => Center(child: Text(e.toString())),
+              error: (e, s) => LoadErrorView(
+                message: 'Could not load the receipts.',
+                onRetry: () => ref.invalidate(paymentListProvider),
+              ),
               data: (all) {
                 final list = all.where((p) {
                   if (query.isEmpty) return true;

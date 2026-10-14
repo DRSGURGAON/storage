@@ -9,6 +9,7 @@ import '../providers/billing_provider.dart';
 import '../repositories/billing_repository.dart';
 import '../../../core/utils/number_format.dart';
 import '../../../core/contact/whatsapp_templates.dart';
+import '../../../shared/widgets/load_error_view.dart';
 
 class BillListScreen extends ConsumerStatefulWidget {
   const BillListScreen({super.key});
@@ -75,7 +76,10 @@ class _BillListScreenState extends ConsumerState<BillListScreen> {
           Expanded(
             child: bills.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, s) => Center(child: Text(e.toString())),
+              error: (e, s) => LoadErrorView(
+                message: 'Could not load the bills.',
+                onRetry: () => ref.invalidate(billListProvider),
+              ),
               data: (all) {
                 final list = all.where((b) {
                   if (_dueOnly && b.isSettled) return false;

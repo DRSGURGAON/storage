@@ -10,6 +10,7 @@ import '../providers/storage_booking_provider.dart';
 import '../repositories/storage_booking_repository.dart';
 import 'storage_booking_pdf_screen.dart';
 import '../../../core/contact/whatsapp_templates.dart';
+import '../../../shared/widgets/load_error_view.dart';
 
 class StorageBookingListScreen extends ConsumerStatefulWidget {
   /// When set, the list is a register of that paper: tapping a record
@@ -97,7 +98,10 @@ class _StorageBookingListScreenState
           Expanded(
             child: bookings.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, s) => Center(child: Text(e.toString())),
+              error: (e, s) => LoadErrorView(
+                message: 'Could not load the storage records.',
+                onRetry: () => ref.invalidate(storageBookingListProvider),
+              ),
               data: (all) {
                 final list = _filter(all);
                 if (list.isEmpty) {

@@ -9,6 +9,7 @@ import '../providers/quotation_provider.dart';
 import '../repositories/quotation_repository.dart';
 import '../../../core/utils/number_format.dart';
 import '../../../core/contact/whatsapp_templates.dart';
+import '../../../shared/widgets/load_error_view.dart';
 
 class QuotationListScreen extends ConsumerStatefulWidget {
   const QuotationListScreen({super.key});
@@ -67,7 +68,10 @@ class _QuotationListScreenState extends ConsumerState<QuotationListScreen> {
           Expanded(
             child: quotations.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, s) => Center(child: Text(e.toString())),
+              error: (e, s) => LoadErrorView(
+                message: 'Could not load the quotations.',
+                onRetry: () => ref.invalidate(quotationListProvider),
+              ),
               data: (all) {
                 final list = all.where((q) {
                   if (query.isEmpty) return true;
