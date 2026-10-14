@@ -280,6 +280,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const _Greeting(
+                      style: TextStyle(
+                        color: Brand.inkOnNavyMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     Text(
                       name.isEmpty ? 'Set up your company' : name,
                       maxLines: 1,
@@ -1466,4 +1473,56 @@ class _CallTodayDialog extends StatelessWidget {
       ],
     );
   }
+}
+
+/// "Good morning / afternoon / evening / night" that follows the clock:
+/// re-checked every minute and whenever the app comes back to the
+/// foreground - the Dashboard itself is only rebuilt when its data
+/// reloads, so a greeting worked out once stayed "Good morning" all day.
+class _Greeting extends StatefulWidget {
+  const _Greeting({required this.style});
+
+  final TextStyle style;
+
+  static String forHour(int hour) {
+    if (hour >= 5 && hour < 12) return 'Good morning';
+    if (hour >= 12 && hour < 17) return 'Good afternoon';
+    if (hour >= 17 && hour < 21) return 'Good evening';
+    return 'Good night';
+  }
+
+  @override
+  State<_Greeting> createState() => _GreetingState();
+}
+
+class _GreetingState extends State<_Greeting> with WidgetsBindingObserver {
+  late String _text = _Greeting.forHour(DateTime.now().hour);
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) => _update());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _update();
+  }
+
+  void _update() {
+    final text = _Greeting.forHour(DateTime.now().hour);
+    if (mounted && text != _text) setState(() => _text = text);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Text(_text, style: widget.style);
 }

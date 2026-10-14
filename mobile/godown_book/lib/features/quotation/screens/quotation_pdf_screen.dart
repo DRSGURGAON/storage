@@ -62,6 +62,14 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
         title: const Text('Quotation PDF'),
         centerTitle: true,
         actions: [
+          if (_quotation != null &&
+              _quotation!.status != QuotationStatus.declined)
+            IconButton(
+              tooltip: 'Make Storage Receipt',
+              icon: const Icon(Icons.inventory_2_outlined),
+              onPressed: () => context.push('/storage-create',
+                  extra: {'quotationId': widget.quotationId}),
+            ),
           PdfActionsMenu(
             documentLabel: 'Quotation',
             fileName: () => _fileName,

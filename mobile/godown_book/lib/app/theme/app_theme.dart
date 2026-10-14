@@ -53,6 +53,9 @@ class AppTheme {
       ),
 
       inputDecorationTheme: InputDecorationTheme(
+        // Every field shows its name the same way: always on the top
+        // border, never sometimes inside the box and sometimes on it.
+        floatingLabelBehavior: FloatingLabelBehavior.always,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

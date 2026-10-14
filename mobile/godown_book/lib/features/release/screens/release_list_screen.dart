@@ -11,12 +11,32 @@ import '../repositories/goods_release_repository.dart';
 import '../../../core/contact/whatsapp_templates.dart';
 import '../../../shared/widgets/load_error_view.dart';
 
-class ReleaseListScreen extends ConsumerWidget {
+class ReleaseListScreen extends ConsumerStatefulWidget {
   const ReleaseListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReleaseListScreen> createState() => _ReleaseListScreenState();
+}
+
+class _ReleaseListScreenState extends ConsumerState<ReleaseListScreen> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  bool _matches(GoodsReleaseModel r, String query) {
+    if (query.isEmpty) return true;
+    return [r.releaseNo, r.bookingNo, r.customerName, r.customerPhone, r.vehicleNumber]
+        .any((field) => field.toLowerCase().contains(query));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final releases = ref.watch(goodsReleaseListProvider);
+    final query = _search.text.trim().toLowerCase();
 
     void refresh() {
       ref.invalidate(goodsReleaseListProvider);
@@ -50,8 +70,8 @@ class ReleaseListScreen extends ConsumerWidget {
                 message: 'Could not load the release records.',
                 onRetry: () => ref.invalidate(goodsReleaseListProvider),
               ),
-        data: (list) {
-          if (list.isEmpty) {
+        data: (all) {
+          if (all.isEmpty) {
             return const Center(
               child: Padding(
                 padding: EdgeInsets.all(32),
@@ -71,7 +91,31 @@ class ReleaseListScreen extends ConsumerWidget {
             );
           }
 
-          return RefreshIndicator(
+          final list = all.where((r) => _matches(r, query)).toList();
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: TextField(
+                  textInputAction: TextInputAction.search,
+                  controller: _search,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'Search customer, phone, release or storage no',
+                    prefixIcon: const Icon(Icons.search),
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              if (list.isEmpty)
+                const Expanded(
+                  child: Center(child: Text('No release matches your search.')),
+                )
+              else
+                Expanded(
+                  child: RefreshIndicator(
             onRefresh: () async => refresh(),
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
@@ -103,6 +147,9 @@ class ReleaseListScreen extends ConsumerWidget {
                 );
               },
             ),
+                  ),
+                ),
+            ],
           );
         },
       ),

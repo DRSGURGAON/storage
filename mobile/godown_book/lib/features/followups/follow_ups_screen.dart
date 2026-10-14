@@ -132,9 +132,8 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
         await repo.setFollowUp(q.id,
             followUpDate: '', status: QuotationStatus.accepted);
         if (!mounted) return;
-        // Straight on to the storage entry, with the customer filled in.
-        context.push('/storage-create',
-            extra: q.customerId.isEmpty ? null : {'customerId': q.customerId});
+        // Straight on to the storage entry, filled in from the quotation.
+        context.push('/storage-create', extra: {'quotationId': q.id});
       case 'lost':
         await repo.setFollowUp(q.id,
             followUpDate: '', status: QuotationStatus.declined);

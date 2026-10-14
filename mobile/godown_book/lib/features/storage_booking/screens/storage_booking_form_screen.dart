@@ -19,6 +19,8 @@ import '../models/booking_item_model.dart';
 import '../models/storage_booking_model.dart';
 import '../models/storage_status.dart';
 import '../repositories/storage_booking_repository.dart';
+import '../../quotation/models/quotation_model.dart';
+import '../../quotation/repositories/quotation_repository.dart';
 import '../../../core/constants/id_proof_types.dart';
 import '../../../shared/widgets/id_proof_field.dart';
 
@@ -34,11 +36,16 @@ class StorageBookingFormScreen extends StatefulWidget {
   /// A new entry for this customer - opened from their page.
   final String? customerId;
 
+  /// A new entry from an accepted quotation: the customer, goods,
+  /// period and monthly rent come from it, and saving marks it Booked.
+  final String? quotationId;
+
   const StorageBookingFormScreen({
     super.key,
     this.editBookingId,
     this.openVoice = false,
     this.customerId,
+    this.quotationId,
   });
 
   @override
@@ -111,9 +118,55 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _fillByVoice();
       });
+    } else if (widget.quotationId != null) {
+      _loadQuotation(widget.quotationId!);
     } else if (widget.customerId != null) {
       _loadCustomer(widget.customerId!);
     }
+  }
+
+  /// Fills a new entry from the quotation the customer accepted.
+  Future<void> _loadQuotation(String id) async {
+    final q = await QuotationRepository.instance.getById(id);
+    if (!mounted || q == null) return;
+
+    // The storage line's monthly rate: its rate when it was priced per
+    // month, else its amount spread over the months quoted.
+    double rent = 0;
+    for (final line in q.lines) {
+      final name = line.serviceName.toLowerCase();
+      if (!name.contains('storage') && !name.contains('rent')) continue;
+      if (line.quantity > 1 || q.storageMonths <= 0) {
+        rent = line.rate > 0 ? line.rate : line.amount;
+      } else {
+        rent = line.amount / q.storageMonths;
+      }
+      break;
+    }
+
+    setState(() {
+      _customerId = q.customerId;
+      _customerName.text = q.customerName;
+      _customerPhone.text = q.customerPhone;
+      _customerGst.text = q.customerGst;
+      _customerAddress.text = q.customerAddress;
+      _customerCity.text = q.customerCity;
+      _customerState.text = q.customerState;
+      _customerPincode.text = q.customerPincode;
+      _goodsDescription.text = q.goodsDescription;
+      if (rent > 0) {
+        _rentBasis = RentBasis.monthly;
+        _rentRate.text = _num(rent.roundToDouble());
+      }
+      if (q.storageMonths > 0) {
+        final months = q.storageMonths.round();
+        _expectedEnd = DateTime(
+            _storageStart.year, _storageStart.month + months, _storageStart.day);
+      }
+      final from = q.quotationNo.isEmpty ? '' : 'As per quotation ${q.quotationNo}';
+      if (from.isNotEmpty && _notes.text.trim().isEmpty) _notes.text = from;
+      nameSeed++;
+    });
   }
 
   Future<void> _loadCustomer(String id) async {
@@ -357,6 +410,16 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
     try {
       final saved = await StorageBookingRepository.instance.save(booking);
       voiceFilled.clear();
+      final quotationId = widget.quotationId;
+      if (quotationId != null) {
+        // The quotation turned into business - close its follow-up.
+        try {
+          await QuotationRepository.instance.setFollowUp(quotationId,
+              followUpDate: '', status: QuotationStatus.accepted);
+        } catch (_) {
+          // The storage is saved; the quotation can be marked by hand.
+        }
+      }
       if (!mounted) return;
       // A new storage opens straight on its receipt, ready to share; an
       // edit goes back to the screen it came from.

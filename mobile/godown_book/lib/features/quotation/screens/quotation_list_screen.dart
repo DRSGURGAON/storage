@@ -193,6 +193,17 @@ Future<void> showQuotationActions(
           onChanged();
         },
       ),
+      if (q.status != QuotationStatus.declined)
+        DocumentAction(
+          icon: Icons.inventory_2_outlined,
+          label: 'Make Storage Receipt',
+          subtitle: 'Customer, goods and rent filled in from this quotation',
+          onTap: () async {
+            await context.push('/storage-create',
+                extra: {'quotationId': q.id});
+            onChanged();
+          },
+        ),
       DocumentAction(
         icon: Icons.edit_outlined,
         label: 'Edit Quotation',

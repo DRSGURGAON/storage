@@ -397,6 +397,7 @@ class AppRouter {
           return UnsavedChangesGuard(child: StorageBookingFormScreen(
             openVoice: extra == 'voice',
             customerId: extra is Map ? extra['customerId'] as String? : null,
+            quotationId: extra is Map ? extra['quotationId'] as String? : null,
           ));
         },
       ),
