@@ -158,6 +158,7 @@ class _StorageBookingPdfScreenState extends State<StorageBookingPdfScreen> {
             fileName: _fileName,
             rebuildKey: '${_selectedCopies.join('|')}|$_version',
             onBytes: (bytes) => _menuPdfBytes = bytes,
+            whatsAppPhone: booking.customerPhone,
             shareMessage: WhatsAppTemplates.instance.document(
               name: booking.customerName,
               document: widget.kind.title,

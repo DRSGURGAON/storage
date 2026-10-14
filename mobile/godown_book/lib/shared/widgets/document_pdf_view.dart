@@ -40,6 +40,9 @@ class DocumentPdfView extends StatefulWidget {
   /// message) - WhatsApp shows it as the caption. Null = PDF only.
   final String? shareMessage;
 
+  /// The customer's number - the WhatsApp button opens their chat.
+  final String? whatsAppPhone;
+
   const DocumentPdfView({
     super.key,
     required this.documentType,
@@ -48,6 +51,7 @@ class DocumentPdfView extends StatefulWidget {
     this.onBytes,
     this.rebuildKey,
     this.shareMessage,
+    this.whatsAppPhone,
   });
 
   @override
@@ -219,6 +223,7 @@ class _DocumentPdfViewState extends State<DocumentPdfView> {
       getPdfBytes: () => _bytes,
       fileName: widget.fileName,
       shareMessage: widget.shareMessage,
+      whatsAppPhone: widget.whatsAppPhone,
       preview: PdfPreview(
         key: widget.rebuildKey == null ? null : ValueKey(widget.rebuildKey),
         build: (_) async {

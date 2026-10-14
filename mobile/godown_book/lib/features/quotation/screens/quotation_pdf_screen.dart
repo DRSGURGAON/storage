@@ -103,6 +103,7 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
       fileName: _fileName,
       rebuildKey: '$_version',
       onBytes: (bytes) => _menuPdfBytes = bytes,
+      whatsAppPhone: quotation.customerPhone,
       shareMessage: WhatsAppTemplates.instance.document(
         name: quotation.customerName,
         document: 'Quotation',

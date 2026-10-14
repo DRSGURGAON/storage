@@ -64,7 +64,7 @@ class MainActivity : FlutterActivity() {
                     call.argument<String>("mimeType") ?: "application/octet-stream",
                     result,
                 )
-"openWhatsAppChat" -> openWhatsAppChat(
+                "openWhatsAppChat" -> openWhatsAppChat(
                     call.argument<String>("phone"),
                     call.argument<String>("targetPackage"),
                     call.argument<String>("text") ?: "",
@@ -75,6 +75,13 @@ class MainActivity : FlutterActivity() {
                     call.argument<String>("mimeType") ?: "application/octet-stream",
                     call.argument<String>("targetPackage"),
                     call.argument<String>("subject"),
+                    call.argument<String>("text"),
+                    call.argument<String>("phone"),
+                    result,
+                )
+                "shareText" -> shareText(
+                    call.argument<String>("text") ?: "",
+                    call.argument<String>("targetPackage"),
                     result,
                 )
                 else -> result.notImplemented()
@@ -169,6 +176,8 @@ class MainActivity : FlutterActivity() {
         mimeType: String,
         targetPackage: String?,
         subject: String?,
+        text: String?,
+        phone: String?,
         result: MethodChannel.Result,
     ) {
         if (filePath.isNullOrEmpty()) {
@@ -193,12 +202,41 @@ class MainActivity : FlutterActivity() {
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             if (!subject.isNullOrEmpty()) putExtra(Intent.EXTRA_SUBJECT, subject)
+            // WhatsApp shows this as the file's caption.
+            if (!text.isNullOrEmpty()) putExtra(Intent.EXTRA_TEXT, text)
+            // WhatsApp / WhatsApp Business open this customer's chat
+            // directly instead of the "send to" list.
+            if (!phone.isNullOrEmpty()) putExtra("jid", "$phone@s.whatsapp.net")
             if (!targetPackage.isNullOrEmpty()) setPackage(targetPackage)
         }
 
         try {
             if (targetPackage.isNullOrEmpty()) {
                 startActivity(Intent.createChooser(send, subject ?: "Share"))
+            } else {
+                startActivity(send)
+            }
+            result.success(true)
+        } catch (e: ActivityNotFoundException) {
+            result.error("APP_NOT_FOUND", "$targetPackage is not installed", null)
+        }
+    }
+
+    /** Sends plain text to [targetPackage] - WhatsApp or WhatsApp
+     *  Business opens its own "send to" list with the text typed in. */
+    private fun shareText(
+        text: String,
+        targetPackage: String?,
+        result: MethodChannel.Result,
+    ) {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+            if (!targetPackage.isNullOrEmpty()) setPackage(targetPackage)
+        }
+        try {
+            if (targetPackage.isNullOrEmpty()) {
+                startActivity(Intent.createChooser(send, "Share"))
             } else {
                 startActivity(send)
             }

@@ -126,6 +126,7 @@ class _PaymentReceiptPdfScreenState extends State<PaymentReceiptPdfScreen> {
                       fileName: _fileName,
                       rebuildKey: '$_version',
                       onBytes: (bytes) => _menuPdfBytes = bytes,
+                      whatsAppPhone: payment.payerPhone,
                       shareMessage: WhatsAppTemplates.instance.document(
                         name: payment.payerName,
                         document: payment.isCreditNote ? 'Credit Note' : 'Payment Receipt',

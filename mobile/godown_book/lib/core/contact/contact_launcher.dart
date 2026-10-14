@@ -139,18 +139,18 @@ class ContactLauncher {
     }
   }
 
-  /// Asks which WhatsApp to use, then opens the chat.
+  /// Asks which WhatsApp to use - WhatsApp or WhatsApp Business.
   ///
   /// Always asks rather than trying to detect what is installed:
   /// Android's package-visibility rules make "is WhatsApp Business
   /// installed" unreliable to answer from inside the app, and a
   /// silently-wrong guess is worse than one extra tap.
-  static Future<void> openWhatsAppWithChoice(
-    BuildContext context,
-    String number, {
-    String message = '',
-  }) async {
-    final choice = await showModalBottomSheet<WhatsAppApp>(
+  static Future<WhatsAppApp?> pickWhatsApp(
+    BuildContext context, {
+    String title = 'Open chat in',
+    String subtitle = 'Choose which WhatsApp app to use.',
+  }) {
+    return showModalBottomSheet<WhatsAppApp>(
       context: context,
       showDragHandle: true,
       builder: (sheetContext) {
@@ -158,26 +158,26 @@ class ContactLauncher {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 0, 20, 4),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Open chat in',
-                    style: TextStyle(
+                    title,
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Choose which WhatsApp app to use.',
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                    subtitle,
+                    style: const TextStyle(fontSize: 13, color: Colors.grey),
                   ),
                 ),
               ),
@@ -209,9 +209,16 @@ class ContactLauncher {
         );
       },
     );
+  }
 
-    if (choice == null) return;
-    if (!context.mounted) return;
+  /// Asks which WhatsApp to use, then opens the chat.
+  static Future<void> openWhatsAppWithChoice(
+    BuildContext context,
+    String number, {
+    String message = '',
+  }) async {
+    final choice = await pickWhatsApp(context);
+    if (choice == null || !context.mounted) return;
 
     final opened = await openWhatsApp(number, app: choice, message: message);
 
@@ -220,5 +227,43 @@ class ContactLauncher {
         SnackBar(content: Text('Could not open ${choice.label}.')),
       );
     }
+  }
+
+  /// Asks which WhatsApp to use, then opens its "send to" list with
+  /// [text] typed in - for a message with no one particular to send to
+  /// (the referral invite).
+  static Future<void> shareTextWithChoice(
+    BuildContext context,
+    String text,
+  ) async {
+    final choice = await pickWhatsApp(
+      context,
+      title: 'Send with',
+      subtitle: 'Choose which WhatsApp app to send from.',
+    );
+    if (choice == null || !context.mounted) return;
+
+    if (Platform.isAndroid) {
+      try {
+        final sent = await _channel.invokeMethod<bool>('shareText', {
+          'text': text,
+          'targetPackage': choice.androidPackage,
+        });
+        if (sent == true) return;
+      } catch (_) {
+        // Not installed - say so below.
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${choice.label} is not installed.')),
+        );
+      }
+      return;
+    }
+
+    await launchUrl(
+      Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}'),
+      mode: LaunchMode.externalApplication,
+    );
   }
 }

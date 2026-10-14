@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/contact/contact_launcher.dart';
 import '../../company/services/app_id_counter_service.dart';
 import '../models/subscription_model.dart';
 import '../repositories/subscription_repository.dart';
@@ -186,14 +186,11 @@ class _ReferEarnCardState extends State<ReferEarnCard> {
                 ),
                 const SizedBox(width: 6),
                 FilledButton.icon(
-                  // WhatsApp opens its own "send to" list with the invite
-                  // already typed.
-                  onPressed: () => launchUrl(
-                    Uri.parse(
-                      'https://wa.me/?text='
-                      '${Uri.encodeComponent(ReferEarnCard.inviteMessage(appId))}',
-                    ),
-                    mode: LaunchMode.externalApplication,
+                  // The chosen WhatsApp (or Business) opens its own
+                  // "send to" list with the invite already typed.
+                  onPressed: () => ContactLauncher.shareTextWithChoice(
+                    context,
+                    ReferEarnCard.inviteMessage(appId),
                   ),
                   icon: const Icon(Icons.share, size: 18),
                   label: const Text('Invite'),

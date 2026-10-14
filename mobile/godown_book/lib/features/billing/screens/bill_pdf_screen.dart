@@ -115,6 +115,7 @@ class _BillPdfScreenState extends State<BillPdfScreen> {
                       fileName: _fileName,
                       rebuildKey: '$_version',
                       onBytes: (bytes) => _menuPdfBytes = bytes,
+                      whatsAppPhone: bill.customerPhone,
                       shareMessage: bill.derivedStatus == BillStatus.overdue
                           ? WhatsAppTemplates.instance.paymentReminder(
                               name: bill.customerName,

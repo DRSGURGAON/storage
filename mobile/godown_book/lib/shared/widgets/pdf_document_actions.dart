@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/errors/delete_blocked_exception.dart';
 import '../../core/pdf/pdf_download.dart';
+import '../../core/pdf/whatsapp_pdf_share.dart';
 
 /// The single three-dot (⋮) menu shown on every saved document's PDF
 /// screen - one place for the full option set: Share PDF, Save PDF,
@@ -59,6 +60,15 @@ class PdfActionsMenu extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.share_outlined),
             title: Text('Share PDF'),
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'whatsapp',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.chat_outlined, color: Color(0xff128C4A)),
+            title: Text('Send on WhatsApp'),
           ),
         ),
         const PopupMenuItem(
@@ -127,6 +137,16 @@ class PdfActionsMenu extends StatelessWidget {
         await _withBytes(context, (bytes) async {
           await Printing.sharePdf(bytes: bytes, filename: fileName());
         });
+      case 'whatsapp':
+        await _withBytes(
+          context,
+          (bytes) => WhatsAppPdfShare.shareWithChoice(
+            context,
+            bytes,
+            fileName: fileName(),
+            phone: customerPhone ?? '',
+          ),
+        );
       case 'save':
         await _withBytes(context, (bytes) => _savePdf(context, bytes));
       case 'print':

@@ -112,6 +112,7 @@ class _ReleasePdfScreenState extends State<ReleasePdfScreen> {
                             rebuildKey:
                                 '${_selectedCopies.join('|')}|${_signature?.signedAt ?? ''}|$_version',
                             onBytes: (bytes) => _menuPdfBytes = bytes,
+                            whatsAppPhone: release.customerPhone,
                             shareMessage: WhatsAppTemplates.instance.document(
                               name: release.customerName,
                               document: 'Release Record',

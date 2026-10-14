@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
 import '../../core/pdf/pdf_download.dart';
+import '../../core/pdf/whatsapp_pdf_share.dart';
 
 /// A PDF preview with a big DOWNLOAD and SHARE PDF button underneath it,
 /// so the two things people do with a finished document are one tap away
@@ -19,6 +20,7 @@ class PdfWithBottomBar extends StatelessWidget {
     required this.getPdfBytes,
     required this.fileName,
     this.shareMessage,
+    this.whatsAppPhone,
   });
 
   final Widget preview;
@@ -29,6 +31,9 @@ class PdfWithBottomBar extends StatelessWidget {
   /// such as WhatsApp show it as the caption. Null = PDF only.
   final String? shareMessage;
 
+  /// The customer's number: WhatsApp opens their chat directly.
+  final String? whatsAppPhone;
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -38,6 +43,7 @@ class PdfWithBottomBar extends StatelessWidget {
           getPdfBytes: getPdfBytes,
           fileName: fileName,
           shareMessage: shareMessage,
+          whatsAppPhone: whatsAppPhone,
         ),
       ],
     );
@@ -50,12 +56,14 @@ class PdfBottomBar extends StatefulWidget {
     required this.getPdfBytes,
     required this.fileName,
     this.shareMessage,
+    this.whatsAppPhone,
     this.loadPdfBytes,
   });
 
   final Uint8List? Function() getPdfBytes;
   final String fileName;
   final String? shareMessage;
+  final String? whatsAppPhone;
 
   /// Builds the PDF when [getPdfBytes] has none yet - for a screen that
   /// shows the bar without a preview (a bill's detail screen). Returning
@@ -137,6 +145,16 @@ class _PdfBottomBarState extends State<PdfBottomBar> {
         );
       });
 
+  /// Sends the PDF into WhatsApp or WhatsApp Business - whichever the
+  /// owner picks - with their message as the caption.
+  Future<void> _whatsApp() => _run((bytes) => WhatsAppPdfShare.shareWithChoice(
+        context,
+        bytes,
+        fileName: widget.fileName,
+        message: widget.shareMessage ?? '',
+        phone: widget.whatsAppPhone ?? '',
+      ));
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -156,7 +174,7 @@ class _PdfBottomBarState extends State<PdfBottomBar> {
                     'DOWNLOAD',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
+                      letterSpacing: 0.6,
                     ),
                   ),
                   style: FilledButton.styleFrom(
@@ -165,7 +183,29 @@ class _PdfBottomBarState extends State<PdfBottomBar> {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
+              Tooltip(
+                message: 'Send on WhatsApp',
+                child: Material(
+                  color: const Color(0xffE7F8EE),
+                  shape: const CircleBorder(
+                    side: BorderSide(color: Color(0xff25D366), width: 1.5),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: _busy ? null : _whatsApp,
+                    child: SizedBox(
+                      width: 52,
+                      height: 52,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Image.asset('assets/images/whatsapp_icon.png'),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: FilledButton.icon(
                   onPressed: _busy ? null : _share,
@@ -174,7 +214,7 @@ class _PdfBottomBarState extends State<PdfBottomBar> {
                     'SHARE PDF',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
+                      letterSpacing: 0.6,
                     ),
                   ),
                   style: FilledButton.styleFrom(
