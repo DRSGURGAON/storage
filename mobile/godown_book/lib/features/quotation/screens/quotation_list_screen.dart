@@ -10,6 +10,7 @@ import '../repositories/quotation_repository.dart';
 import '../../../core/utils/number_format.dart';
 import '../../../core/contact/whatsapp_templates.dart';
 import '../../../shared/widgets/load_error_view.dart';
+import '../widgets/make_storage_receipt_confirm.dart';
 
 class QuotationListScreen extends ConsumerStatefulWidget {
   const QuotationListScreen({super.key});
@@ -199,8 +200,7 @@ Future<void> showQuotationActions(
           label: 'Make Storage Receipt',
           subtitle: 'Customer, goods and rent filled in from this quotation',
           onTap: () async {
-            await context.push('/storage-create',
-                extra: {'quotationId': q.id});
+            await openMakeStorageReceipt(context, q);
             onChanged();
           },
         ),

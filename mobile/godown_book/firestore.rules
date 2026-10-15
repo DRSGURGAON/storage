@@ -85,10 +85,12 @@ service cloud.firestore {
             && request.auth.token.get('phone_number', '').matches('.*' + mobile));
     }
 
-    // The App ID is set once. The only later change allowed is moving an
+    // The App ID is set once, in the real "SW" + digits shape - a
+    // client cannot hand itself (or forge onto itself) another
+    // company's identifier. The only later change allowed is moving an
     // older form ("4838", "DRS-4838") to the current one ("SW4838").
     function appIdChangeAllowed(before, after) {
-      return before == ''
+      return (before == '' && after.matches('SW[0-9]{1,8}'))
         || after == 'SW' + before
         || before == 'DRS-' + after.replace('^SW', '');
     }
@@ -210,7 +212,11 @@ service cloud.firestore {
             && incoming().get('referralRejected', false) == false
             && incoming().get('referralBonusDays', 0) == 0
             && incoming().get('referralCount', 0) == 0
-            && incoming().get('pdfUsed', {}).size() == 0);
+            && incoming().get('pdfUsed', {}).size() == 0
+            // The App ID is assigned afterwards, by the app's own
+            // counter - never handed to another company's identifier
+            // at creation.
+            && incoming().get('companyCode', '') == '');
 
       allow update: if isSuperAdmin()
         || (signedIn()
@@ -340,6 +346,7 @@ service cloud.firestore {
         || (signedIn()
             && incoming().lastAssigned is int
             && incoming().lastAssigned == existing().lastAssigned + 1
+            && incoming().updatedAt == request.time
             && incoming().keys().hasOnly(['lastAssigned', 'updatedAt']));
 
       allow delete: if false;
@@ -423,7 +430,10 @@ service cloud.firestore {
             && incoming().signature is string
             && incoming().signature.size() < 400000
             && incoming().signerName is string
-            && incoming().signerName.size() < 120);
+            && incoming().signerName.size() < 120
+            // The signing time is the server's, never the customer's
+            // device clock.
+            && incoming().signedAt == request.time);
 
       allow delete: if isSuperAdmin()
         || (signedIn() && existing().ownerUid == request.auth.uid);

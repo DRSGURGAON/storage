@@ -56,7 +56,12 @@ const subscriptionDoc = (companyId, ownerUid, extra = {}) => ({
   gstNumber: '',
   authorizedSignatoryName: '',
   email: '',
-  companyCode: '4838',
+  // Real creation never carries an App ID yet - it is assigned
+  // afterwards, from the counter. A test that needs an already-seeded
+  // code (the forward-migration tests below) writes it in with
+  // withSecurityRulesDisabled, the same way a real App ID is only
+  // ever set out of band before a client can move it further.
+  companyCode: '',
   demoGenerationsUsedJson: '{}',
   demoGenerationsUsed: {},
   createdAt: '2026-09-01T00:00:00',
@@ -83,10 +88,16 @@ async function seed() {
     await setDoc(doc(db, 'companies', UID_A, 'customers', 'cust-a'), customerRow(COMPANY_A, 'cust-a'));
     await setDoc(doc(db, 'companies', UID_B, 'customers', 'cust-b'), customerRow(COMPANY_B, 'cust-b'));
     await setDoc(doc(db, 'subscriptions', COMPANY_A), subscriptionDoc(COMPANY_A, UID_A, {
+      // Established before the "SW" form existed - its App ID is
+      // already assigned, in the old shape. Seeded with the rules
+      // off, the same way a real migration left it, not through the
+      // owner's own constrained create.
+      companyCode: '4838',
       demoGenerationsUsed: { bill: 1 },
       demoGenerationsUsedJson: '{"bill":1}',
     }));
     await setDoc(doc(db, 'subscriptions', COMPANY_B), subscriptionDoc(COMPANY_B, UID_B, {
+      companyCode: '4838',
       status: 'ACTIVE',
       planId: 'PLAN_QUARTERLY',
       startDate: '2026-09-01T00:00:00',
@@ -617,6 +628,26 @@ describe('Bill N Bilty hardening', () => {
       await updateDoc(doc(ctx.firestore(), 'subscriptions', COMPANY_A), { companyCode: 'DRS-4838' });
     });
     await assertSucceeds(updateDoc(ref, { companyCode: 'SW4838', updatedAt: 'now' }));
+  });
+
+  it('the App ID cannot be spoofed at creation, or on its first assignment', async () => {
+    await ownProfile(UID_B, 'company-f');
+    const db = asB();
+    // A brand-new record may not arrive already carrying someone
+    // else's (or any) App ID.
+    await assertFails(setDoc(doc(db, 'subscriptions', 'company-f'),
+      subscriptionDoc('company-f', UID_B, { companyCode: 'SW4838' })));
+    await assertFails(setDoc(doc(db, 'subscriptions', 'company-f'),
+      subscriptionDoc('company-f', UID_B, { companyCode: '4838' })));
+    await assertSucceeds(setDoc(doc(db, 'subscriptions', 'company-f'),
+      subscriptionDoc('company-f', UID_B)));
+
+    // The first assignment from '' must be the real "SW" + digits
+    // shape - not an arbitrary string.
+    const ref = doc(db, 'subscriptions', 'company-f');
+    await assertFails(updateDoc(ref, { companyCode: 'not-a-real-code', updatedAt: 'now' }));
+    await assertFails(updateDoc(ref, { companyCode: '4321', updatedAt: 'now' }));
+    await assertSucceeds(updateDoc(ref, { companyCode: 'SW4841', updatedAt: 'now' }));
   });
 
   it('KYC is submitted only for your own company', async () => {

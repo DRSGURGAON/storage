@@ -99,17 +99,55 @@ class BillingDao {
     }
   }
 
+  /// The `period_to` of every bill against [bookingId], inside the
+  /// caller's own transaction - used to move the booking's
+  /// rent-billed watermark without a second, un-transacted read.
+  Future<List<String>> getPeriodTosForBookingInTxn(
+    DatabaseExecutor txn,
+    String bookingId,
+  ) async {
+    final rows = await txn.query(
+      DatabaseConstants.invoiceTable,
+      columns: ['period_to'],
+      where: 'booking_id = ? AND ${DatabaseConstants.companyIdColumn} = ?',
+      whereArgs: [bookingId, TenantScope.companyId],
+    );
+    return [for (final row in rows) (row['period_to'] as String?) ?? ''];
+  }
+
   Future<void> updateBillRow(BillModel bill) async {
     await _db.updateScoped(DatabaseConstants.invoiceTable, bill.toMap(), bill.id);
   }
 
-  Future<void> deleteBill(String id) async {
-    await _db.deleteWhereScoped(
-      DatabaseConstants.invoiceChargeTable,
-      'invoice_id = ?',
-      [id],
+  /// Same as [updateBillRow], inside the caller's own transaction - so
+  /// a restated bill commits together with the payment that caused it.
+  Future<void> updateBillRowInTxn(DatabaseExecutor txn, BillModel bill) async {
+    await txn.update(
+      DatabaseConstants.invoiceTable,
+      {...bill.toMap(), DatabaseConstants.companyIdColumn: TenantScope.companyId},
+      where: 'id = ? AND ${DatabaseConstants.companyIdColumn} = ?',
+      whereArgs: [bill.id, TenantScope.companyId],
     );
-    await _db.deleteScoped(DatabaseConstants.invoiceTable, id);
+  }
+
+  Future<void> deleteBill(String id) async {
+    await _db.transaction((txn) => deleteBillInTxn(txn, id));
+  }
+
+  /// Both deletes inside one transaction - a crash between them would
+  /// otherwise orphan the bill's own charge lines.
+  Future<void> deleteBillInTxn(DatabaseExecutor txn, String id) async {
+    final companyId = TenantScope.companyId;
+    await txn.delete(
+      DatabaseConstants.invoiceChargeTable,
+      where: 'invoice_id = ? AND ${DatabaseConstants.companyIdColumn} = ?',
+      whereArgs: [id, companyId],
+    );
+    await txn.delete(
+      DatabaseConstants.invoiceTable,
+      where: 'id = ? AND ${DatabaseConstants.companyIdColumn} = ?',
+      whereArgs: [id, companyId],
+    );
   }
 
   // ==========================
@@ -160,7 +198,69 @@ class BillingDao {
     );
   }
 
+  /// Same as [updatePayment], inside the caller's own transaction - so
+  /// the receipt and the bill it restates commit together.
+  Future<void> updatePaymentInTxn(
+    DatabaseExecutor txn,
+    PaymentModel payment,
+  ) async {
+    await txn.update(
+      DatabaseConstants.paymentTable,
+      {...payment.toMap(), DatabaseConstants.companyIdColumn: TenantScope.companyId},
+      where: 'id = ? AND ${DatabaseConstants.companyIdColumn} = ?',
+      whereArgs: [payment.id, TenantScope.companyId],
+    );
+  }
+
   Future<void> deletePayment(String id) async {
     await _db.deleteScoped(DatabaseConstants.paymentTable, id);
+  }
+
+  /// Same as [deletePayment], inside the caller's own transaction.
+  Future<void> deletePaymentInTxn(DatabaseExecutor txn, String id) async {
+    await txn.delete(
+      DatabaseConstants.paymentTable,
+      where: 'id = ? AND ${DatabaseConstants.companyIdColumn} = ?',
+      whereArgs: [id, TenantScope.companyId],
+    );
+  }
+
+  /// Reads inside the caller's own transaction - a restate must see
+  /// the payment write that triggered it, not a stale snapshot from
+  /// before the transaction started.
+  Future<BillModel?> getBillByIdInTxn(DatabaseExecutor txn, String id) async {
+    final companyId = TenantScope.companyId;
+    final rows = await txn.query(
+      DatabaseConstants.invoiceTable,
+      where: 'id = ? AND ${DatabaseConstants.companyIdColumn} = ?',
+      whereArgs: [id, companyId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+
+    final lineRows = await txn.query(
+      DatabaseConstants.invoiceChargeTable,
+      where: 'invoice_id = ? AND ${DatabaseConstants.companyIdColumn} = ?',
+      whereArgs: [id, companyId],
+      orderBy: 'sort_order ASC',
+    );
+
+    return BillModel.fromMap(
+      rows.first,
+      lines: lineRows.map(BillLineModel.fromMap).toList(),
+    );
+  }
+
+  Future<List<PaymentModel>> getPaymentsForBillInTxn(
+    DatabaseExecutor txn,
+    String billId,
+  ) async {
+    final rows = await txn.query(
+      DatabaseConstants.paymentTable,
+      where: 'invoice_id = ? AND ${DatabaseConstants.companyIdColumn} = ?',
+      whereArgs: [billId, TenantScope.companyId],
+      orderBy: 'payment_date ASC',
+    );
+    return rows.map(PaymentModel.fromMap).toList();
   }
 }

@@ -119,43 +119,88 @@ class AppDatabase {
   Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {
     // Each version adds its own block here, in order, and bumps
     // DatabaseConstants.databaseVersion. Never edit a CREATE TABLE.
+    //
+    // Every ALTER TABLE goes through _addColumnIfMissing: a phone that
+    // already carries a column (a hotfix build, a sideloaded APK with
+    // a different history, or this step simply running twice) must
+    // never fail the whole upgrade with "duplicate column name" - that
+    // throws out of the single openDatabase() call every repository
+    // awaits, so one bad ALTER would crash the app on every launch
+    // with no in-app recovery.
     if (oldVersion < 2) {
       await db.execute(Migrations.createNoticeTable);
       await db.execute(Migrations.createIncidentTable);
-    await db.execute(Migrations.createConsignmentTable);
-    await db.execute(Migrations.createConsignmentItemTable);
-      await db.execute(
+      await db.execute(Migrations.createConsignmentTable);
+      await db.execute(Migrations.createConsignmentItemTable);
+      await _addColumnIfMissing(
+        db,
+        'storage_photos',
+        'incident_id',
         "ALTER TABLE storage_photos ADD COLUMN incident_id TEXT NOT NULL DEFAULT ''",
       );
     }
     if (oldVersion < 3) {
       await db.execute(Migrations.createConsignmentTable);
       await db.execute(Migrations.createConsignmentItemTable);
-      await db.execute(
+      await _addColumnIfMissing(
+        db,
+        'company_settings',
+        'consignment_prefix',
         "ALTER TABLE company_settings ADD COLUMN consignment_prefix TEXT NOT NULL DEFAULT 'LR'",
       );
     }
     if (oldVersion < 4) {
-      await db.execute(
+      await _addColumnIfMissing(
+        db,
+        'storage_locations',
+        'capacity',
         'ALTER TABLE storage_locations ADD COLUMN capacity INTEGER NOT NULL DEFAULT 0',
       );
     }
     if (oldVersion < 5) {
-      await db.execute(
+      await _addColumnIfMissing(
+        db,
+        'storage_photos',
+        'item_id',
         "ALTER TABLE storage_photos ADD COLUMN item_id TEXT NOT NULL DEFAULT ''",
       );
     }
     if (oldVersion < 6) {
-      // Quotation follow-ups. Guarded: a phone whose quotations table
-      // already carries the column (or lacks the table) must not fail
-      // the whole upgrade on this one step.
+      // Quotation follow-ups - the table itself may not exist yet on
+      // an older phone.
       final columns = await db.rawQuery('PRAGMA table_info(quotations)');
       if (columns.isEmpty) {
         await db.execute(Migrations.createQuotationTable);
-      } else if (!columns.any((c) => c['name'] == 'follow_up_date')) {
-        await db.execute(
+      } else {
+        await _addColumnIfMissing(
+          db,
+          'quotations',
+          'follow_up_date',
           "ALTER TABLE quotations ADD COLUMN follow_up_date TEXT NOT NULL DEFAULT ''",
         );
+      }
+    }
+  }
+
+  /// Runs [alterSql] only if [table] does not already have [column] -
+  /// SQLite has no `ADD COLUMN IF NOT EXISTS`, so every upgrade step
+  /// that adds a column must check for itself. Swallows the rare
+  /// "duplicate column" race (two upgrade paths racing to add the
+  /// same column) rather than let it take down the whole migration
+  /// chain: the column existing is the only outcome that matters.
+  static Future<void> _addColumnIfMissing(
+    Database db,
+    String table,
+    String column,
+    String alterSql,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    if (columns.any((c) => c['name'] == column)) return;
+    try {
+      await db.execute(alterSql);
+    } on DatabaseException catch (error) {
+      if (!error.toString().toLowerCase().contains('duplicate column')) {
+        rethrow;
       }
     }
   }

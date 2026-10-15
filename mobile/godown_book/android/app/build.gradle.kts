@@ -79,6 +79,9 @@ android {
 
             isMinifyEnabled = true
             isShrinkResources = true
+            // Explicit, so a later edit to this block can't silently
+            // make a published build debuggable.
+            isDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

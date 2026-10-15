@@ -63,7 +63,7 @@ class FirebasePhoneAuthService implements OtpAuthService {
               autoVerification.complete(false);
             }
           } catch (error) {
-            debugPrint('Auto verification sign-in failed: $error');
+            if (kDebugMode) debugPrint('Auto verification sign-in failed: $error');
             if (!completer.isCompleted) {
               completer.completeError(const AuthFailure(AuthFailureKind.unknown));
             } else if (!autoVerification.isCompleted) {
@@ -97,7 +97,7 @@ class FirebasePhoneAuthService implements OtpAuthService {
     } on FirebaseAuthException catch (error) {
       throw _failure(error);
     } catch (error) {
-      debugPrint('verifyPhoneNumber failed to start: $error');
+      if (kDebugMode) debugPrint('verifyPhoneNumber failed to start: $error');
       throw const AuthFailure(AuthFailureKind.unknown);
     }
 
@@ -130,7 +130,7 @@ class FirebasePhoneAuthService implements OtpAuthService {
       if (failure.kind == AuthFailureKind.invalidCode) return false;
       throw failure;
     } catch (error) {
-      debugPrint('signInWithCredential failed: $error');
+      if (kDebugMode) debugPrint('signInWithCredential failed: $error');
       throw const AuthFailure(AuthFailureKind.unknown);
     }
   }
@@ -161,13 +161,14 @@ class FirebasePhoneAuthService implements OtpAuthService {
   }
 
   /// One place where a Firebase failure becomes ours. It keeps the
-  /// provider's code so a screen can print it, and logs the whole
-  /// exception, because a sign-in that fails for a reason nobody can
-  /// see is the hardest kind of bug to answer a customer about.
+  /// provider's code so a screen can print it. The code alone - never
+  /// Firebase's own message, which can echo back the phone number or
+  /// other request details - and only outside release builds, since
+  /// this reaches the device's log either way.
   static AuthFailure _failure(FirebaseAuthException error) {
-    debugPrint(
-      'Phone auth failed: code=${error.code} message=${error.message}',
-    );
+    if (kDebugMode) {
+      debugPrint('Phone auth failed: code=${error.code}');
+    }
     return AuthFailure(mapFirebaseCode(error.code), code: error.code);
   }
 

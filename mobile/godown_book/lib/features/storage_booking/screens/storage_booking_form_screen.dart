@@ -119,8 +119,15 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
         if (mounted) _fillByVoice();
       });
     } else if (widget.quotationId != null) {
+      // Hides the form (same as the edit path) until the prefill
+      // lands - otherwise a field can gain focus before these values
+      // arrive, UnsavedChangesGuard then snapshots it empty, and the
+      // programmatic fill that follows looks like a real edit, so
+      // tapping back on an untouched form wrongly asks to discard it.
+      _loadingExisting = true;
       _loadQuotation(widget.quotationId!);
     } else if (widget.customerId != null) {
+      _loadingExisting = true;
       _loadCustomer(widget.customerId!);
     }
   }
@@ -128,7 +135,11 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
   /// Fills a new entry from the quotation the customer accepted.
   Future<void> _loadQuotation(String id) async {
     final q = await QuotationRepository.instance.getById(id);
-    if (!mounted || q == null) return;
+    if (!mounted) return;
+    if (q == null) {
+      setState(() => _loadingExisting = false);
+      return;
+    }
 
     // The storage line's monthly rate: its rate when it was priced per
     // month, else its amount spread over the months quoted.
@@ -166,12 +177,17 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
       final from = q.quotationNo.isEmpty ? '' : 'As per quotation ${q.quotationNo}';
       if (from.isNotEmpty && _notes.text.trim().isEmpty) _notes.text = from;
       nameSeed++;
+      _loadingExisting = false;
     });
   }
 
   Future<void> _loadCustomer(String id) async {
     final customer = await CustomerRepository.instance.getById(id);
-    if (!mounted || customer == null) return;
+    if (!mounted) return;
+    if (customer == null) {
+      setState(() => _loadingExisting = false);
+      return;
+    }
     setState(() {
       _customerId = customer.id;
       _customerName.text = customer.customerName;
@@ -182,6 +198,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
       _customerState.text = customer.state;
       _customerPincode.text = customer.pincode;
       nameSeed++;
+      _loadingExisting = false;
     });
   }
 

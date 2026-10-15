@@ -52,6 +52,28 @@ class StorageBookingDao {
     return StorageBookingModel.fromMap(rows.first, items: await getItems(id));
   }
 
+  /// Moves the rent-billed watermark inside [txn] - the caller's own
+  /// transaction, so a bill (or its deletion) and this update commit
+  /// together or not at all. A crash between the two would otherwise
+  /// leave a booking's billed-upto date stale, risking the same rent
+  /// period being billed twice.
+  Future<void> setRentBilledUptoInTxn(
+    DatabaseExecutor txn,
+    String bookingId,
+    String isoDate,
+  ) async {
+    final companyId = TenantScope.companyId;
+    await txn.update(
+      DatabaseConstants.storageBookingTable,
+      {
+        'rent_billed_upto': isoDate.isEmpty ? null : isoDate,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ? AND ${DatabaseConstants.companyIdColumn} = ?',
+      whereArgs: [bookingId, companyId],
+    );
+  }
+
   Future<List<BookingItemModel>> getItems(String bookingId) async {
     final rows = await _db.queryScoped(
       DatabaseConstants.bookingItemTable,

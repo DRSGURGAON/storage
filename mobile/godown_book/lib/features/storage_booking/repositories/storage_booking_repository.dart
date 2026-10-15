@@ -262,6 +262,16 @@ class StorageBookingRepository {
     ));
   }
 
+  /// Same as [setRentBilledUpto], but inside the caller's own
+  /// transaction - so a bill write (or delete) and this update commit
+  /// together, never one without the other.
+  Future<void> setRentBilledUptoInTxn(
+    DatabaseExecutor txn,
+    String bookingId,
+    String isoDate,
+  ) =>
+      _dao.setRentBilledUptoInTxn(txn, bookingId, isoDate);
+
   Future<void> cancel(String bookingId) async {
     final booking = await _dao.getById(bookingId);
     if (booking == null) return;

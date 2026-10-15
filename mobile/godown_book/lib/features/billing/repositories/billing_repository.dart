@@ -44,14 +44,18 @@ class CustomerBalance {
 
   double get outstanding {
     final due = billed - received - credited;
-    return due < 0 ? 0 : due;
+    // Under half a paisa is floating-point drift from summing many
+    // bills and payments, not money actually owed - the same
+    // threshold BillModel.isSettled and every other balance check in
+    // the app already uses.
+    return due <= BillingRepository.settledEpsilon ? 0 : due;
   }
 
   /// Money received beyond what has been billed - an advance sitting
   /// with the operator.
   double get advance {
     final extra = received + credited - billed;
-    return extra < 0 ? 0 : extra;
+    return extra <= BillingRepository.settledEpsilon ? 0 : extra;
   }
 }
 
@@ -150,6 +154,11 @@ class BillingRepository {
   }
 
   static final BillingRepository instance = BillingRepository._();
+
+  /// Under half a paisa is floating-point drift, not money actually
+  /// owed or overpaid - the one threshold every balance/settled check
+  /// in the app should compare against, instead of a bare zero.
+  static const double settledEpsilon = 0.004;
 
   final DatabaseHelper _db = DatabaseHelper.instance;
   final BillingDao _dao = BillingDao.instance;
@@ -401,10 +410,10 @@ class BillingRepository {
         ],
       );
       final restated = updated.copyWith(status: updated.derivedStatus);
-      await _db.transaction(
-        (txn) => _dao.writeBillWithLines(txn, restated, isNew: false),
-      );
-      await _syncBookingBilledUpto(restated);
+      await _db.transaction((txn) async {
+        await _dao.writeBillWithLines(txn, restated, isNew: false);
+        await _syncBookingBilledUptoInTxn(txn, restated);
+      });
       CustomerLookupService.instance.invalidate();
       return restated;
     }
@@ -438,9 +447,9 @@ class BillingRepository {
           );
 
           await _dao.writeBillWithLines(txn, withNumber, isNew: true);
+          await _syncBookingBilledUptoInTxn(txn, withNumber);
           return withNumber;
         });
-        await _syncBookingBilledUpto(saved);
         CustomerLookupService.instance.invalidate();
         return saved;
       } on DatabaseException catch (error) {
@@ -461,19 +470,27 @@ class BillingRepository {
   }
 
   /// Moves the storage record's rent-billed-upto date to the latest
-  /// period any of its bills covers.
-  Future<void> _syncBookingBilledUpto(BillModel bill) async {
+  /// period any of its bills covers - inside the same transaction as
+  /// the bill write (or delete) that triggered it, so the two can
+  /// never drift apart if the app is killed between them. Drift here
+  /// is a real money bug: the next bill for this booking starts from
+  /// whatever date is stored, so a stale one can bill the same rent
+  /// period twice.
+  Future<void> _syncBookingBilledUptoInTxn(
+    DatabaseExecutor txn,
+    BillModel bill,
+  ) async {
     if (bill.bookingId.isEmpty) return;
 
-    final bills = await getBillsForBooking(bill.bookingId);
+    final periodTos = await _dao.getPeriodTosForBookingInTxn(txn, bill.bookingId);
     String latest = '';
-    for (final b in bills) {
-      if (b.periodTo.isNotEmpty && b.periodTo.compareTo(latest) > 0) {
-        latest = b.periodTo;
+    for (final periodTo in periodTos) {
+      if (periodTo.isNotEmpty && periodTo.compareTo(latest) > 0) {
+        latest = periodTo;
       }
     }
     await StorageBookingRepository.instance
-        .setRentBilledUpto(bill.bookingId, latest);
+        .setRentBilledUptoInTxn(txn, bill.bookingId, latest);
   }
 
   Future<void> setBillStatus(String id, BillStatus status) async {
@@ -489,19 +506,24 @@ class BillingRepository {
     final bill = await _dao.getBillById(id);
     if (bill == null) return;
 
-    for (final payment in await _dao.getPaymentsForBill(id)) {
-      await _dao.updatePayment(payment.copyWith(
-        billId: '',
-        against: payment.against.isEmpty
-            ? 'Received against ${bill.billNo} (bill deleted)'
-            : payment.against,
-      ));
-    }
+    await _db.transaction((txn) async {
+      for (final payment in await _dao.getPaymentsForBillInTxn(txn, id)) {
+        await _dao.updatePaymentInTxn(
+          txn,
+          payment.copyWith(
+            billId: '',
+            against: payment.against.isEmpty
+                ? 'Received against ${bill.billNo} (bill deleted)'
+                : payment.against,
+          ),
+        );
+      }
 
-    await _dao.deleteBill(id);
-    if (bill.bookingId.isNotEmpty) {
-      await _syncBookingBilledUpto(bill);
-    }
+      await _dao.deleteBillInTxn(txn, id);
+      if (bill.bookingId.isNotEmpty) {
+        await _syncBookingBilledUptoInTxn(txn, bill);
+      }
+    });
     CustomerLookupService.instance.invalidate();
   }
 
@@ -602,10 +624,10 @@ class BillingRepository {
           );
 
           await _dao.insertPayment(txn, withNumber);
+          await _restateBillInTxn(txn, withNumber.billId);
           return withNumber;
         });
 
-        await _restateBill(saved.billId);
         return saved;
       } on DatabaseException catch (error) {
         final message = error.toString();
@@ -696,34 +718,49 @@ class BillingRepository {
       }
     }
 
-    await _dao.updatePayment(payment.copyWith(receiptNo: existing?.receiptNo));
-    await _restateBill(payment.billId);
-    if (existing != null && existing.billId != payment.billId) {
-      await _restateBill(existing.billId);
-    }
+    await _db.transaction((txn) async {
+      await _dao.updatePaymentInTxn(
+        txn,
+        payment.copyWith(receiptNo: existing?.receiptNo),
+      );
+      await _restateBillInTxn(txn, payment.billId);
+      if (existing != null && existing.billId != payment.billId) {
+        await _restateBillInTxn(txn, existing.billId);
+      }
+    });
   }
 
   Future<void> deletePayment(String id) async {
     final payment = await _dao.getPaymentById(id);
     if (payment == null) return;
-    await _dao.deletePayment(id);
-    await _restateBill(payment.billId);
+    await _db.transaction((txn) async {
+      await _dao.deletePaymentInTxn(txn, id);
+      await _restateBillInTxn(txn, payment.billId);
+    });
   }
 
-  /// Recomputes a bill's paid amount and status from its own receipts.
-  Future<void> _restateBill(String billId) async {
+  /// Recomputes a bill's paid amount and status from its own receipts,
+  /// inside the caller's own transaction - so the payment write and
+  /// the bill it restates commit together. A crash between a payment
+  /// row being written and the bill being restated otherwise leaves
+  /// the bill's cached amount_paid/status silently stale until the
+  /// next payment happens to touch it.
+  Future<void> _restateBillInTxn(DatabaseExecutor txn, String billId) async {
     if (billId.isEmpty) return;
 
-    final bill = await _dao.getBillById(billId);
+    final bill = await _dao.getBillByIdInTxn(txn, billId);
     if (bill == null) return;
 
-    final payments = await _dao.getPaymentsForBill(billId);
+    final payments = await _dao.getPaymentsForBillInTxn(txn, billId);
     final paid = payments
         .where((p) => p.paymentType.settlesDues)
         .fold(0.0, (sum, p) => sum + p.amount);
 
     final withPaid = bill.copyWith(amountPaid: paid);
-    await _dao.updateBillRow(withPaid.copyWith(status: withPaid.derivedStatus));
+    await _dao.updateBillRowInTxn(
+      txn,
+      withPaid.copyWith(status: withPaid.derivedStatus),
+    );
   }
 
   // ==========================

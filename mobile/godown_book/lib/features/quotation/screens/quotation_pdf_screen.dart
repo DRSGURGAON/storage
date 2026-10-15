@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/contact/whatsapp_templates.dart';
 import '../../../core/subscription/document_type.dart';
+import '../widgets/make_storage_receipt_confirm.dart';
 import '../../../shared/widgets/company_not_configured.dart';
 import '../../../shared/widgets/document_pdf_view.dart';
 import '../../../shared/widgets/pdf_document_actions.dart';
@@ -67,8 +68,8 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
             IconButton(
               tooltip: 'Make Storage Receipt',
               icon: const Icon(Icons.inventory_2_outlined),
-              onPressed: () => context.push('/storage-create',
-                  extra: {'quotationId': widget.quotationId}),
+              onPressed: () =>
+                  openMakeStorageReceipt(context, _quotation!),
             ),
           PdfActionsMenu(
             documentLabel: 'Quotation',

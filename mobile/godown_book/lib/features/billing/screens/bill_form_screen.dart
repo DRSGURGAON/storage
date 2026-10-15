@@ -7,6 +7,7 @@ import '../../../shared/widgets/charge_line_row.dart';
 import '../../../shared/widgets/customer_name_field.dart';
 import '../../../shared/widgets/gst_fields.dart';
 import '../../../shared/widgets/save_problem.dart';
+import '../../company/controllers/company_controller.dart';
 import '../../master/repositories/charge_head_repository.dart';
 import '../../storage_booking/models/storage_booking_model.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
@@ -64,6 +65,13 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
   final _amounts = LineAmountControllers();
   String? _focusLineId;
 
+  /// Whether the company has a GSTIN - a supplier without one cannot
+  /// collect GST, so BillingRepository.saveBill drops the typed rate
+  /// at save time regardless of what is on screen. Starts true so the
+  /// preview matches the common case while this loads, and is
+  /// corrected the moment the company profile comes back.
+  bool _gstRegistered = true;
+
   bool get _isEdit => widget.editBillId != null;
 
   @override
@@ -84,6 +92,10 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
 
   Future<void> _loadOrThrow() async {
     _openBookings = await StorageBookingRepository.instance.getOpen();
+
+    final company = await CompanyController.instance.getCompany();
+    _gstRegistered =
+        company == null || company.gstNumber.trim().isNotEmpty;
 
     if (_isEdit) {
       final bill = await BillingRepository.instance.getBillById(widget.editBillId!);
@@ -673,11 +685,14 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
 
   @override
   Widget build(BuildContext context) {
-    // Priced here as well as on save, so the total on screen already
-    // carries the GST.
+    // Priced here as well as on save - including the same
+    // unregistered-company GST drop BillingRepository.saveBill
+    // applies - so the total on screen is exactly what gets saved.
     final preview = _loading
         ? null
-        : _compose().recalculated(interState: _gstSplit.interState ?? false);
+        : _compose()
+            .copyWith(gstPercent: _gstRegistered ? _parse(_gstPercent) : 0)
+            .recalculated(interState: _gstSplit.interState ?? false);
 
     return Scaffold(
       appBar: AppBar(
@@ -896,6 +911,15 @@ class _BillFormScreenState extends State<BillFormScreen> with VoiceFill {
                     ),
                   ],
                 ),
+                if (!_gstRegistered && _parse(_gstPercent) > 0)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Text(
+                      'No GSTIN on the company profile - GST will not be '
+                      'added to this bill.',
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                  ),
                 if (_parse(_gstPercent) > 0) ...[
                   const SizedBox(height: 12),
                   GstSplitField(
