@@ -230,7 +230,7 @@ class StorageBookingModel {
         'id': id,
         'booking_no': bookingNo,
         'booking_date': bookingDate,
-        'quotation_id': quotationId.isEmpty ? null : quotationId,
+        'quotation_id': quotationId,
         'customer_id': customerId,
         'customer_name': customerName,
         'customer_phone': customerPhone,
