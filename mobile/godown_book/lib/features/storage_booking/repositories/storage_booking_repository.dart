@@ -39,6 +39,9 @@ class StorageBookingRepository {
 
   Future<StorageBookingModel?> getById(String id) => _dao.getById(id);
 
+  Future<StorageBookingModel?> getByQuotationId(String quotationId) =>
+      _dao.getByQuotationId(quotationId);
+
   Future<List<CustomerSuggestion>> _suggestions() async {
     final all = await _dao.getAll();
     return [

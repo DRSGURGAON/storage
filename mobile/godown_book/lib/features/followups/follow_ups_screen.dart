@@ -7,6 +7,7 @@ import '../../core/contact/whatsapp_templates.dart';
 import '../dashboard/services/dashboard_stats_service.dart';
 import '../quotation/models/quotation_model.dart';
 import '../quotation/repositories/quotation_repository.dart';
+import '../quotation/widgets/make_storage_receipt_confirm.dart';
 import 'follow_up_service.dart';
 
 final _inr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
@@ -132,8 +133,9 @@ class _FollowUpsScreenState extends State<FollowUpsScreen> {
         await repo.setFollowUp(q.id,
             followUpDate: '', status: QuotationStatus.accepted);
         if (!mounted) return;
-        // Straight on to the storage entry, filled in from the quotation.
-        context.push('/storage-create', extra: {'quotationId': q.id});
+        // Straight on to the storage entry - the existing one, if this
+        // quotation already has one.
+        openMakeStorageReceipt(context, q);
       case 'lost':
         await repo.setFollowUp(q.id,
             followUpDate: '', status: QuotationStatus.declined);

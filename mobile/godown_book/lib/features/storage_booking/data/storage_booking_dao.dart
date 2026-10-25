@@ -52,6 +52,22 @@ class StorageBookingDao {
     return StorageBookingModel.fromMap(rows.first, items: await getItems(id));
   }
 
+  /// The booking already made from [quotationId], if any - so "Make
+  /// Storage Receipt" can offer to view it instead of making another.
+  Future<StorageBookingModel?> getByQuotationId(String quotationId) async {
+    if (quotationId.isEmpty) return null;
+    final rows = await _db.queryScoped(
+      DatabaseConstants.storageBookingTable,
+      where: 'quotation_id = ?',
+      whereArgs: [quotationId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+
+    final id = rows.first['id'] as String;
+    return StorageBookingModel.fromMap(rows.first, items: await getItems(id));
+  }
+
   /// Moves the rent-billed watermark inside [txn] - the caller's own
   /// transaction, so a bill (or its deletion) and this update commit
   /// together or not at all. A crash between the two would otherwise

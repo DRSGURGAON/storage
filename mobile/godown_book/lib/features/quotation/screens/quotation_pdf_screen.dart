@@ -10,6 +10,7 @@ import '../../../shared/widgets/document_pdf_view.dart';
 import '../../../shared/widgets/pdf_document_actions.dart';
 import '../../company/controllers/company_controller.dart';
 import '../../company/models/company_model.dart';
+import '../../storage_booking/repositories/storage_booking_repository.dart';
 import '../models/quotation_model.dart';
 import '../repositories/quotation_repository.dart';
 import '../services/quotation_pdf_service.dart';
@@ -31,6 +32,11 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
   bool _loading = true;
   int _version = 0;
 
+  /// The booking already made from this quotation, if any - so the
+  /// button below reads "View Storage Receipt" rather than offering
+  /// to make a second one.
+  String? _existingBookingId;
+
   @override
   void initState() {
     super.initState();
@@ -40,11 +46,14 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
   Future<void> _load() async {
     final quotation = await QuotationRepository.instance.getById(widget.quotationId);
     final company = await CompanyController.instance.getCompany();
+    final existing = await StorageBookingRepository.instance
+        .getByQuotationId(widget.quotationId);
 
     if (!mounted) return;
     setState(() {
       _quotation = quotation;
       _company = company;
+      _existingBookingId = existing?.id;
       _loading = false;
     });
   }
@@ -64,12 +73,19 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
         centerTitle: true,
         actions: [
           if (_quotation != null &&
-              _quotation!.status != QuotationStatus.declined)
+              (_existingBookingId != null ||
+                  _quotation!.status != QuotationStatus.declined))
             IconButton(
-              tooltip: 'Make Storage Receipt',
-              icon: const Icon(Icons.inventory_2_outlined),
-              onPressed: () =>
-                  openMakeStorageReceipt(context, _quotation!),
+              tooltip: _existingBookingId != null
+                  ? 'View Storage Receipt'
+                  : 'Make Storage Receipt',
+              icon: Icon(_existingBookingId != null
+                  ? Icons.inventory_2
+                  : Icons.inventory_2_outlined),
+              onPressed: () async {
+                await openMakeStorageReceipt(context, _quotation!);
+                await _load();
+              },
             ),
           PdfActionsMenu(
             documentLabel: 'Quotation',

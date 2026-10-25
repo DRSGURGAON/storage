@@ -106,6 +106,7 @@ class _StorageBookingFormScreenState extends State<StorageBookingFormScreen>
     _draft = StorageBookingModel(
       id: IdGenerator.generateId(),
       bookingDate: now,
+      quotationId: widget.quotationId ?? '',
       customerName: '',
       storageStartDate: now,
       createdAt: '',

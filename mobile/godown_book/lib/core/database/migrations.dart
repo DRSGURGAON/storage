@@ -280,6 +280,7 @@ class Migrations {
     company_id TEXT NOT NULL DEFAULT '',
     booking_no TEXT NOT NULL,
     booking_date TEXT NOT NULL,
+    quotation_id TEXT NOT NULL DEFAULT '',
 
     customer_id TEXT,
     customer_name TEXT NOT NULL,

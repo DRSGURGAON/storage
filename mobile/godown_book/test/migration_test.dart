@@ -60,7 +60,8 @@ void main() {
         .replaceAll("    incident_id TEXT NOT NULL DEFAULT '',\n", '')
         .replaceAll("    item_id TEXT NOT NULL DEFAULT '',\n", ''));
     await db.execute(Migrations.createCustomerTable);
-    await db.execute(Migrations.createStorageBookingTable);
+    await db.execute(Migrations.createStorageBookingTable
+        .replaceAll("    quotation_id TEXT NOT NULL DEFAULT '',\n", ''));
     await db.execute(Migrations.createBookingItemTable);
     await db.execute(Migrations.createInvoiceTable);
     await db.execute(Migrations.createPaymentTable);
@@ -103,6 +104,7 @@ void main() {
     expect(await columns(db, 'company_settings'), contains('consignment_prefix'));
     expect(await columns(db, 'storage_locations'), contains('capacity'));
     expect(await columns(db, 'quotations'), contains('follow_up_date'));
+    expect(await columns(db, 'storage_bookings'), contains('quotation_id'));
 
     // The rows that were already there are untouched, and the added
     // column has its default rather than null.

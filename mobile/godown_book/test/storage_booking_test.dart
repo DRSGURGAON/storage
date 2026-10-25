@@ -162,6 +162,16 @@ void main() {
     expect(other.bookingNo, 'SR/$fy/0001');
   });
 
+  test('a quotation is linked to the one booking made from it', () async {
+    final saved = await repo.save(draft().copyWith(quotationId: 'quote-1'));
+
+    final found = await repo.getByQuotationId('quote-1');
+    expect(found?.id, saved.id);
+
+    expect(await repo.getByQuotationId('quote-unrelated'), isNull);
+    expect(await repo.getByQuotationId(''), isNull);
+  });
+
   test('all three papers render as PDFs', () async {
     final saved = await repo.save(draft(items: [item('Wheat', 100), item('Rice', 50)]));
     await repo.applyRelease(saved.id, {saved.items.first.id: 25});

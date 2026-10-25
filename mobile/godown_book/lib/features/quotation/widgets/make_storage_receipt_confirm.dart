@@ -1,43 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../storage_booking/repositories/storage_booking_repository.dart';
 import '../models/quotation_model.dart';
 
-/// Opens the "Make Storage Receipt" flow for [quotation] - asking
-/// first when the quotation is already Accepted, since that status is
-/// also what a previous conversion leaves behind. The app has no
-/// record of which booking (if any) a quotation turned into, so this
-/// is the one guard against tapping the button twice and ending up
-/// with two storage bookings for the same goods.
+/// Opens the storage receipt for [quotation] - the one already made
+/// from it, if any, or a new one filled in from its details.
+///
+/// The app remembers which quotation a booking came from
+/// (StorageBookingModel.quotationId), so tapping "Make Storage
+/// Receipt" a second time opens the existing receipt instead of
+/// risking a second, duplicate booking for the same goods - the same
+/// way Bill N Bilty's Quotation -> Booking button behaves.
 Future<void> openMakeStorageReceipt(
   BuildContext context,
   QuotationModel quotation,
 ) async {
-  if (quotation.status == QuotationStatus.accepted) {
-    final proceed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Already marked Accepted'),
-        content: Text(
-          'This quotation is already Accepted - it may already have a '
-          'storage receipt. Make another one for '
-          '${quotation.customerName}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Make Another'),
-          ),
-        ],
-      ),
-    );
-    if (proceed != true || !context.mounted) return;
+  final existing =
+      await StorageBookingRepository.instance.getByQuotationId(quotation.id);
+  if (!context.mounted) return;
+
+  if (existing != null) {
+    await context.push('/storage-detail', extra: existing.id);
+    return;
   }
 
-  if (!context.mounted) return;
   await context.push('/storage-create', extra: {'quotationId': quotation.id});
 }

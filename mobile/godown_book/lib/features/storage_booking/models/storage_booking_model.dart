@@ -13,6 +13,11 @@ class StorageBookingModel {
   final String bookingNo;
   final String bookingDate;
 
+  /// The quotation this booking was made from ('' when entered
+  /// directly) - lets "Make Storage Receipt" recognise a quotation
+  /// that already has one, instead of risking a duplicate booking.
+  final String quotationId;
+
   final String customerId;
   final String customerName;
   final String customerPhone;
@@ -64,6 +69,7 @@ class StorageBookingModel {
     required this.id,
     this.bookingNo = '',
     required this.bookingDate,
+    this.quotationId = '',
     this.customerId = '',
     required this.customerName,
     this.customerPhone = '',
@@ -143,6 +149,7 @@ class StorageBookingModel {
     String? id,
     String? bookingNo,
     String? bookingDate,
+    String? quotationId,
     String? customerId,
     String? customerName,
     String? customerPhone,
@@ -181,6 +188,7 @@ class StorageBookingModel {
       id: id ?? this.id,
       bookingNo: bookingNo ?? this.bookingNo,
       bookingDate: bookingDate ?? this.bookingDate,
+      quotationId: quotationId ?? this.quotationId,
       customerId: customerId ?? this.customerId,
       customerName: customerName ?? this.customerName,
       customerPhone: customerPhone ?? this.customerPhone,
@@ -222,6 +230,7 @@ class StorageBookingModel {
         'id': id,
         'booking_no': bookingNo,
         'booking_date': bookingDate,
+        'quotation_id': quotationId.isEmpty ? null : quotationId,
         'customer_id': customerId,
         'customer_name': customerName,
         'customer_phone': customerPhone,
@@ -267,6 +276,7 @@ class StorageBookingModel {
       id: map['id'] as String,
       bookingNo: text('booking_no'),
       bookingDate: text('booking_date'),
+      quotationId: text('quotation_id'),
       customerId: text('customer_id'),
       customerName: text('customer_name'),
       customerPhone: text('customer_phone'),

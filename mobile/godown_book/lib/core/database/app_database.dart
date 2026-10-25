@@ -180,6 +180,16 @@ class AppDatabase {
         );
       }
     }
+    if (oldVersion < 7) {
+      // Which quotation a booking came from, so "Make Storage
+      // Receipt" can find an existing one instead of making a second.
+      await _addColumnIfMissing(
+        db,
+        'storage_bookings',
+        'quotation_id',
+        "ALTER TABLE storage_bookings ADD COLUMN quotation_id TEXT NOT NULL DEFAULT ''",
+      );
+    }
   }
 
   /// Runs [alterSql] only if [table] does not already have [column] -
