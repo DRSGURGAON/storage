@@ -9,11 +9,13 @@ import '../../../core/subscription/document_type.dart';
 import '../../../shared/widgets/company_not_configured.dart';
 import '../../../shared/widgets/document_pdf_view.dart';
 import '../../../shared/widgets/pdf_document_actions.dart';
+import '../../billing/services/storage_charge_calculator.dart';
 import '../../company/controllers/company_controller.dart';
 import '../../company/models/company_model.dart';
 import '../../signature/models/signature_request_model.dart';
 import '../../signature/repositories/signature_repository.dart';
 import '../../signature/screens/signature_request_screen.dart';
+import '../../storage_booking/repositories/storage_booking_repository.dart';
 import '../models/goods_release_model.dart';
 import '../repositories/goods_release_repository.dart';
 import '../services/release_pdf_service.dart';
@@ -37,6 +39,12 @@ class _ReleasePdfScreenState extends State<ReleasePdfScreen> {
   bool _loading = true;
   int _version = 0;
 
+  /// Whether the booking this release came from still has rent to
+  /// bill - the storage detail screen's own "Make Final Bill" tile
+  /// isn't reachable from here otherwise, and this is where an
+  /// operator naturally lands right after releasing the goods.
+  bool _canMakeBill = false;
+
   final Set<String> _selectedCopies = {...ReleasePdfService.copyLabels};
 
   @override
@@ -50,11 +58,21 @@ class _ReleasePdfScreenState extends State<ReleasePdfScreen> {
     final company = await CompanyController.instance.getCompany();
     final signature = await SignatureRepository.instance
         .signedFor(DocumentType.releaseRecord, widget.releaseId);
+
+    var canMakeBill = false;
+    if (release != null && release.bookingId.isNotEmpty) {
+      final booking =
+          await StorageBookingRepository.instance.getById(release.bookingId);
+      canMakeBill =
+          booking != null && StorageChargeCalculator.hasUnbilledRent(booking);
+    }
+
     if (!mounted) return;
     setState(() {
       _release = release;
       _company = company;
       _signature = signature;
+      _canMakeBill = canMakeBill;
       _loading = false;
     });
   }
@@ -75,6 +93,16 @@ class _ReleasePdfScreenState extends State<ReleasePdfScreen> {
         title: const Text('Release Record'),
         centerTitle: true,
         actions: [
+          if (_canMakeBill && release != null)
+            IconButton(
+              tooltip: 'Make Bill',
+              icon: const Icon(Icons.receipt_long_outlined),
+              onPressed: () async {
+                await context.push('/bill-create', extra: release.bookingId);
+                _version++;
+                await _load();
+              },
+            ),
           PdfActionsMenu(
             documentLabel: 'Release',
             fileName: () => _fileName,

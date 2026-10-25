@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../shared/widgets/confirm_delete_dialog.dart';
 import '../../../shared/widgets/document_actions_sheet.dart';
+import '../../billing/services/storage_charge_calculator.dart';
 import '../../storage_booking/providers/storage_booking_provider.dart';
+import '../../storage_booking/repositories/storage_booking_repository.dart';
 import '../models/goods_release_model.dart';
 import '../providers/goods_release_provider.dart';
 import '../repositories/goods_release_repository.dart';
@@ -163,7 +165,16 @@ class _ReleaseListScreenState extends ConsumerState<ReleaseListScreen> {
     BuildContext context,
     GoodsReleaseModel release,
     VoidCallback refresh,
-  ) {
+  ) async {
+    var canMakeBill = false;
+    if (release.bookingId.isNotEmpty) {
+      final booking =
+          await StorageBookingRepository.instance.getById(release.bookingId);
+      canMakeBill =
+          booking != null && StorageChargeCalculator.hasUnbilledRent(booking);
+    }
+    if (!context.mounted) return;
+
     return DocumentActionsSheet.show(
       context,
       title: release.releaseNo,
@@ -185,6 +196,16 @@ class _ReleaseListScreenState extends ConsumerState<ReleaseListScreen> {
             refresh();
           },
         ),
+        if (canMakeBill)
+          DocumentAction(
+            icon: Icons.receipt_long_outlined,
+            label: 'Make Bill',
+            subtitle: 'Rent up to the release is still unbilled',
+            onTap: () async {
+              await context.push('/bill-create', extra: release.bookingId);
+              refresh();
+            },
+          ),
         DocumentAction(
           icon: Icons.delete_outline,
           label: 'Delete Release',
