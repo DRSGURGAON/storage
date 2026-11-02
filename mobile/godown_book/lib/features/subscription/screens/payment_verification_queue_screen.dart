@@ -230,7 +230,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
       try {
         final friend = await SubscriptionRepository.instance
             .readLive(widget.transaction.companyId);
-        if (friend != null && mounted) {
+        if (mounted) {
           await ReferralReviewDialog.showIfPending(context, friend, plan: plan);
         }
       } catch (_) {
