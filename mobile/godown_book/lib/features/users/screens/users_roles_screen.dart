@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/permissions/permission_service.dart';
 import '../../auth/phone_number_input.dart';
@@ -26,6 +27,9 @@ class _UsersRolesScreenState extends State<UsersRolesScreen> {
   bool _loading = true;
   bool _isUnmanagedAdmin = false;
 
+  /// Team size the subscription currently allows, owner included.
+  int _teamLimit = 1;
+
   @override
   void initState() {
     super.initState();
@@ -33,9 +37,15 @@ class _UsersRolesScreenState extends State<UsersRolesScreen> {
   }
 
   Future<void> _load() async {
+    // Self-corrects if the subscription has lapsed since this screen
+    // was last opened - the team shown below is always up to date,
+    // not just whatever it was the day it lapsed.
+    await UserRepository.instance.enforceTeamLimit();
+
     final users = await UserRepository.instance.getAll();
     final roles = await RoleRepository.instance.getAll();
     final isUnmanaged = await PermissionService.isUnmanagedAdmin();
+    final limit = await UserRepository.instance.teamLimit();
 
     if (!mounted) return;
 
@@ -43,6 +53,7 @@ class _UsersRolesScreenState extends State<UsersRolesScreen> {
       _users = users;
       _roles = roles;
       _isUnmanagedAdmin = isUnmanaged;
+      _teamLimit = limit;
       _loading = false;
     });
   }
@@ -176,6 +187,27 @@ class _UsersRolesScreenState extends State<UsersRolesScreen> {
       );
       if (!mounted) return;
       _load();
+    } on TeamLimitExceededException catch (limitError) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            limitError.isSubscribed
+                ? 'Your plan allows ${limitError.limit} team member'
+                    '${limitError.limit == 1 ? '' : 's'}, owner included. '
+                    'Remove or deactivate someone first.'
+                : 'Add a subscription to add team members beyond the '
+                    'owner - the free plan allows ${limitError.limit}.',
+          ),
+          action: limitError.isSubscribed
+              ? null
+              : SnackBarAction(
+                  label: 'Subscribe',
+                  onPressed: () => context.push('/subscription'),
+                ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -326,7 +358,19 @@ class _UsersRolesScreenState extends State<UsersRolesScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Users', style: Theme.of(context).textTheme.titleMedium),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Users',
+                            style: Theme.of(context).textTheme.titleMedium),
+                        Text(
+                          '${1 + _users.where((u) => u.isActive).length} of '
+                          '$_teamLimit team members used (owner included)',
+                          style: const TextStyle(
+                              fontSize: 11.5, color: Colors.grey),
+                        ),
+                      ],
+                    ),
                     TextButton.icon(
                       onPressed: _addUser,
                       icon: const Icon(Icons.person_add_alt, size: 18),

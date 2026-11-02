@@ -63,6 +63,12 @@ class PlatformSettings {
   final String watermarkText;
   final String expiryWarningDaysCsv;
 
+  /// Team members (Users & Roles) a company may have, unsubscribed
+  /// and on any paid plan. Null (either one) means "never published" -
+  /// same convention as [demoGenerationLimit].
+  final int? teamUserLimitFree;
+  final int? teamUserLimitPaid;
+
   const PlatformSettings({
     this.upiId = '',
     this.merchantName = '',
@@ -77,6 +83,8 @@ class PlatformSettings {
     this.demoGenerationLimit,
     this.watermarkText = '',
     this.expiryWarningDaysCsv = '',
+    this.teamUserLimitFree,
+    this.teamUserLimitPaid,
   });
 
   bool get hasAnyQr => qr1 != null || qr2 != null;
@@ -131,6 +139,8 @@ class PlatformSettingsService {
         demoGenerationLimit: (data['demoGenerationLimit'] as num?)?.toInt(),
         watermarkText: data['watermarkText'] as String? ?? '',
         expiryWarningDaysCsv: data['expiryWarningDaysCsv'] as String? ?? '',
+        teamUserLimitFree: (data['teamUserLimitFree'] as num?)?.toInt(),
+        teamUserLimitPaid: (data['teamUserLimitPaid'] as num?)?.toInt(),
       );
     } catch (_) {
       // Offline, permission denied, or no document yet - all mean the
@@ -192,6 +202,8 @@ class PlatformSettingsService {
       demoGenerationLimit: cloud.demoGenerationLimit,
       watermarkText: cloud.watermarkText,
       expiryWarningDaysCsv: cloud.expiryWarningDaysCsv,
+      teamUserLimitFree: cloud.teamUserLimitFree,
+      teamUserLimitPaid: cloud.teamUserLimitPaid,
     );
   }
 
@@ -216,6 +228,8 @@ class PlatformSettingsService {
     int? demoGenerationLimit,
     String? watermarkText,
     String? expiryWarningDaysCsv,
+    int? teamUserLimitFree,
+    int? teamUserLimitPaid,
   }) async {
     if (qr1 != null && qr1.length > maxQrBytes) {
       throw ArgumentError(
@@ -244,6 +258,8 @@ class PlatformSettingsService {
       'demoGenerationLimit': ?demoGenerationLimit,
       'watermarkText': ?watermarkText,
       'expiryWarningDaysCsv': ?expiryWarningDaysCsv,
+      'teamUserLimitFree': ?teamUserLimitFree,
+      'teamUserLimitPaid': ?teamUserLimitPaid,
       'updatedAt': DateTime.now().toIso8601String(),
     }, SetOptions(merge: true)).timeout(_timeout);
 
@@ -260,6 +276,8 @@ class PlatformSettingsService {
         'demoGenerationLimit': ?demoGenerationLimit,
         'watermarkText': ?watermarkText,
         'expiryWarningDaysCsv': ?expiryWarningDaysCsv,
+        'teamUserLimitFree': ?teamUserLimitFree,
+        'teamUserLimitPaid': ?teamUserLimitPaid,
       },
     );
   }

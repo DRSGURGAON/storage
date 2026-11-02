@@ -66,6 +66,16 @@ class SubscriptionSettingsModel {
 
   final int gracePeriodDays;
 
+  /// Team members (Users & Roles) a company may have while
+  /// unsubscribed/limited - counting the owner, so 1 means "owner
+  /// only, no one else". Super Admin configurable, same as
+  /// [demoGenerationLimit].
+  final int teamUserLimitFree;
+
+  /// Team members allowed on any paid plan - same count for every
+  /// plan, the spec does not ask for a per-plan tier.
+  final int teamUserLimitPaid;
+
   final String updatedAt;
 
   const SubscriptionSettingsModel({
@@ -93,6 +103,8 @@ class SubscriptionSettingsModel {
     this.watermarkOpacity = 0.05,
     this.expiryWarningDaysCsv = '30,15,7,3,1',
     this.gracePeriodDays = 0,
+    this.teamUserLimitFree = 1,
+    this.teamUserLimitPaid = 5,
     required this.updatedAt,
   });
 
@@ -119,6 +131,8 @@ class SubscriptionSettingsModel {
       'watermark_opacity': watermarkOpacity,
       'expiry_warning_days_csv': expiryWarningDaysCsv,
       'grace_period_days': gracePeriodDays,
+      'team_user_limit_free': teamUserLimitFree,
+      'team_user_limit_paid': teamUserLimitPaid,
       'updated_at': updatedAt,
     };
   }
@@ -143,6 +157,8 @@ class SubscriptionSettingsModel {
       expiryWarningDaysCsv:
           map['expiry_warning_days_csv'] as String? ?? '30,15,7,3,1',
       gracePeriodDays: map['grace_period_days'] as int? ?? 0,
+      teamUserLimitFree: map['team_user_limit_free'] as int? ?? 1,
+      teamUserLimitPaid: map['team_user_limit_paid'] as int? ?? 5,
       updatedAt: map['updated_at'] as String? ?? '',
     );
   }
@@ -162,6 +178,8 @@ class SubscriptionSettingsModel {
     double? watermarkOpacity,
     String? expiryWarningDaysCsv,
     int? gracePeriodDays,
+    int? teamUserLimitFree,
+    int? teamUserLimitPaid,
   }) {
     return SubscriptionSettingsModel(
       id: id,
@@ -180,6 +198,8 @@ class SubscriptionSettingsModel {
       expiryWarningDaysCsv:
           expiryWarningDaysCsv ?? this.expiryWarningDaysCsv,
       gracePeriodDays: gracePeriodDays ?? this.gracePeriodDays,
+      teamUserLimitFree: teamUserLimitFree ?? this.teamUserLimitFree,
+      teamUserLimitPaid: teamUserLimitPaid ?? this.teamUserLimitPaid,
       updatedAt: DateTime.now().toIso8601String(),
     );
   }

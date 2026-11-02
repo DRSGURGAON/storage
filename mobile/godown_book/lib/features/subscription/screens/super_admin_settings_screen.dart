@@ -39,6 +39,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
   final _merchantNameController = TextEditingController();
   final _paymentInstructionsController = TextEditingController();
   final _demoLimitController = TextEditingController();
+  final _teamLimitFreeController = TextEditingController();
+  final _teamLimitPaidController = TextEditingController();
   final _watermarkTextController = TextEditingController();
   final _expiryWarningDaysController = TextEditingController();
 
@@ -62,6 +64,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
     _merchantNameController.dispose();
     _paymentInstructionsController.dispose();
     _demoLimitController.dispose();
+    _teamLimitFreeController.dispose();
+    _teamLimitPaidController.dispose();
     _watermarkTextController.dispose();
     _expiryWarningDaysController.dispose();
     _qrLabel1Controller.dispose();
@@ -114,6 +118,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
               : settings.supportPhoneNumber;
       _paymentInstructionsController.text = settings.paymentInstructions;
       _demoLimitController.text = '${settings.demoGenerationLimit}';
+      _teamLimitFreeController.text = '${settings.teamUserLimitFree}';
+      _teamLimitPaidController.text = '${settings.teamUserLimitPaid}';
       _watermarkTextController.text = settings.watermarkText;
       _expiryWarningDaysController.text = settings.expiryWarningDaysCsv;
       // A blank published address means "none chosen", not "links off":
@@ -168,6 +174,23 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
       return;
     }
 
+    final teamLimitFree = int.tryParse(_teamLimitFreeController.text.trim());
+    final teamLimitPaid = int.tryParse(_teamLimitPaidController.text.trim());
+    if (teamLimitFree == null ||
+        teamLimitFree < 1 ||
+        teamLimitPaid == null ||
+        teamLimitPaid < teamLimitFree) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Enter valid team sizes - at least 1, and the paid limit must '
+            'be at least the free one.',
+          ),
+        ),
+      );
+      return;
+    }
+
     try {
       await SubscriptionSettingsRepository.instance.save(
         settings.copyWith(
@@ -183,6 +206,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
           demoGenerationLimit: demoLimit,
           watermarkText: _watermarkTextController.text.trim(),
           expiryWarningDaysCsv: _expiryWarningDaysController.text.trim(),
+          teamUserLimitFree: teamLimitFree,
+          teamUserLimitPaid: teamLimitPaid,
         ),
       );
 
@@ -207,6 +232,8 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
           demoGenerationLimit: demoLimit,
           watermarkText: _watermarkTextController.text.trim(),
           expiryWarningDaysCsv: _expiryWarningDaysController.text.trim(),
+          teamUserLimitFree: teamLimitFree,
+          teamUserLimitPaid: teamLimitPaid,
         );
         final signAddress = _signBaseUrlController.text.trim();
         SignatureRepository.signBaseUrl = signAddress.isEmpty
@@ -579,6 +606,34 @@ class _SuperAdminSettingsScreenState extends State<SuperAdminSettingsScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Watermark Text',
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            textInputAction: TextInputAction.next,
+                            controller: _teamLimitFreeController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Team Size - Free',
+                              helperText: 'Owner included',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            textInputAction: TextInputAction.next,
+                            controller: _teamLimitPaidController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Team Size - Paid',
+                              helperText: 'Owner included',
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     TextField(

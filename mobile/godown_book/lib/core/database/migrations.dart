@@ -875,6 +875,9 @@ class Migrations {
     expiry_warning_days_csv TEXT NOT NULL DEFAULT '30,15,7,3,1',
     grace_period_days INTEGER NOT NULL DEFAULT 0,
 
+    team_user_limit_free INTEGER NOT NULL DEFAULT 1,
+    team_user_limit_paid INTEGER NOT NULL DEFAULT 5,
+
     updated_at TEXT NOT NULL
   );
   ''';

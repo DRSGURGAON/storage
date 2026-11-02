@@ -190,6 +190,31 @@ class AppDatabase {
         "ALTER TABLE storage_bookings ADD COLUMN quotation_id TEXT NOT NULL DEFAULT ''",
       );
     }
+    if (oldVersion < 8) {
+      // How many team members (Users & Roles) a company may have,
+      // unsubscribed vs subscribed - Super Admin configurable. The
+      // table itself may not exist yet on a very old phone.
+      final columns =
+          await db.rawQuery('PRAGMA table_info(subscription_settings)');
+      if (columns.isEmpty) {
+        await db.execute(Migrations.createSubscriptionSettingsTable);
+      } else {
+        await _addColumnIfMissing(
+          db,
+          'subscription_settings',
+          'team_user_limit_free',
+          'ALTER TABLE subscription_settings ADD COLUMN '
+              'team_user_limit_free INTEGER NOT NULL DEFAULT 1',
+        );
+        await _addColumnIfMissing(
+          db,
+          'subscription_settings',
+          'team_user_limit_paid',
+          'ALTER TABLE subscription_settings ADD COLUMN '
+              'team_user_limit_paid INTEGER NOT NULL DEFAULT 5',
+        );
+      }
+    }
   }
 
   /// Runs [alterSql] only if [table] does not already have [column] -

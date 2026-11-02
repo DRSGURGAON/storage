@@ -28,6 +28,7 @@ import 'features/company/controllers/company_controller.dart';
 import 'features/signature/repositories/signature_repository.dart';
 import 'features/subscription/repositories/subscription_settings_repository.dart';
 import 'features/subscription/services/app_user_presence_service.dart';
+import 'features/users/repositories/user_repository.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -111,6 +112,10 @@ Future<void> main() async {
   // Crash reports carry the company's App ID, so a report can be matched
   // to the customer who called about it.
   unawaited(_tagCrashReports());
+
+  // A lapsed subscription corrects its team size on its own, rather
+  // than waiting for the owner to open Users & Roles.
+  unawaited(_enforceTeamLimit());
 
   // The owner's own WhatsApp messages, ready before any list opens.
   unawaited(WhatsAppTemplates.instance.load());
@@ -364,6 +369,14 @@ class GodownBookApp extends ConsumerWidget {
       builder: (context, child) =>
           BrandedSplashScreen(child: child ?? const SizedBox.shrink()),
     );
+  }
+}
+
+Future<void> _enforceTeamLimit() async {
+  try {
+    await UserRepository.instance.enforceTeamLimit();
+  } catch (error) {
+    debugPrint('Team limit not checked at startup: $error');
   }
 }
 

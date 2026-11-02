@@ -50,6 +50,8 @@ class SubscriptionSettingsRepository {
 
     final limit = cloud.demoGenerationLimit;
     final days = cloud.expiryWarningDaysCsv.trim();
+    final teamFree = cloud.teamUserLimitFree;
+    final teamPaid = cloud.teamUserLimitPaid;
     final updated = local.copyWith(
       demoGenerationLimit: limit != null && limit >= 0 ? limit : null,
       watermarkText:
@@ -62,12 +64,16 @@ class SubscriptionSettingsRepository {
               limit != null
           ? cloud.paymentInstructions
           : null,
+      teamUserLimitFree: teamFree != null && teamFree >= 1 ? teamFree : null,
+      teamUserLimitPaid: teamPaid != null && teamPaid >= 1 ? teamPaid : null,
     );
 
     if (updated.demoGenerationLimit == local.demoGenerationLimit &&
         updated.watermarkText == local.watermarkText &&
         updated.expiryWarningDaysCsv == local.expiryWarningDaysCsv &&
-        updated.paymentInstructions == local.paymentInstructions) {
+        updated.paymentInstructions == local.paymentInstructions &&
+        updated.teamUserLimitFree == local.teamUserLimitFree &&
+        updated.teamUserLimitPaid == local.teamUserLimitPaid) {
       return;
     }
 

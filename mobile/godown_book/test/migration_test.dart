@@ -105,6 +105,8 @@ void main() {
     expect(await columns(db, 'storage_locations'), contains('capacity'));
     expect(await columns(db, 'quotations'), contains('follow_up_date'));
     expect(await columns(db, 'storage_bookings'), contains('quotation_id'));
+    expect(await columns(db, 'subscription_settings'),
+        containsAll(['team_user_limit_free', 'team_user_limit_paid']));
 
     // The rows that were already there are untouched, and the added
     // column has its default rather than null.
