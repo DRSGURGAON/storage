@@ -86,6 +86,7 @@ import '../../features/users/screens/users_roles_screen.dart';
 
 // Subscription
 import '../../features/subscription/models/subscription_model.dart';
+import '../../features/subscription/screens/payment_verification_queue_screen.dart';
 import '../../features/subscription/screens/subscription_history_screen.dart';
 import '../../features/subscription/screens/subscription_screen.dart';
 import '../../features/subscription/screens/super_admin_authorize_screen.dart';
@@ -112,6 +113,7 @@ class AppRouter {
   static const Set<String> _superAdminRoutes = {
     '/super-admin',
     '/super-admin/authorize',
+    '/super-admin/payment-queue',
     '/super-admin/settings',
     '/super-admin/company-detail',
   };
@@ -667,6 +669,11 @@ class AppRouter {
       GoRoute(
         path: '/super-admin/authorize',
         builder: (context, state) => const SuperAdminAuthorizeScreen(),
+      ),
+
+      GoRoute(
+        path: '/super-admin/payment-queue',
+        builder: (context, state) => const PaymentVerificationQueueScreen(),
       ),
 
       GoRoute(

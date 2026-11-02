@@ -7,7 +7,9 @@ import 'package:intl/intl.dart';
 import '../../../core/subscription/subscription_status.dart';
 import '../../../core/subscription/super_admin_scope.dart';
 import '../../company/services/app_id_counter_service.dart';
+import '../models/payment_transaction_model.dart';
 import '../models/subscription_model.dart';
+import '../repositories/payment_transaction_repository.dart';
 import '../repositories/subscription_repository.dart';
 import '../repositories/subscription_settings_repository.dart';
 import '../services/app_user_presence_service.dart';
@@ -37,6 +39,11 @@ class _SuperAdminDashboardScreenState
   static final _joinedFormat = DateFormat('dd MMM yyyy');
 
   List<SubscriptionModel> _subscriptions = [];
+
+  /// Payments a customer has submitted, waiting for the Super Admin to
+  /// check them against their bank statement and verify or reject -
+  /// see /super-admin/payment-queue.
+  List<PaymentTransactionModel> _pendingPayments = [];
 
   /// Null when the list could not be read - shown as unknown, not 0.
   List<AppUserRecord>? _appUsers;
@@ -86,6 +93,13 @@ class _SuperAdminDashboardScreenState
 
     final subscriptions =
         await SubscriptionRepository.instance.getAllAcrossCompanies();
+    List<PaymentTransactionModel> pendingPayments = [];
+    try {
+      pendingPayments =
+          await PaymentTransactionRepository.instance.getAllUnderReview();
+    } catch (error) {
+      debugPrint('Pending payments not read: $error');
+    }
     List<AppUserRecord>? appUsers;
     try {
       appUsers = await AppUserPresenceService.instance.getAll();
@@ -99,6 +113,7 @@ class _SuperAdminDashboardScreenState
 
     setState(() {
       _subscriptions = subscriptions;
+      _pendingPayments = pendingPayments;
       _appUsers = appUsers;
       if (warning.isNotEmpty) {
         _warningDays = warning.reduce((a, b) => a > b ? a : b);
@@ -349,6 +364,11 @@ class _SuperAdminDashboardScreenState
                         '$_expiredCount',
                         color: Colors.red,
                       ),
+                      _statTile(
+                        'Pending Payments',
+                        '${_pendingPayments.length}',
+                        color: Colors.deepOrange,
+                      ),
                     ],
                   ),
 
@@ -364,6 +384,46 @@ class _SuperAdminDashboardScreenState
                       ),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => context.push('/super-admin/authorize'),
+                    ),
+                  ),
+
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.hourglass_top),
+                      title: const Text('Payment Verification Queue'),
+                      subtitle: Text(_pendingPayments.isEmpty
+                          ? 'Nothing awaiting review'
+                          : '${_pendingPayments.length} payment'
+                              '${_pendingPayments.length == 1 ? '' : 's'} '
+                              'awaiting review'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_pendingPayments.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.orange,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '${_pendingPayments.length}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          const Icon(Icons.chevron_right),
+                        ],
+                      ),
+                      onTap: () async {
+                        await context.push('/super-admin/payment-queue');
+                        _load();
+                      },
                     ),
                   ),
 
