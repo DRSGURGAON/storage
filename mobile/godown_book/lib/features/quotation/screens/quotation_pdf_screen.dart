@@ -8,8 +8,10 @@ import '../widgets/make_storage_receipt_confirm.dart';
 import '../../../shared/widgets/company_not_configured.dart';
 import '../../../shared/widgets/document_pdf_view.dart';
 import '../../../shared/widgets/pdf_document_actions.dart';
+import '../../billing/services/storage_charge_calculator.dart';
 import '../../company/controllers/company_controller.dart';
 import '../../company/models/company_model.dart';
+import '../../storage_booking/models/storage_booking_model.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
 import '../models/quotation_model.dart';
 import '../repositories/quotation_repository.dart';
@@ -33,9 +35,9 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
   int _version = 0;
 
   /// The booking already made from this quotation, if any - so the
-  /// button below reads "View Storage Receipt" rather than offering
-  /// to make a second one.
-  String? _existingBookingId;
+  /// button below offers to go straight to its bill or bilty instead
+  /// of just the receipt.
+  StorageBookingModel? _existingBooking;
 
   @override
   void initState() {
@@ -53,7 +55,7 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
     setState(() {
       _quotation = quotation;
       _company = company;
-      _existingBookingId = existing?.id;
+      _existingBooking = existing;
       _loading = false;
     });
   }
@@ -72,16 +74,16 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
         title: const Text('Quotation PDF'),
         centerTitle: true,
         actions: [
-          if (_quotation != null &&
-              (_existingBookingId != null ||
-                  _quotation!.status != QuotationStatus.declined))
+          if (_quotation != null && _existingBooking != null)
+            _NextDocumentsMenu(
+              booking: _existingBooking!,
+              onChanged: _load,
+            )
+          else if (_quotation != null &&
+              _quotation!.status != QuotationStatus.declined)
             IconButton(
-              tooltip: _existingBookingId != null
-                  ? 'View Storage Receipt'
-                  : 'Make Storage Receipt',
-              icon: Icon(_existingBookingId != null
-                  ? Icons.inventory_2
-                  : Icons.inventory_2_outlined),
+              tooltip: 'Make Storage Receipt',
+              icon: const Icon(Icons.inventory_2_outlined),
               onPressed: () async {
                 await openMakeStorageReceipt(context, _quotation!);
                 await _load();
@@ -132,6 +134,83 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
         _company,
         showWatermark: showWatermark,
       ),
+    );
+  }
+}
+
+/// Once this quotation has a storage receipt, the documents that
+/// naturally follow it - the bill, the bilty, or releasing the goods -
+/// are one tap away, without a trip through the storage record's own
+/// detail screen. Same conditions that screen itself uses: a bill is
+/// offered only while rent is still unbilled, release only while the
+/// booking is still open.
+class _NextDocumentsMenu extends StatelessWidget {
+  const _NextDocumentsMenu({required this.booking, required this.onChanged});
+
+  final StorageBookingModel booking;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final canMakeBill = StorageChargeCalculator.hasUnbilledRent(booking);
+    final canRelease = booking.status.isOpen;
+
+    return PopupMenuButton<String>(
+      tooltip: 'Storage receipt and what follows it',
+      icon: const Icon(Icons.inventory_2),
+      onSelected: (value) async {
+        switch (value) {
+          case 'view':
+            await context.push('/storage-detail', extra: booking.id);
+          case 'bill':
+            await context.push('/bill-create', extra: booking.id);
+          case 'bilty':
+            await context.push('/bilty-create', extra: booking.id);
+          case 'release':
+            await context.push('/release-create', extra: booking.id);
+        }
+        onChanged();
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'view',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.description_outlined),
+            title: Text('View Storage Receipt'),
+          ),
+        ),
+        if (canMakeBill)
+          const PopupMenuItem(
+            value: 'bill',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.receipt_long_outlined),
+              title: Text('Make Bill'),
+            ),
+          ),
+        const PopupMenuItem(
+          value: 'bilty',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.local_shipping_outlined),
+            title: Text('Make Bilty'),
+          ),
+        ),
+        if (canRelease)
+          const PopupMenuItem(
+            value: 'release',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.outbox_outlined),
+              title: Text('Release Goods'),
+            ),
+          ),
+      ],
     );
   }
 }
