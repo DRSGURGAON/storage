@@ -59,6 +59,13 @@ class _VoiceEntrySheetState<T extends VoiceReading>
   String _heard = '';
   double _level = 0;
   String _locale = 'hi_IN';
+  bool _wantsHindi = true;
+
+  /// What this phone's recogniser actually offers - found once at
+  /// start-up, so the Hindi/English choice below always picks a
+  /// locale the device genuinely has instead of one that silently
+  /// fails or falls back to whatever the phone feels like.
+  List<LocaleName> _locales = const [];
 
   T? _reading;
   final _accepted = <VoiceFieldKind>{};
@@ -91,10 +98,24 @@ class _VoiceEntrySheetState<T extends VoiceReading>
           if (status == 'done' || status == 'notListening') _finishListening();
         },
       );
+
+      var locales = const <LocaleName>[];
+      if (ready) {
+        try {
+          locales = await _speech.locales();
+        } catch (_) {
+          // Some phones don't support listing locales at all - the
+          // plain 'hi_IN' / 'en_IN' fallback below still works.
+        }
+      }
+
       if (!mounted) return;
       setState(() {
         _ready = ready;
-        if (!ready) {
+        _locales = locales;
+        if (ready) {
+          _locale = _wantsHindi ? _bestHindiLocale(locales) : _bestEnglishLocale(locales);
+        } else {
           _problem = 'Is phone par bolna available nahi hai. Type kar dijiye.';
           _stage = _Stage.typing;
         }
@@ -107,6 +128,42 @@ class _VoiceEntrySheetState<T extends VoiceReading>
         _stage = _Stage.typing;
       });
     }
+  }
+
+  /// Plain "hi_IN" pushes the phone's recogniser to transcribe in pure
+  /// Devanagari and to guess hard at any English mixed in - exactly
+  /// what a storage entry is full of (a name, a 10-digit mobile
+  /// number, "hazaar", "kiraya"). "hi-Latn-IN" is the Hinglish
+  /// locale - romanised, code-mixed - which matches how every word in
+  /// VoiceKeywords is actually spelt, and is what most phones with a
+  /// Hindi keyboard already have installed. Picking whichever the
+  /// device genuinely has, in that order, is why a sentence that used
+  /// to come back as nonsense now reads correctly.
+  static String? _findLocale(List<LocaleName> locales, String id) {
+    for (final l in locales) {
+      if (l.localeId.toLowerCase() == id.toLowerCase()) return l.localeId;
+    }
+    return null;
+  }
+
+  static String _bestHindiLocale(List<LocaleName> locales) {
+    final hinglish = _findLocale(locales, 'hi-Latn-IN');
+    if (hinglish != null) return hinglish;
+    final hindi = _findLocale(locales, 'hi_IN');
+    if (hindi != null) return hindi;
+    for (final l in locales) {
+      if (l.localeId.toLowerCase().startsWith('hi')) return l.localeId;
+    }
+    return 'hi_IN';
+  }
+
+  static String _bestEnglishLocale(List<LocaleName> locales) {
+    final indianEnglish = _findLocale(locales, 'en_IN');
+    if (indianEnglish != null) return indianEnglish;
+    for (final l in locales) {
+      if (l.localeId.toLowerCase().startsWith('en')) return l.localeId;
+    }
+    return 'en_IN';
   }
 
   static String _friendlyError(String code) {
@@ -145,8 +202,12 @@ class _VoiceEntrySheetState<T extends VoiceReading>
           partialResults: true,
           listenMode: ListenMode.dictation,
           cancelOnError: true,
-          listenFor: const Duration(seconds: 60),
-          pauseFor: const Duration(seconds: 4),
+          listenFor: const Duration(seconds: 90),
+          // An operator reading out a whole storage entry pauses to
+          // think between the name, the goods and the amount - 4
+          // seconds was enough to cut them off mid-sentence, which
+          // read back as a half sentence that matched nothing.
+          pauseFor: const Duration(seconds: 7),
         ),
       );
     } catch (_) {
@@ -262,13 +323,19 @@ class _VoiceEntrySheetState<T extends VoiceReading>
           children: [
             ChoiceChip(
               label: const Text('Hindi'),
-              selected: _locale == 'hi_IN',
-              onSelected: (_) => setState(() => _locale = 'hi_IN'),
+              selected: _wantsHindi,
+              onSelected: (_) => setState(() {
+                _wantsHindi = true;
+                _locale = _bestHindiLocale(_locales);
+              }),
             ),
             ChoiceChip(
               label: const Text('English'),
-              selected: _locale == 'en_IN',
-              onSelected: (_) => setState(() => _locale = 'en_IN'),
+              selected: !_wantsHindi,
+              onSelected: (_) => setState(() {
+                _wantsHindi = false;
+                _locale = _bestEnglishLocale(_locales);
+              }),
             ),
           ],
         ),
