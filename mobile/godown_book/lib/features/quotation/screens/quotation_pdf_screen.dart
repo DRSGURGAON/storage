@@ -74,21 +74,6 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
         title: const Text('Quotation PDF'),
         centerTitle: true,
         actions: [
-          if (_quotation != null && _existingBooking != null)
-            _NextDocumentsMenu(
-              booking: _existingBooking!,
-              onChanged: _load,
-            )
-          else if (_quotation != null &&
-              _quotation!.status != QuotationStatus.declined)
-            IconButton(
-              tooltip: 'Make Storage Receipt',
-              icon: const Icon(Icons.inventory_2_outlined),
-              onPressed: () async {
-                await openMakeStorageReceipt(context, _quotation!);
-                await _load();
-              },
-            ),
           PdfActionsMenu(
             documentLabel: 'Quotation',
             fileName: () => _fileName,
@@ -117,100 +102,137 @@ class _QuotationPdfScreenState extends State<QuotationPdfScreen> {
       return CompanyNotConfigured(missing: company?.missingFields ?? const ['Company details']);
     }
 
-    return DocumentPdfView(
-      documentType: DocumentType.quotation,
-      fileName: _fileName,
-      rebuildKey: '$_version',
-      onBytes: (bytes) => _menuPdfBytes = bytes,
-      whatsAppPhone: quotation.customerPhone,
-      shareMessage: WhatsAppTemplates.instance.document(
-        name: quotation.customerName,
-        document: 'Quotation',
-        number: quotation.quotationNo,
-        amount: quotation.grandTotal,
-      ),
-      build: ({required showWatermark}) => QuotationPdfService.instance.build(
-        quotation,
-        _company,
-        showWatermark: showWatermark,
-      ),
+    return Column(
+      children: [
+        Expanded(
+          child: DocumentPdfView(
+            documentType: DocumentType.quotation,
+            fileName: _fileName,
+            rebuildKey: '$_version',
+            onBytes: (bytes) => _menuPdfBytes = bytes,
+            whatsAppPhone: quotation.customerPhone,
+            shareMessage: WhatsAppTemplates.instance.document(
+              name: quotation.customerName,
+              document: 'Quotation',
+              number: quotation.quotationNo,
+              amount: quotation.grandTotal,
+            ),
+            build: ({required showWatermark}) => QuotationPdfService.instance.build(
+              quotation,
+              _company,
+              showWatermark: showWatermark,
+            ),
+          ),
+        ),
+        _nextDocumentsPanel(quotation),
+      ],
     );
   }
-}
 
-/// Once this quotation has a storage receipt, the documents that
-/// naturally follow it - the bill, the bilty, or releasing the goods -
-/// are one tap away, without a trip through the storage record's own
-/// detail screen. Same conditions that screen itself uses: a bill is
-/// offered only while rent is still unbilled, release only while the
-/// booking is still open.
-class _NextDocumentsMenu extends StatelessWidget {
-  const _NextDocumentsMenu({required this.booking, required this.onChanged});
+  /// What naturally follows this quotation, shown right here below the
+  /// document - not tucked behind a three-dot menu - the same way Bill
+  /// N Bilty shows the next step on its own booking screen.
+  Widget _nextDocumentsPanel(QuotationModel quotation) {
+    final booking = _existingBooking;
 
-  final StorageBookingModel booking;
-  final VoidCallback onChanged;
+    if (booking == null) {
+      if (quotation.status == QuotationStatus.declined) return const SizedBox.shrink();
+      return Container(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: _nextDocTile(
+          icon: Icons.inventory_2_outlined,
+          title: 'Storage Receipt',
+          subtitle: 'Make one from this quotation',
+          label: 'Make Storage Receipt',
+          last: true,
+          onTap: () async {
+            await openMakeStorageReceipt(context, quotation);
+            await _load();
+          },
+        ),
+      );
+    }
 
-  @override
-  Widget build(BuildContext context) {
     final canMakeBill = StorageChargeCalculator.hasUnbilledRent(booking);
     final canRelease = booking.status.isOpen;
 
-    return PopupMenuButton<String>(
-      tooltip: 'Storage receipt and what follows it',
-      icon: const Icon(Icons.inventory_2),
-      onSelected: (value) async {
-        switch (value) {
-          case 'view':
-            await context.push('/storage-detail', extra: booking.id);
-          case 'bill':
-            await context.push('/bill-create', extra: booking.id);
-          case 'bilty':
-            await context.push('/bilty-create', extra: booking.id);
-          case 'release':
-            await context.push('/release-create', extra: booking.id);
-        }
-        onChanged();
-      },
-      itemBuilder: (context) => [
-        const PopupMenuItem(
-          value: 'view',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.description_outlined),
-            title: Text('View Storage Receipt'),
+    return Container(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'What follows this receipt',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
           ),
-        ),
-        if (canMakeBill)
-          const PopupMenuItem(
-            value: 'bill',
-            child: ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.receipt_long_outlined),
-              title: Text('Make Bill'),
+          const SizedBox(height: 8),
+          _nextDocTile(
+            icon: Icons.description_outlined,
+            title: 'Storage Receipt',
+            subtitle: 'View the full record',
+            label: 'View',
+            onTap: () async {
+              await context.push('/storage-detail', extra: booking.id);
+              await _load();
+            },
+          ),
+          if (canMakeBill)
+            _nextDocTile(
+              icon: Icons.receipt_long_outlined,
+              title: 'Storage Bill',
+              subtitle: 'Bill the rent so far',
+              label: 'Make Bill',
+              onTap: () async {
+                await context.push('/bill-create', extra: booking.id);
+                await _load();
+              },
             ),
+          _nextDocTile(
+            icon: Icons.local_shipping_outlined,
+            title: 'Bilty / Lorry Receipt',
+            subtitle: 'When the goods travel by truck',
+            label: 'Make Bilty',
+            onTap: () async {
+              await context.push('/bilty-create', extra: booking.id);
+              await _load();
+            },
           ),
-        const PopupMenuItem(
-          value: 'bilty',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.local_shipping_outlined),
-            title: Text('Make Bilty'),
-          ),
-        ),
-        if (canRelease)
-          const PopupMenuItem(
-            value: 'release',
-            child: ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.outbox_outlined),
-              title: Text('Release Goods'),
+          if (canRelease)
+            _nextDocTile(
+              icon: Icons.outbox_outlined,
+              title: 'Release Goods',
+              subtitle: 'Hand the goods back to the customer',
+              label: 'Release',
+              last: true,
+              onTap: () async {
+                await context.push('/release-create', extra: booking.id);
+                await _load();
+              },
             ),
-          ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget _nextDocTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String label,
+    required VoidCallback onTap,
+    bool last = false,
+  }) {
+    return Card(
+      margin: EdgeInsets.only(bottom: last ? 0 : 6),
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        trailing: FilledButton(onPressed: onTap, child: Text(label)),
+      ),
     );
   }
 }

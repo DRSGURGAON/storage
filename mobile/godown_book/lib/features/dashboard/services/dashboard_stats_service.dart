@@ -1,12 +1,14 @@
 import '../../billing/models/bill_model.dart';
 import '../../billing/models/payment_model.dart';
 import '../../billing/repositories/billing_repository.dart';
+import '../../consignment/repositories/consignment_repository.dart';
 import '../../customers/models/customer_model.dart';
 import '../../customers/repositories/customer_repository.dart';
 import '../../master/models/storage_location_model.dart';
 import '../../master/repositories/storage_location_repository.dart';
 import '../../quotation/models/quotation_model.dart';
 import '../../quotation/repositories/quotation_repository.dart';
+import '../../release/repositories/goods_release_repository.dart';
 import '../../storage_booking/models/storage_booking_model.dart';
 import '../../storage_booking/repositories/storage_booking_repository.dart';
 
@@ -22,6 +24,11 @@ class DashboardStats {
   final List<QuotationModel> quotations;
   final List<StorageLocationModel> locations;
 
+  /// Counted, not loaded in full - the dashboard's document tiles only
+  /// need how many of each, not every record.
+  final int consignmentCount;
+  final int releaseCount;
+
   const DashboardStats({
     required this.customers,
     required this.bookings,
@@ -29,6 +36,8 @@ class DashboardStats {
     required this.payments,
     required this.quotations,
     this.locations = const [],
+    this.consignmentCount = 0,
+    this.releaseCount = 0,
   });
 
   static bool _isToday(String iso) {
@@ -95,6 +104,16 @@ class DashboardStats {
       final date = DateTime.tryParse(p.paymentDate);
       return date != null && date.year == now.year && date.month == now.month;
     }).fold(0.0, (sum, p) => sum + p.amount);
+  }
+
+  /// What has come in this month against what is still owed right now
+  /// - how far through collecting the current outstanding the owner
+  /// is, for the progress bar on the dashboard. 1.0 when nothing is
+  /// outstanding at all.
+  double get monthCollectionProgress {
+    final total = collectedThisMonth + totalOutstanding;
+    if (total <= 0.004) return 1;
+    return (collectedThisMonth / total).clamp(0, 1);
   }
 
   // ==========================
@@ -184,6 +203,8 @@ class DashboardStatsService {
     final payments = await BillingRepository.instance.getAllPayments();
     final quotations = await QuotationRepository.instance.getAll();
     final locations = await StorageLocationRepository.instance.getAll();
+    final consignments = await ConsignmentRepository.instance.getAll();
+    final releases = await GoodsReleaseRepository.instance.getAll();
 
     return DashboardStats(
       customers: customers,
@@ -192,6 +213,8 @@ class DashboardStatsService {
       payments: payments,
       quotations: quotations,
       locations: locations,
+      consignmentCount: consignments.length,
+      releaseCount: releases.length,
     );
   }
 }

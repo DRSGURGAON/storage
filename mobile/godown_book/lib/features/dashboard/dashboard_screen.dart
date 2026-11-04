@@ -203,7 +203,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               _todayTasks(stats),
             ],
             _actionGrid(),
-            _documentGrid(),
+            _documentGrid(stats),
             // Everything else, below the documents.
             if (stats != null) ...[
               Padding(
@@ -260,60 +260,159 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       if (appId.isNotEmpty) 'ID $appId',
     ].join('  ·  ');
 
-    return Container(
-      padding: EdgeInsets.fromLTRB(20, top + 14, 20, 24),
-      decoration: const BoxDecoration(
-        color: Brand.navy,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        bottomLeft: Radius.circular(30),
+        bottomRight: Radius.circular(30),
+      ),
+      child: Container(
+        padding: EdgeInsets.fromLTRB(20, top + 14, 20, 24),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Brand.navy, Brand.navyDeep],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
         ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -36,
+              top: -44,
+              child: _glow(130, Brand.green.withValues(alpha: 0.16)),
+            ),
+            Positioned(
+              left: -40,
+              bottom: -60,
+              child: _glow(150, Brand.navyLine.withValues(alpha: 0.35)),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _logoBadge(company),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const _Greeting(
+                            style: TextStyle(
+                              color: Brand.inkOnNavyMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            name.isEmpty ? 'Set up your company' : name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            subtitle.isEmpty ? _dayFormat.format(DateTime.now()) : subtitle,
+                            style: const TextStyle(
+                              color: Brand.inkOnNavyMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _headerIcon(Icons.folder_open_outlined, 'Documents',
+                        () => _open('/documents')),
+                    const SizedBox(width: 8),
+                    _headerIcon(Icons.settings_outlined, 'Settings',
+                        () => _open('/settings')),
+                  ],
+                ),
+                _quickStatsRow(stats),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _glow(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+    );
+  }
+
+  /// A quick read of the day before scrolling any further - what came
+  /// in this month, how many bills are waiting to be raised, and how
+  /// many customers need a call today. Every figure is a real one from
+  /// DashboardStats, not a placeholder.
+  Widget _quickStatsRow(DashboardStats? stats) {
+    final collected = stats == null ? null : _money(stats.collectedThisMonth);
+    final billsDue = stats?.rentDue.length;
+    final calls = stats == null ? null : _callsFor(stats).length;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: _quickStatChip(Icons.trending_up, 'This month', collected ?? '—'),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _quickStatChip(Icons.receipt_long_outlined, 'Bills due',
+                billsDue == null ? '—' : '$billsDue'),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _quickStatChip(Icons.ring_volume_outlined, 'Follow-ups',
+                calls == null ? '—' : '$calls'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickStatChip(IconData icon, String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              _logoBadge(company),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _Greeting(
-                      style: TextStyle(
-                        color: Brand.inkOnNavyMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      name.isEmpty ? 'Set up your company' : name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    Text(
-                      subtitle.isEmpty ? _dayFormat.format(DateTime.now()) : subtitle,
-                      style: const TextStyle(
-                        color: Brand.inkOnNavyMuted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _headerIcon(Icons.folder_open_outlined, 'Documents',
-                  () => _open('/documents')),
-              const SizedBox(width: 8),
-              _headerIcon(Icons.settings_outlined, 'Settings',
-                  () => _open('/settings')),
-            ],
+          Icon(icon, color: Brand.green, size: 16),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Brand.inkOnNavyMuted,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -769,6 +868,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         children: [
           _sectionTitle("Today's work", trailing: rows.isEmpty ? null : '${rows.length}'),
           const SizedBox(height: 10),
+          _collectionProgressBar(stats),
+          const SizedBox(height: 10),
           if (rows.isEmpty)
             Container(
               padding: const EdgeInsets.all(14),
@@ -795,6 +896,52 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               if (i > 0) const SizedBox(height: 10),
               rows[i],
             ],
+        ],
+      ),
+    );
+  }
+
+  /// How far this month's collection has gone against what is still
+  /// outstanding right now - a quick sense of progress above the task
+  /// list, not just a pile of individual to-dos.
+  Widget _collectionProgressBar(DashboardStats stats) {
+    final pct = (stats.monthCollectionProgress * 100).round();
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Brand.card,
+        border: Border.all(color: Brand.line),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Collected this month',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 12.5, color: Brand.inkMuted),
+                ),
+              ),
+              Text(
+                '$pct%',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800, fontSize: 13, color: Brand.navy),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: stats.monthCollectionProgress,
+              minHeight: 8,
+              backgroundColor: Brand.chip,
+              color: Brand.green,
+            ),
+          ),
         ],
       ),
     );
@@ -891,7 +1038,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _actionGrid() {
     final actions = <_Action>[
       _Action('Storage', Icons.inventory_2_outlined, Brand.navy, Brand.green,
-          () => _open('/storage-create')),
+          () => _open('/storage-create'), primary: true),
       _Action('Bill', Icons.receipt_long_outlined, Brand.amberSoft, Brand.amberInk,
           () => _open('/bill-create')),
       _Action('Payment', Icons.payments_outlined, Brand.mintSoft, Brand.mintInk,
@@ -914,7 +1061,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   /// Every register the app keeps, on the dashboard itself. These used
   /// to sit behind a "More" sheet - an owner looking for last month's
   /// bills should not have to know that.
-  Widget _documentGrid() {
+  Widget _documentGrid(DashboardStats? stats) {
     final documents = <_Action>[
       _Action('Storage records', Icons.inventory_2_outlined, Brand.mintSoft,
           Brand.mintInk, () => _open('/storage')),
@@ -943,7 +1090,78 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     ];
 
     // Roomier tiles: these labels are two words, and two lines.
-    return _grid('All documents', documents, aspect: 0.70);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _sectionTitle('All documents')),
+              TextButton(
+                onPressed: () => _open('/documents'),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'View all',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: Brand.navy),
+                ),
+              ),
+            ],
+          ),
+          if (stats != null) ...[
+            const SizedBox(height: 10),
+            _documentCountPills(stats),
+          ],
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 4,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 14,
+            crossAxisSpacing: 10,
+            childAspectRatio: 0.70,
+            children: [for (final a in documents) _actionButton(a)],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Live counts for the documents operators check most - a glance at
+  /// how much of each type exists without opening any of them.
+  Widget _documentCountPills(DashboardStats stats) {
+    final pills = [
+      ('Bills', stats.bills.length, Brand.amberSoft, Brand.amberInk),
+      ('Quotations', stats.quotations.length, Brand.skySoft, Brand.skyInk),
+      ('Payments', stats.payments.length, Brand.mintSoft, Brand.mintInk),
+      ('Bilty/LR', stats.consignmentCount, Brand.chip, Brand.navy),
+      ('Releases', stats.releaseCount, Brand.chip, Brand.navy),
+    ];
+
+    return SizedBox(
+      height: 32,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: pills.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final (label, count, bg, ink) = pills[i];
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16)),
+            alignment: Alignment.center,
+            child: Text(
+              '$label  $count',
+              style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Widget _grid(String title, List<_Action> actions, {double aspect = 0.78}) {
@@ -979,10 +1197,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: action.fill,
+              gradient: action.primary
+                  ? const LinearGradient(
+                      colors: [Brand.navy, Brand.navySoft],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: action.primary ? null : action.fill,
               borderRadius: BorderRadius.circular(20),
+              boxShadow: action.primary
+                  ? [
+                      BoxShadow(
+                        color: Brand.navy.withValues(alpha: 0.35),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
             ),
-            child: Icon(action.icon, color: action.ink, size: 26),
+            child: Icon(action.icon, color: action.primary ? Brand.green : action.ink, size: 26),
           ),
           const SizedBox(height: 7),
           Text(
@@ -1329,7 +1563,12 @@ class _Action {
   final Color ink;
   final VoidCallback onTap;
 
-  const _Action(this.label, this.icon, this.fill, this.ink, this.onTap);
+  /// The one action an operator reaches for most - an elevated navy
+  /// gradient tile instead of a flat tint, same idea as the mockup's
+  /// hero "Storage" tile.
+  final bool primary;
+
+  const _Action(this.label, this.icon, this.fill, this.ink, this.onTap, {this.primary = false});
 }
 
 /// A soft glow that breathes around a card that needs attention.

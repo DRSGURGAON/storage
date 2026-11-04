@@ -93,16 +93,6 @@ class _ReleasePdfScreenState extends State<ReleasePdfScreen> {
         title: const Text('Release Record'),
         centerTitle: true,
         actions: [
-          if (_canMakeBill && release != null)
-            IconButton(
-              tooltip: 'Make Bill',
-              icon: const Icon(Icons.receipt_long_outlined),
-              onPressed: () async {
-                await context.push('/bill-create', extra: release.bookingId);
-                _version++;
-                await _load();
-              },
-            ),
           PdfActionsMenu(
             documentLabel: 'Release',
             fileName: () => _fileName,
@@ -158,8 +148,35 @@ class _ReleasePdfScreenState extends State<ReleasePdfScreen> {
                           ),
                         ),
                         _signatureBar(release),
+                        if (_canMakeBill) _nextDocumentsPanel(release),
                       ],
                     ),
+    );
+  }
+
+  /// The next thing an operator does after releasing goods, right here
+  /// below the record - not tucked into the app bar - the same way
+  /// Bill N Bilty shows what follows a booking.
+  Widget _nextDocumentsPanel(GoodsReleaseModel release) {
+    return Container(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: ListTile(
+          leading: const Icon(Icons.receipt_long_outlined),
+          title: const Text('Storage Bill'),
+          subtitle: const Text('Rent on this record is still to be billed'),
+          trailing: FilledButton(
+            onPressed: () async {
+              await context.push('/bill-create', extra: release.bookingId);
+              _version++;
+              await _load();
+            },
+            child: const Text('Make Bill'),
+          ),
+        ),
+      ),
     );
   }
 
